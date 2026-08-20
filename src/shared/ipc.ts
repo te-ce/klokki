@@ -19,6 +19,7 @@ export const IPC = {
   getLaunchAtLogin: 'klokki:get-launch-at-login',
   setLaunchAtLogin: 'klokki:set-launch-at-login',
   stopTimer: 'klokki:stop-timer',
+  dismissAlert: 'klokki:dismiss-alert',
   /** Main → renderer: a fresh view, once a second while the timer runs. */
   timerView: 'klokki:timer-view',
 } as const
@@ -38,6 +39,8 @@ export interface KlokkiApi {
   getTimerView(): Promise<TimerView>
   startPreset(id: string): Promise<void>
   stopTimer(): Promise<void>
+  /** Closes the transition overlay. The only way out of it — it never times out. */
+  dismissAlert(): Promise<void>
   /**
    * Upsert by id. The main process validates again — it owns presets.json — so a
    * rejected preset comes back with the reasons instead of throwing.

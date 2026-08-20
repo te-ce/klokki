@@ -5,6 +5,7 @@ import type { LoginItem } from '../login-item'
 import { startPresetById } from '../presets/start'
 import type { PresetStore } from '../presets/store'
 import type { TimerService } from '../timer/service'
+import { closeOverlayWindow } from '../windows'
 
 /** The main side of src/shared/ipc.ts. Every renderer capability lands here. */
 export const registerIpc = (
@@ -24,6 +25,7 @@ export const registerIpc = (
     startPresetById(service, store, id),
   )
   ipcMain.handle(IPC.stopTimer, () => service.stop())
+  ipcMain.handle(IPC.dismissAlert, () => closeOverlayWindow())
   ipcMain.handle(IPC.savePreset, (_event, preset: Preset) => store.save(preset))
   ipcMain.handle(IPC.deletePreset, (_event, id: string) => store.remove(id))
   ipcMain.handle(IPC.getLaunchAtLogin, () => loginItem.isEnabled())

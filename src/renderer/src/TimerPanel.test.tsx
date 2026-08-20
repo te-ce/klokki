@@ -41,6 +41,7 @@ const mockApi = (initial: TimerView) => {
     getTimerView: vi.fn().mockResolvedValue(initial),
     startPreset: vi.fn().mockResolvedValue(undefined),
     stopTimer: vi.fn().mockResolvedValue(undefined),
+    dismissAlert: vi.fn().mockResolvedValue(undefined),
     savePreset: vi.fn().mockResolvedValue({ ok: true }),
     deletePreset: vi.fn().mockResolvedValue(undefined),
     getLaunchAtLogin: vi.fn().mockResolvedValue(false),

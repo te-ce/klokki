@@ -27,18 +27,18 @@ while the lid was shut.
 
 ## Acceptance criteria
 
-- [ ] A phase ending with `notify` set posts a native notification naming the
+- [x] A phase ending with `notify` set posts a native notification naming the
       next phase
-- [ ] A phase ending with `notify` unset raises no notification and no overlay
-- [ ] The overlay appears above a fullscreen app and on the currently active
+- [x] A phase ending with `notify` unset raises no notification and no overlay
+- [x] The overlay appears above a fullscreen app and on the currently active
       Space
-- [ ] The overlay does not appear in the Dock or the app switcher, and does not
+- [x] The overlay does not appear in the Dock or the app switcher, and does not
       take keyboard focus from the frontmost app
-- [ ] The overlay stays until the user dismisses it; it does not auto-close on a
+- [x] The overlay stays until the user dismisses it; it does not auto-close on a
       timer
-- [ ] Waking after several phases have elapsed produces exactly one alert, for
+- [x] Waking after several phases have elapsed produces exactly one alert, for
       the current phase — not one per elapsed phase
-- [ ] An e2e test asserts the overlay window exists after a transition, and is
+- [x] An e2e test asserts the overlay window exists after a transition, and is
       gone after dismissal
 
 ## Blocked by

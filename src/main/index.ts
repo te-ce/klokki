@@ -1,4 +1,6 @@
 import { BrowserWindow, app } from 'electron'
+import { presentAlert } from './alert/present'
+import { wireAlerts } from './alert/wire'
 import { createViewBroadcaster, type ViewBroadcaster } from './ipc/broadcast'
 import { registerIpc } from './ipc'
 import { createLoginItem } from './login-item'
@@ -6,6 +8,7 @@ import { startPresetById } from './presets/start'
 import { createPresetStore, type PresetStore } from './presets/store'
 import { createTray, type TrayHandle } from './tray'
 import { createTimerService, type TimerService } from './timer/service'
+import { overlayState } from './windows'
 
 /**
  * Every window is a subscriber for as long as it exists, and stops being one the
@@ -42,6 +45,7 @@ const exposeTestSeam = (
       startPreset: (id: string) => startPresetById(service, store, id),
       stop: () => service.stop(),
       subscriberCount: () => broadcaster.targetCount(),
+      overlay: () => overlayState(),
     },
   })
 }
@@ -57,6 +61,7 @@ const bootstrap = (): void => {
 
     registerIpc(service, store, createLoginItem(app))
     pushUpdatesToWindows(broadcaster)
+    wireAlerts(service, presentAlert)
 
     const tray = createTray(service, store)
     exposeTestSeam(tray, service, store, broadcaster)

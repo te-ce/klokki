@@ -1,5 +1,6 @@
 import { BrowserWindow, shell } from 'electron'
 import { join } from 'node:path'
+import { alertRoute, type Alert } from '../shared/alert'
 
 const PRELOAD = join(import.meta.dirname, '../preload/index.js')
 const RENDERER_HTML = join(import.meta.dirname, '../renderer/index.html')
@@ -55,4 +56,77 @@ export const openSettingsWindow = (): void => {
   })
 
   loadRenderer(settingsWindow, '/settings')
+}
+
+let overlayWindow: BrowserWindow | null = null
+
+/**
+ * The overlay that makes a phase change impossible to miss.
+ *
+ * Every option here is load-bearing, and together they are the substance of the
+ * feature (see AGENTS.md):
+ *
+ * - `screen-saver` is the only always-on-top level that sits above a fullscreen
+ *   window, which is exactly where a notification is silently swallowed.
+ * - `setVisibleOnAllWorkspaces` with `visibleOnFullScreen` puts it on whichever
+ *   Space is active, rather than politely waiting on the one it was created on.
+ * - `focusable: false` plus `showInactive()` keep the user's keystrokes going to
+ *   whatever they were typing in. Mouse clicks still land, so Dismiss works.
+ * - `skipTaskbar`, with the Dock already hidden, keeps Klokki a menubar app: an
+ *   overlay must not put it in the app switcher.
+ */
+export const openOverlayWindow = (alert: Alert): void => {
+  // A new phase supersedes the last one: two stacked overlays would each need
+  // dismissing, and the older one names a transition already gone by.
+  closeOverlayWindow()
+
+  overlayWindow = new BrowserWindow({
+    width: 420,
+    height: 260,
+    center: true,
+    show: false,
+    frame: false,
+    resizable: false,
+    movable: false,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    focusable: false,
+    skipTaskbar: true,
+    alwaysOnTop: true,
+    webPreferences: HARDENED_WEB_PREFERENCES,
+  })
+
+  overlayWindow.setAlwaysOnTop(true, 'screen-saver')
+  overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+
+  if (!HEADLESS)
+    overlayWindow.on('ready-to-show', () => overlayWindow?.showInactive())
+  overlayWindow.on('closed', () => {
+    overlayWindow = null
+  })
+
+  loadRenderer(overlayWindow, alertRoute(alert))
+}
+
+/** Acknowledgement is the only thing that closes it; there is no timer. */
+export const closeOverlayWindow = (): void => {
+  if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.close()
+  overlayWindow = null
+}
+
+/** The e2e suite's view of the overlay — the platform config is the feature. */
+export const overlayState = (): {
+  open: boolean
+  alwaysOnTop: boolean
+  focusable: boolean
+  visibleOnAllWorkspaces: boolean
+} | null => {
+  if (!overlayWindow || overlayWindow.isDestroyed()) return null
+  return {
+    open: true,
+    alwaysOnTop: overlayWindow.isAlwaysOnTop(),
+    focusable: overlayWindow.isFocusable(),
+    visibleOnAllWorkspaces: overlayWindow.isVisibleOnAllWorkspaces(),
+  }
 }

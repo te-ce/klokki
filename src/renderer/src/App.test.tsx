@@ -22,6 +22,7 @@ beforeEach(() => {
     getLaunchAtLogin: vi.fn().mockResolvedValue(false),
     setLaunchAtLogin: vi.fn().mockResolvedValue(false),
     onTimerView: vi.fn(() => vi.fn()),
+    dismissAlert: vi.fn(() => Promise.resolve()),
   }
 })
 

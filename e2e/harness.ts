@@ -21,6 +21,15 @@ type TestSeam = {
   startPreset: (id: string) => void
   stop: () => void
   subscriberCount: () => number
+  overlay: () => OverlayState | null
+}
+
+/** What the main process can tell us about the transition overlay. */
+export type OverlayState = {
+  open: boolean
+  alwaysOnTop: boolean
+  focusable: boolean
+  visibleOnAllWorkspaces: boolean
 }
 
 type SeamHost = { __klokkiTest: TestSeam }
@@ -112,6 +121,20 @@ export const subscriberCount = (app: ElectronApplication): Promise<number> =>
   app.evaluate(() =>
     (globalThis as unknown as SeamHost).__klokkiTest.subscriberCount(),
   )
+
+/**
+ * The overlay as the main process sees it. Its platform configuration *is* the
+ * feature — appearing above fullscreen without stealing focus — and none of it
+ * is observable from the renderer side.
+ */
+export const overlay = (
+  app: ElectronApplication,
+): Promise<OverlayState | null> =>
+  app.evaluate(() => (globalThis as unknown as SeamHost).__klokkiTest.overlay())
+
+/** Whether Klokki is showing in the Dock, which a menubar app never should. */
+export const dockVisible = (app: ElectronApplication): Promise<boolean> =>
+  app.evaluate(({ app: electronApp }) => electronApp.dock?.isVisible() ?? false)
 
 /**
  * Quits from inside the app. `app.close()` closes the windows and then waits for
