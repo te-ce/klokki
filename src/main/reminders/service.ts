@@ -1,4 +1,5 @@
 import type { ReminderDefinition } from '../../shared/reminder'
+import { createPoller } from '../polling'
 import { systemClock, type Clock } from '../timer/clock'
 import {
   snooze as snoozeEngine,
@@ -51,7 +52,6 @@ export const createReminderService = (
 ): ReminderService => {
   let state: RemindersState = []
   let definitions: readonly ReminderDefinition[] = []
-  let poll: ReturnType<typeof setInterval> | null = null
   const listeners = new Set<(due: readonly ReminderDue[]) => void>()
 
   const emit = (due: readonly ReminderDue[]): void => {
@@ -59,15 +59,9 @@ export const createReminderService = (
     for (const listener of listeners) listener(due)
   }
 
-  const stopPolling = (): void => {
-    if (poll === null) return
-    clearInterval(poll)
-    poll = null
-  }
-
   const syncPolling = (): void => {
-    if (state.length === 0) stopPolling()
-    else if (poll === null) poll = setInterval(advance, POLL_INTERVAL_MS)
+    if (state.length === 0) poller.stop()
+    else poller.start()
   }
 
   function advance(): void {
@@ -76,6 +70,8 @@ export const createReminderService = (
     syncPolling()
     emit(result.due)
   }
+
+  const poller = createPoller(POLL_INTERVAL_MS, advance)
 
   return {
     setDefinitions: (next) => {
@@ -125,7 +121,7 @@ export const createReminderService = (
       return () => listeners.delete(listener)
     },
     dispose: () => {
-      stopPolling()
+      poller.stop()
       listeners.clear()
     },
   }

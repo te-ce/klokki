@@ -1,5 +1,6 @@
 import type { Preset } from '../../shared/preset'
 import { SNOOZE_MS, type TimerView } from '../../shared/timer'
+import { createPoller } from '../polling'
 import { systemClock, type Clock } from './clock'
 import { formatRemaining } from './format'
 import {
@@ -117,7 +118,6 @@ export const createTimerService = (
   clock: Clock = systemClock,
 ): TimerService => {
   let state: TimerState = IDLE
-  let poll: ReturnType<typeof setInterval> | null = null
   const listeners = new Set<(update: TimerUpdate) => void>()
 
   const emit = (
@@ -132,24 +132,20 @@ export const createTimerService = (
     for (const listener of listeners) listener(update)
   }
 
-  const stopPolling = (): void => {
-    if (poll === null) return
-    clearInterval(poll)
-    poll = null
-  }
-
   const advance = (): void => {
     const result = tick(state, clock.now())
     state = result.state
-    if (state.status === 'idle') stopPolling()
+    if (state.status === 'idle') poller.stop()
     emit(result.transitions)
   }
+
+  const poller = createPoller(POLL_INTERVAL_MS, advance)
 
   return {
     startPreset: (preset) => {
       state = start(preset, clock.now())
-      stopPolling()
-      poll = setInterval(advance, POLL_INTERVAL_MS)
+      poller.stop()
+      poller.start()
       emit([])
     },
     snooze: () => {
@@ -166,7 +162,7 @@ export const createTimerService = (
       state = result.state
       // The run can end on a skip — the last phase of a preset that does not
       // loop — and a poll with nothing left to advance is a leak.
-      if (state.status === 'idle') stopPolling()
+      if (state.status === 'idle') poller.stop()
       emit(result.transitions)
       return true
     },
@@ -176,7 +172,7 @@ export const createTimerService = (
       state = result.state
       // A drained boundary can end a non-looping run before the correction is
       // even applied, same as a skip landing on the last phase.
-      if (state.status === 'idle') stopPolling()
+      if (state.status === 'idle') poller.stop()
       emit(result.transitions)
       return true
     },
@@ -186,21 +182,20 @@ export const createTimerService = (
       state = result.state
       // A drained boundary can end a non-looping run before the extra time is
       // even applied, same as a skip landing on the last phase.
-      if (state.status === 'idle') stopPolling()
+      if (state.status === 'idle') poller.stop()
       emit(result.transitions)
       return true
     },
     stop: () => {
       state = IDLE
-      stopPolling()
+      poller.stop()
       emit([])
     },
     resume: (loaded) => {
       const result = tick(loaded, clock.now())
       state = result.state
-      stopPolling()
-      if (state.status === 'running')
-        poll = setInterval(advance, POLL_INTERVAL_MS)
+      poller.stop()
+      if (state.status === 'running') poller.start()
       emit(result.transitions)
     },
     getView: () => toView(state, clock.now()),
@@ -210,7 +205,7 @@ export const createTimerService = (
       return () => listeners.delete(listener)
     },
     dispose: () => {
-      stopPolling()
+      poller.stop()
       listeners.clear()
     },
   }

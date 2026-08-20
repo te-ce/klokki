@@ -62,10 +62,16 @@ export const openSettingsWindow = (): void => {
   loadRenderer(settingsWindow, '/settings')
 }
 
-let overlayWindow: BrowserWindow | null = null
+type OverlayState = {
+  open: boolean
+  alwaysOnTop: boolean
+  focusable: boolean
+  visibleOnAllWorkspaces: boolean
+}
 
 /**
- * The overlay that makes a phase change impossible to miss.
+ * An intrusive alert window — the platform config that makes a boundary
+ * impossible to miss, shared by the phase overlay and the reminder overlay.
  *
  * Every option here is load-bearing, and together they are the substance of the
  * feature (see AGENTS.md):
@@ -79,108 +85,84 @@ let overlayWindow: BrowserWindow | null = null
  * - `skipTaskbar`, with the Dock already hidden, keeps Klokki a menubar app: an
  *   overlay must not put it in the app switcher.
  */
-export const openOverlayWindow = (alert: Alert): void => {
-  // A new phase supersedes the last one: two stacked overlays would each need
-  // dismissing, and the older one names a transition already gone by.
-  closeOverlayWindow()
+const createOverlay = (): {
+  readonly open: (route: string) => void
+  readonly close: () => void
+  readonly state: () => OverlayState | null
+} => {
+  let window: BrowserWindow | null = null
 
-  overlayWindow = new BrowserWindow({
-    width: 420,
-    height: 260,
-    center: true,
-    show: false,
-    frame: false,
-    resizable: false,
-    movable: false,
-    minimizable: false,
-    maximizable: false,
-    fullscreenable: false,
-    focusable: false,
-    skipTaskbar: true,
-    alwaysOnTop: true,
-    webPreferences: HARDENED_WEB_PREFERENCES,
-  })
+  const close = (): void => {
+    if (window && !window.isDestroyed()) window.close()
+    window = null
+  }
 
-  overlayWindow.setAlwaysOnTop(true, 'screen-saver')
-  overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+  const open = (route: string): void => {
+    // A new boundary supersedes the last one: two stacked overlays would each
+    // need dismissing, and the older one names a transition already gone by.
+    close()
 
-  if (!HEADLESS)
-    overlayWindow.on('ready-to-show', () => overlayWindow?.showInactive())
-  overlayWindow.on('closed', () => {
-    overlayWindow = null
-  })
+    window = new BrowserWindow({
+      width: 420,
+      height: 260,
+      center: true,
+      show: false,
+      frame: false,
+      resizable: false,
+      movable: false,
+      minimizable: false,
+      maximizable: false,
+      fullscreenable: false,
+      focusable: false,
+      skipTaskbar: true,
+      alwaysOnTop: true,
+      webPreferences: HARDENED_WEB_PREFERENCES,
+    })
 
-  loadRenderer(overlayWindow, alertRoute(alert))
+    window.setAlwaysOnTop(true, 'screen-saver')
+    window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+
+    if (!HEADLESS) window.on('ready-to-show', () => window?.showInactive())
+    window.on('closed', () => {
+      window = null
+    })
+
+    loadRenderer(window, route)
+  }
+
+  const state = (): OverlayState | null => {
+    if (!window || window.isDestroyed()) return null
+    return {
+      open: true,
+      alwaysOnTop: window.isAlwaysOnTop(),
+      focusable: window.isFocusable(),
+      visibleOnAllWorkspaces: window.isVisibleOnAllWorkspaces(),
+    }
+  }
+
+  return { open, close, state }
 }
+
+const phaseOverlay = createOverlay()
+
+export const openOverlayWindow = (alert: Alert): void =>
+  phaseOverlay.open(alertRoute(alert))
 
 /** Acknowledgement is the only thing that closes it; there is no timer. */
-export const closeOverlayWindow = (): void => {
-  if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.close()
-  overlayWindow = null
-}
+export const closeOverlayWindow = (): void => phaseOverlay.close()
 
-let reminderOverlayWindow: BrowserWindow | null = null
+/** The e2e suite's view of the overlay — the platform config is the feature. */
+export const overlayState = (): OverlayState | null => phaseOverlay.state()
+
+const reminderOverlay = createOverlay()
 
 /**
  * The reminder overlay — same intrusive-alert platform config as the phase
- * overlay (see openOverlayWindow), kept as its own window so a reminder due
- * mid-transition never fights the phase overlay for the same window.
+ * overlay, kept as its own window so a reminder due mid-transition never
+ * fights the phase overlay for the same window.
  */
-export const openReminderOverlayWindow = (alert: ReminderAlert): void => {
-  closeReminderOverlayWindow()
-
-  reminderOverlayWindow = new BrowserWindow({
-    width: 420,
-    height: 260,
-    center: true,
-    show: false,
-    frame: false,
-    resizable: false,
-    movable: false,
-    minimizable: false,
-    maximizable: false,
-    fullscreenable: false,
-    focusable: false,
-    skipTaskbar: true,
-    alwaysOnTop: true,
-    webPreferences: HARDENED_WEB_PREFERENCES,
-  })
-
-  reminderOverlayWindow.setAlwaysOnTop(true, 'screen-saver')
-  reminderOverlayWindow.setVisibleOnAllWorkspaces(true, {
-    visibleOnFullScreen: true,
-  })
-
-  if (!HEADLESS)
-    reminderOverlayWindow.on('ready-to-show', () =>
-      reminderOverlayWindow?.showInactive(),
-    )
-  reminderOverlayWindow.on('closed', () => {
-    reminderOverlayWindow = null
-  })
-
-  loadRenderer(reminderOverlayWindow, reminderAlertRoute(alert))
-}
+export const openReminderOverlayWindow = (alert: ReminderAlert): void =>
+  reminderOverlay.open(reminderAlertRoute(alert))
 
 /** Answering the overlay is the only thing that closes it; there is no timer. */
-export const closeReminderOverlayWindow = (): void => {
-  if (reminderOverlayWindow && !reminderOverlayWindow.isDestroyed())
-    reminderOverlayWindow.close()
-  reminderOverlayWindow = null
-}
-
-/** The e2e suite's view of the overlay — the platform config is the feature. */
-export const overlayState = (): {
-  open: boolean
-  alwaysOnTop: boolean
-  focusable: boolean
-  visibleOnAllWorkspaces: boolean
-} | null => {
-  if (!overlayWindow || overlayWindow.isDestroyed()) return null
-  return {
-    open: true,
-    alwaysOnTop: overlayWindow.isAlwaysOnTop(),
-    focusable: overlayWindow.isFocusable(),
-    visibleOnAllWorkspaces: overlayWindow.isVisibleOnAllWorkspaces(),
-  }
-}
+export const closeReminderOverlayWindow = (): void => reminderOverlay.close()
