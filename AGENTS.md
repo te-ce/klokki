@@ -37,6 +37,14 @@ deterministic; without it every test needs a real `sleep`.
 - Loop and boundary behaviour gets `fast-check` property tests
 - `pnpm e2e` — the real app; `pnpm e2e:smoke` is the pre-push subset
 
+macOS exposes no API for reading the menubar from outside the app, so
+`src/main/index.ts` installs a `globalThis.__klokkiTest` seam when `KLOKKI_E2E=1`.
+The e2e suite reads tray state through it via `app.evaluate`, which runs in the
+main process. Two rules keep that suite honest: each test launches with its own
+`--user-data-dir` (Klokki's single-instance lock is keyed on it), and `launch()`
+waits for the seam to appear, because `electron.launch()` resolves before
+`app.whenReady()` has run.
+
 ## Decisions worth not re-litigating
 
 - **Electron, not Tauri.** Chosen because Playwright can drive a real Electron
@@ -44,6 +52,9 @@ deterministic; without it every test needs a real `sleep`.
   overlay are exactly the platform-fiddly surfaces that need automated tests.
 - **Wall-clock timing.** The timer keeps running through sleep; the user restarts
   a preset manually if drift makes a phase meaningless. Likely to change.
+  Consequence: `tick()` must drain _every_ phase that elapsed since the last
+  call, not assume one tick is one phase, and each phase starts at the previous
+  phase's exact end so polling granularity cannot accumulate drift.
 - **Transitions are intrusive.** Native notification _plus_ a borderless
   always-on-top overlay that must be dismissed or snoozed. A notification alone
   is missed in Do Not Disturb and fullscreen — the exact moments it matters.

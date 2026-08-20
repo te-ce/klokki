@@ -39,6 +39,12 @@ pnpm build:mac
 Produces an unsigned `.dmg` in `dist/`. It is unsigned on purpose (local-only
 distribution), so the first launch needs right-click → Open.
 
+## Status
+
+The phase machine, the menubar countdown and the preset seeds are in place.
+Still to come: the preset editor, the transition notification and overlay,
+`history.jsonl` with the 7-day stats view, launch-at-login, and an app icon.
+
 ## Architecture
 
 State and time live in the Electron main process; the renderer is a sandboxed

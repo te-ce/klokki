@@ -1,12 +1,8 @@
-import { BrowserWindow, app, ipcMain } from 'electron'
+import { BrowserWindow, app, ipcMain, type Tray } from 'electron'
 import { IPC, type AppInfo } from '../shared/ipc'
+import { SEED_PRESETS } from '../shared/presets'
 import { createTray } from './tray'
-
-// Menubar-resident app: a second instance would mean a second tray icon and a
-// second timer, so the first instance wins and later launches just surface it.
-if (!app.requestSingleInstanceLock()) {
-  app.quit()
-}
+import { createTimerService, type TimerService } from './timer/service'
 
 const registerIpc = (): void => {
   ipcMain.handle(IPC.getAppInfo, (): AppInfo => ({
@@ -15,16 +11,51 @@ const registerIpc = (): void => {
   }))
 }
 
-void app.whenReady().then(() => {
-  // No Dock icon, no app-switcher entry — the tray is the whole app.
-  app.dock?.hide()
-  registerIpc()
-  createTray()
-})
+/**
+ * Electron exposes no way to inspect the menubar from outside the app, so the
+ * e2e suite gets an explicit seam instead of asserting on screenshots.
+ */
+const exposeTestSeam = (tray: Tray, service: TimerService): void => {
+  if (process.env['KLOKKI_E2E'] !== '1') return
+  Object.assign(globalThis, {
+    __klokkiTest: {
+      trayTitle: () => tray.getTitle(),
+      view: () => service.getView(),
+      startPreset: (id: string) => {
+        const preset = SEED_PRESETS.find((candidate) => candidate.id === id)
+        if (preset) service.startPreset(preset)
+      },
+      stop: () => service.stop(),
+    },
+  })
+}
 
-// Closing the settings window must not quit a menubar app.
-app.on('window-all-closed', () => {})
+const bootstrap = (): void => {
+  void app.whenReady().then(() => {
+    // No Dock icon, no app-switcher entry — the tray is the whole app.
+    app.dock?.hide()
+    registerIpc()
 
-app.on('second-instance', () => {
-  BrowserWindow.getAllWindows()[0]?.show()
-})
+    const service = createTimerService()
+    const tray = createTray(service)
+    exposeTestSeam(tray, service)
+
+    app.on('will-quit', () => service.dispose())
+  })
+
+  // Closing the settings window must not quit a menubar app.
+  app.on('window-all-closed', () => {})
+
+  app.on('second-instance', () => {
+    BrowserWindow.getAllWindows()[0]?.show()
+  })
+}
+
+// A second instance would mean a second tray icon and a second timer. The loser
+// must not continue booting: app.quit() is asynchronous, so without returning
+// here it would still build a tray inside an app that is on its way out.
+if (app.requestSingleInstanceLock()) {
+  bootstrap()
+} else {
+  app.quit()
+}
