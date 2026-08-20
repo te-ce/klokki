@@ -23,6 +23,7 @@ export const IPC = {
   setLaunchAtLogin: 'klokki:set-launch-at-login',
   stopTimer: 'klokki:stop-timer',
   skipPhase: 'klokki:skip-phase',
+  setRemaining: 'klokki:set-remaining',
   dismissAlert: 'klokki:dismiss-alert',
   snoozeAlert: 'klokki:snooze-alert',
 } as const
@@ -71,6 +72,12 @@ export interface KlokkiApi {
    * boundary. Resolves to whether anything moved; nothing does while idle.
    */
   skipPhase(): Promise<boolean>
+  /**
+   * Corrects the running phase's remaining time to `targetMs` — for a timer
+   * started late, so the web UI can pull it back in sync with the wall clock.
+   * Resolves to whether anything moved; nothing does while idle.
+   */
+  setRemaining(targetMs: number): Promise<boolean>
   /** Closes the transition overlay. The only way out of it — it never times out. */
   dismissAlert(): Promise<void>
   /**

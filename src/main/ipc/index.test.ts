@@ -45,6 +45,7 @@ const wire = (overrides: Partial<IpcDeps> = {}) => {
     stop: vi.fn(),
     snooze: vi.fn(() => true),
     skip: vi.fn(() => true),
+    setRemaining: vi.fn(() => true),
     getView: vi.fn(() => IDLE),
     subscribe: vi.fn(() => () => {}),
     dispose: vi.fn(),
@@ -201,6 +202,13 @@ describe('what the handlers do', () => {
 
     expect(app.invoke(IPC.skipPhase)).toBe(true)
     expect(app.service.skip).toHaveBeenCalledOnce()
+  })
+
+  it('corrects the remaining time, and says whether anything moved', () => {
+    const app = wire()
+
+    expect(app.invoke(IPC.setRemaining, 120_000)).toBe(true)
+    expect(app.service.setRemaining).toHaveBeenCalledWith(120_000)
   })
 
   it('deletes a preset by id', () => {

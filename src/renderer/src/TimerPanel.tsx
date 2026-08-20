@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { skipLabel, startLabel } from '../../shared/labels'
+import { MS_PER_MINUTE } from '../../shared/preset'
 import type { TimerView } from '../../shared/timer'
 import { usePresets } from './usePresets'
 
@@ -13,6 +14,7 @@ import { usePresets } from './usePresets'
  */
 export const TimerPanel = () => {
   const [view, setView] = useState<TimerView | null>(null)
+  const [remainingInput, setRemainingInput] = useState('')
   const presets = usePresets()
 
   useEffect(() => {
@@ -63,6 +65,31 @@ export const TimerPanel = () => {
               onClick={() => void window.klokki.stopTimer()}
             >
               Stop
+            </button>
+          </div>
+          {/* For a timer started late: pulls it back in sync with the wall
+              clock rather than leaving it running the length it was given. */}
+          <div className="mt-2 flex items-center gap-2">
+            <input
+              type="number"
+              min={0}
+              step={1}
+              value={remainingInput}
+              onChange={(event) => setRemainingInput(event.target.value)}
+              placeholder="minutes remaining"
+              className="w-32 rounded bg-neutral-800 px-2 py-1 text-sm"
+            />
+            <button
+              type="button"
+              className="rounded bg-neutral-700 px-3 py-1 text-sm"
+              onClick={() => {
+                const minutes = Number(remainingInput)
+                if (!Number.isFinite(minutes) || minutes < 0) return
+                void window.klokki.setRemaining(minutes * MS_PER_MINUTE)
+                setRemainingInput('')
+              }}
+            >
+              Set remaining
             </button>
           </div>
         </div>

@@ -7,6 +7,7 @@ import {
   currentPhase,
   nextPhase,
   remainingMs,
+  setRemaining,
   skip,
   snooze,
   start,
@@ -38,6 +39,12 @@ export type TimerService = {
    * moved: there is nothing to skip while the timer is idle.
    */
   readonly skip: () => boolean
+  /**
+   * Corrects the current phase's remaining time — for a timer started late, to
+   * pull it back in sync. Answers whether anything moved: there is nothing to
+   * correct while idle.
+   */
+  readonly setRemaining: (targetMs: number) => boolean
   readonly getView: () => TimerView
   readonly subscribe: (listener: (update: TimerUpdate) => void) => () => void
   readonly dispose: () => void
@@ -115,6 +122,16 @@ export const createTimerService = (
       state = result.state
       // The run can end on a skip — the last phase of a preset that does not
       // loop — and a poll with nothing left to advance is a leak.
+      if (state.status === 'idle') stopPolling()
+      emit(result.transitions)
+      return true
+    },
+    setRemaining: (targetMs) => {
+      if (state.status !== 'running') return false
+      const result = setRemaining(state, clock.now(), targetMs)
+      state = result.state
+      // A drained boundary can end a non-looping run before the correction is
+      // even applied, same as a skip landing on the last phase.
       if (state.status === 'idle') stopPolling()
       emit(result.transitions)
       return true

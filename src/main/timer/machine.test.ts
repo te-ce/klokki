@@ -11,6 +11,7 @@ import {
   currentPhase,
   nextPhase,
   remainingMs,
+  setRemaining,
   skip,
   snooze,
   start,
@@ -403,6 +404,55 @@ describe('snooze properties', () => {
         },
       ),
     )
+  })
+})
+
+describe('setRemaining', () => {
+  it('corrects the current phase to the given remaining time', () => {
+    const result = setRemaining(
+      start(pomodoro, T0),
+      T0 + minutes(2),
+      minutes(10),
+    )
+
+    expect(result.transitions).toEqual([])
+    expect(currentPhase(result.state)?.label).toBe('Focus')
+    expect(remainingMs(result.state, T0 + minutes(2))).toBe(minutes(10))
+  })
+
+  it('clamps a negative target to zero rather than rejecting it', () => {
+    const result = setRemaining(
+      start(pomodoro, T0),
+      T0 + minutes(2),
+      -minutes(5),
+    )
+
+    expect(remainingMs(result.state, T0 + minutes(2))).toBe(0)
+  })
+
+  it('drains a boundary the poll had not reported yet before correcting', () => {
+    const at = T0 + minutes(25) + 1_000
+    const result = setRemaining(start(pomodoro, T0), at, minutes(3))
+
+    expect(result.transitions).toEqual([
+      {
+        completed: pomodoro.phases[0],
+        next: pomodoro.phases[1],
+        cause: 'elapsed',
+        presetId: pomodoro.id,
+        startedAt: T0,
+        at: T0 + minutes(25),
+      },
+    ])
+    expect(currentPhase(result.state)?.label).toBe('Break')
+    expect(remainingMs(result.state, at)).toBe(minutes(3))
+  })
+
+  it('has nothing to correct while idle', () => {
+    expect(setRemaining(IDLE, T0, minutes(10))).toEqual({
+      state: IDLE,
+      transitions: [],
+    })
   })
 })
 

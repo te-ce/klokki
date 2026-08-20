@@ -202,6 +202,25 @@ describe('createTimerService', () => {
     service.dispose()
   })
 
+  it('corrects the remaining time on request', () => {
+    const service = createTimerService(clock)
+    service.startPreset(pomodoro)
+
+    elapse(10 * MS_PER_MINUTE)
+    expect(service.setRemaining(2 * MS_PER_MINUTE)).toBe(true)
+
+    expect(service.getView().phaseLabel).toBe('Focus')
+    expect(service.getView().countdown).toBe('02:00')
+    service.dispose()
+  })
+
+  it('has nothing to correct while idle', () => {
+    const service = createTimerService(clock)
+
+    expect(service.setRemaining(5 * MS_PER_MINUTE)).toBe(false)
+    service.dispose()
+  })
+
   it('drops listeners on unsubscribe', () => {
     const service = createTimerService(clock)
     const listener = vi.fn()

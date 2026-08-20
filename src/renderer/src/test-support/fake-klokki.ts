@@ -79,6 +79,7 @@ export const fakeKlokki = (overrides: Partial<KlokkiApi> = {}): FakeKlokki => {
     startPreset: () => Promise.resolve(),
     stopTimer: () => Promise.resolve(),
     skipPhase: () => Promise.resolve(true),
+    setRemaining: () => Promise.resolve(true),
     dismissAlert: () => Promise.resolve(),
     snoozeAlert: () => Promise.resolve(true),
     savePreset: () => Promise.resolve({ ok: true }),

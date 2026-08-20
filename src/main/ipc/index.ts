@@ -66,6 +66,7 @@ export const registerIpc = (deps: IpcDeps): void => {
     setLaunchAtLogin: (enabled) => loginItem.setEnabled(enabled as boolean),
     stopTimer: () => service.stop(),
     skipPhase: () => service.skip(),
+    setRemaining: (targetMs) => service.setRemaining(targetMs as number),
     dismissAlert: () => overlay.close(),
     // The overlay closes whether or not the boundary moved: a snooze is declined
     // only when its new end has already gone by, and leaving an overlay up that

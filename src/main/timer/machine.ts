@@ -208,6 +208,31 @@ export const skip = (state: TimerState, now: number): TickResult => {
 }
 
 /**
+ * Corrects the current phase's remaining time to `targetMs` — for a timer
+ * started late, to pull it back in sync with the clock on the wall.
+ *
+ * Whatever elapsed on its own is drained first, so a correction cannot swallow
+ * a boundary the poll had not yet reported: the phase whose remaining time
+ * changes is the one the user is actually looking at. `targetMs` is clamped to
+ * zero rather than rejected — a negative correction just ends the phase on the
+ * next tick, the same as any other boundary.
+ */
+export const setRemaining = (
+  state: TimerState,
+  now: number,
+  targetMs: number,
+): TickResult => {
+  const drained = tick(state, now)
+  const current = drained.state
+  if (current.status !== 'running' || !currentPhase(current)) return drained
+
+  return {
+    state: { ...current, phaseEndsAt: now + Math.max(0, targetMs) },
+    transitions: drained.transitions,
+  }
+}
+
+/**
  * Defers the boundary the user was just told about, by `extraMs`.
  *
  * By the time the overlay is answered the machine has already moved on, so a
