@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Preset } from '../../shared/preset'
+import { IDLE_VIEW, runningView } from '../../shared/test-support/timer-view'
 import type { TimerView } from '../../shared/timer'
 import { createMenubar } from './index'
 import type { MenubarAction, MenubarItem, MenubarSurface } from './surface'
@@ -11,23 +12,10 @@ const pomodoro: Preset = {
   phases: [{ label: 'Focus', minutes: 25, notify: true }],
 }
 
-const IDLE: TimerView = {
-  running: false,
-  presetName: null,
-  phaseLabel: null,
-  nextPhaseLabel: null,
-  remainingMs: 0,
-  countdown: '00:00',
-}
+const IDLE = IDLE_VIEW
 
-const running = (countdown: string, phaseLabel = 'Focus'): TimerView => ({
-  running: true,
-  presetName: 'Pomodoro',
-  phaseLabel,
-  nextPhaseLabel: 'Break',
-  remainingMs: 60_000,
-  countdown,
-})
+const running = (countdown: string, phaseLabel = 'Focus'): TimerView =>
+  runningView({ countdown, phaseLabel, remainingMs: 60_000 })
 
 /**
  * Stands in for the menubar. The real one is a `Tray`, which no test can build:

@@ -19,6 +19,8 @@ const openSettings = async (app: KlokkiApp): Promise<Page> => {
 }
 
 const countdown = (page: Page) => page.getByTestId('countdown')
+/** Preset and phase are two elements in the rail layout, so read the pair. */
+const runningPhase = (page: Page) => page.getByTestId('running-phase')
 
 test('@smoke shows the running timer as soon as the window opens', async () => {
   const app = await launch()
@@ -28,7 +30,7 @@ test('@smoke shows the running timer as soon as the window opens', async () => {
 
   // No tick has been waited for: the window asks for the current view on mount.
   await expect(countdown(page)).toHaveText(/^2[45]:\d\d$/)
-  await expect(page.getByText('Pomodoro — Focus')).toBeVisible()
+  await expect(runningPhase(page)).toHaveText(/Pomodoro.*Focus/)
 
   await close(app)
 })
@@ -68,7 +70,7 @@ test('reflects a preset started from the menubar in an open window', async () =>
 
   await startPreset(app, 'sit-stand')
 
-  await expect(page.getByText('Sit / Stand — Sitting')).toBeVisible()
+  await expect(runningPhase(page)).toHaveText(/Sit \/ Stand.*Sitting/)
 
   await close(app)
 })

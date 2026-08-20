@@ -1,1 +1,49 @@
 @import 'tailwindcss';
+
+/**
+ * The whole palette of the app, named by role rather than by shade, so a screen
+ * cannot quietly invent a fifth grey. Two accents, one per phase kind, sharing a
+ * lightness and a chroma and differing only in hue — which is what keeps "work"
+ * and "rest" the same weight on screen.
+ */
+@theme {
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, 'Helvetica Neue', system-ui, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+
+  --color-ground: #14161a;
+  --color-rail: #101216;
+  --color-panel: #1a1d22;
+  --color-line: #23262d;
+  --color-edge: #2f333b;
+  --color-track: #2a2e36;
+  --color-raised: #2b3038;
+
+  --color-ink: #e8eaed;
+  --color-ink-soft: #cfd4da;
+  --color-ink-dim: #9aa1ac;
+  --color-ink-faint: #6b7280;
+  --color-ink-ghost: #5c636e;
+  --color-ink-hush: #4c525c;
+
+  --color-work: oklch(0.75 0.12 70);
+  --color-rest: oklch(0.75 0.12 190);
+  --color-alarm: #a9727a;
+}
+
+/* Without this the browser draws form controls — inputs, checkboxes, scrollbars
+   — from its light palette, which is what a white text field on an Ink panel
+   is. Nothing else in the app is themed by the UA. */
+:root {
+  color-scheme: dark;
+}
+
+/* macOS draws the traffic lights over the window; the strip they sit in is what
+   drags the window, and nothing inside a control may steal that. */
+.drag-region {
+  -webkit-app-region: drag;
+}
+
+.drag-region :where(button, input, label, a) {
+  -webkit-app-region: no-drag;
+}

@@ -5,6 +5,14 @@ import {
   type Phase,
   type Preset,
 } from '../../shared/preset'
+import {
+  ChevronDownIcon,
+  ChevronRightIcon,
+  ChevronUpIcon,
+  CloseIcon,
+  PlusIcon,
+  TrashIcon,
+} from './icons'
 import { usePresets } from './usePresets'
 
 const NEW_PHASE: Phase = { label: '', minutes: 5, notify: true }
@@ -26,6 +34,20 @@ const swap = <T,>(items: readonly T[], a: number, b: number): T[] => {
   ;[next[a], next[b]] = [next[b]!, next[a]!]
   return next
 }
+
+/** What a row says a preset is, without opening it: the phases and their lengths. */
+const summarise = (preset: Preset): string => {
+  const phases = preset.phases
+    .map((phase) => `${phase.label} ${phase.minutes}`)
+    .join(' · ')
+  return preset.loop ? `${phases} · loops` : phases
+}
+
+const FIELD =
+  'bg-rail border-edge focus:border-ink-ghost h-7 rounded-md border px-2.5 outline-none'
+
+const NUDGE =
+  'border-edge text-ink-dim hover:bg-panel flex size-6.5 items-center justify-center rounded-md border disabled:opacity-30'
 
 type PhaseRowProps = {
   readonly phase: Phase
@@ -49,13 +71,13 @@ const PhaseRow = ({
   const minutesId = `phase-${index}-minutes`
 
   return (
-    <li className="flex flex-wrap items-center gap-2">
+    <li className="flex flex-wrap items-center gap-1.5">
       <label className="sr-only" htmlFor={labelId}>
         Phase {index + 1} label
       </label>
       <input
         id={labelId}
-        className="min-w-0 flex-1 rounded bg-neutral-800 px-2 py-1 text-sm"
+        className={`${FIELD} min-w-0 flex-1`}
         placeholder="Phase name"
         value={phase.label}
         onChange={(event) => onChange({ ...phase, label: event.target.value })}
@@ -64,19 +86,24 @@ const PhaseRow = ({
       <label className="sr-only" htmlFor={minutesId}>
         Phase {index + 1} minutes
       </label>
-      <input
-        id={minutesId}
-        type="number"
-        // No `min`: native constraint validation would block the submit before
-        // the shared validation could say which phase is wrong, and in which way.
-        className="w-16 rounded bg-neutral-800 px-2 py-1 text-sm tabular-nums"
-        value={phase.minutes}
-        onChange={(event) =>
-          onChange({ ...phase, minutes: Number(event.target.value) })
-        }
-      />
+      <div className="flex items-center">
+        <input
+          id={minutesId}
+          type="number"
+          // No `min`: native constraint validation would block the submit before
+          // the shared validation could say which phase is wrong, and in which way.
+          className={`${FIELD} w-13 rounded-r-none border-r-0 tabular-nums`}
+          value={phase.minutes}
+          onChange={(event) =>
+            onChange({ ...phase, minutes: Number(event.target.value) })
+          }
+        />
+        <span className="bg-rail border-edge text-ink-ghost flex h-7 items-center rounded-r-md border border-l-0 pr-2 text-[11px]">
+          m
+        </span>
+      </div>
 
-      <label className="flex items-center gap-1 text-xs text-neutral-400">
+      <label className="text-ink-dim flex items-center gap-1.5 px-1 text-[11px]">
         <input
           type="checkbox"
           aria-label={`Notify at the end of ${which}`}
@@ -84,36 +111,39 @@ const PhaseRow = ({
           onChange={(event) =>
             onChange({ ...phase, notify: event.target.checked })
           }
+          className="accent-work size-3.5"
         />
         Notify
       </label>
 
-      <button
-        type="button"
-        aria-label={`Move ${which} up`}
-        disabled={index === 0}
-        className="rounded bg-neutral-700 px-2 text-sm disabled:opacity-40"
-        onClick={() => onMove(index - 1)}
-      >
-        ↑
-      </button>
-      <button
-        type="button"
-        aria-label={`Move ${which} down`}
-        disabled={index === count - 1}
-        className="rounded bg-neutral-700 px-2 text-sm disabled:opacity-40"
-        onClick={() => onMove(index + 1)}
-      >
-        ↓
-      </button>
-      <button
-        type="button"
-        aria-label={`Delete ${which}`}
-        className="rounded bg-neutral-700 px-2 text-sm"
-        onClick={onDelete}
-      >
-        ✕
-      </button>
+      <div className="flex gap-1">
+        <button
+          type="button"
+          aria-label={`Move ${which} up`}
+          disabled={index === 0}
+          className={NUDGE}
+          onClick={() => onMove(index - 1)}
+        >
+          <ChevronUpIcon className="size-3.5" />
+        </button>
+        <button
+          type="button"
+          aria-label={`Move ${which} down`}
+          disabled={index === count - 1}
+          className={NUDGE}
+          onClick={() => onMove(index + 1)}
+        >
+          <ChevronDownIcon className="size-3.5" />
+        </button>
+        <button
+          type="button"
+          aria-label={`Delete ${which}`}
+          className={NUDGE}
+          onClick={onDelete}
+        >
+          <CloseIcon className="size-3.5" />
+        </button>
+      </div>
     </li>
   )
 }
@@ -176,28 +206,38 @@ export const PresetsSection = () => {
   }
 
   return (
-    <section className="flex flex-col gap-4">
-      <div className="flex items-center gap-2">
-        <h2 className="text-lg font-medium">Presets</h2>
+    <section className="flex flex-1 flex-col gap-4">
+      <div className="flex items-center">
+        <h2 className="text-ink-faint text-[11px] tracking-[0.08em] uppercase">
+          Presets
+        </h2>
         <button
           type="button"
-          className="ml-auto rounded bg-neutral-700 px-3 py-1 text-sm"
+          className="border-edge text-ink-soft hover:bg-panel ml-auto flex h-7 items-center gap-1.5 rounded-md border px-2.5 text-xs"
           onClick={() => edit(blankPreset())}
         >
+          <PlusIcon className="size-3.25" strokeWidth={2} />
           New preset
         </button>
       </div>
 
-      <ul className="flex flex-col gap-1">
+      <ul className="border-line flex flex-col overflow-hidden rounded-[9px] border">
         {presets.map((preset) => (
-          <li key={preset.id}>
+          <li key={preset.id} className="border-line border-b last:border-b-0">
             <button
               type="button"
               aria-label={`Edit ${preset.name}`}
-              className="w-full rounded px-2 py-1 text-left text-sm hover:bg-neutral-800"
+              aria-current={preset.id === draft?.id ? 'true' : undefined}
+              className={`flex w-full items-center gap-2.5 px-3 py-2 text-left ${
+                preset.id === draft?.id ? 'bg-line' : 'hover:bg-panel'
+              }`}
               onClick={() => edit(preset)}
             >
-              {preset.name}
+              <span className="font-medium">{preset.name}</span>
+              <span className="text-ink-faint min-w-0 truncate text-[11px] tabular-nums">
+                {summarise(preset)}
+              </span>
+              <ChevronRightIcon className="text-ink-hush ml-auto size-3.5 shrink-0" />
             </button>
           </li>
         ))}
@@ -205,16 +245,16 @@ export const PresetsSection = () => {
 
       {draft ? (
         <form
-          className="flex flex-col gap-3 rounded border border-neutral-700 p-3"
+          className="bg-panel border-line flex flex-col gap-3.5 rounded-[9px] border p-3.5"
           onSubmit={(event) => {
             event.preventDefault()
             void submit()
           }}
         >
-          <label className="flex flex-col gap-1 text-xs text-neutral-400">
+          <label className="text-ink-faint flex flex-col gap-1.5 text-[11px]">
             Preset name
             <input
-              className="rounded bg-neutral-800 px-2 py-1 text-sm text-neutral-100"
+              className={`${FIELD} text-ink text-[13px]`}
               value={draft.name}
               onChange={(event) =>
                 setDraft({ ...draft, name: event.target.value })
@@ -222,35 +262,44 @@ export const PresetsSection = () => {
             />
           </label>
 
-          <ul className="flex flex-col gap-2">
-            {draft.phases.map((phase, index) => (
-              <PhaseRow
-                // Phases have no identity of their own, and reordering is by
-                // index, so the index is the key.
-                key={index}
-                phase={phase}
-                index={index}
-                count={draft.phases.length}
-                onChange={(next) =>
-                  editPhases(replaceAt(draft.phases, index, next))
-                }
-                onMove={(to) => editPhases(swap(draft.phases, index, to))}
-                onDelete={() =>
-                  editPhases(draft.phases.filter((_, at) => at !== index))
-                }
-              />
-            ))}
-          </ul>
+          <div className="flex flex-col gap-2">
+            <p className="text-ink-faint text-[11px]">
+              Phases —{' '}
+              <span className="text-ink-hush">
+                the label is what the menubar shows
+              </span>
+            </p>
+            <ul className="flex flex-col gap-2">
+              {draft.phases.map((phase, index) => (
+                <PhaseRow
+                  // Phases have no identity of their own, and reordering is by
+                  // index, so the index is the key.
+                  key={index}
+                  phase={phase}
+                  index={index}
+                  count={draft.phases.length}
+                  onChange={(next) =>
+                    editPhases(replaceAt(draft.phases, index, next))
+                  }
+                  onMove={(to) => editPhases(swap(draft.phases, index, to))}
+                  onDelete={() =>
+                    editPhases(draft.phases.filter((_, at) => at !== index))
+                  }
+                />
+              ))}
+            </ul>
+          </div>
 
           <div className="flex flex-wrap items-center gap-3">
             <button
               type="button"
-              className="rounded bg-neutral-700 px-3 py-1 text-sm"
+              className="border-edge text-ink-dim hover:bg-raised flex h-7 items-center gap-1.5 rounded-md border border-dashed px-2.5 text-xs"
               onClick={() => editPhases([...draft.phases, NEW_PHASE])}
             >
+              <PlusIcon className="size-3.25" />
               Add phase
             </button>
-            <label className="flex items-center gap-1 text-xs text-neutral-400">
+            <label className="text-ink-dim flex items-center gap-1.5 text-[11px]">
               <input
                 type="checkbox"
                 aria-label="Repeat when the last phase ends"
@@ -258,15 +307,16 @@ export const PresetsSection = () => {
                 onChange={(event) =>
                   setDraft({ ...draft, loop: event.target.checked })
                 }
+                className="accent-work size-3.5"
               />
-              Repeat
+              Repeat when the last phase ends
             </label>
           </div>
 
           {problems.length > 0 ? (
             <ul
               role="alert"
-              className="flex flex-col gap-1 text-sm text-red-400"
+              className="text-alarm flex flex-col gap-1 text-[11px]"
             >
               {problems.map((problem) => (
                 <li key={problem}>{problem}</li>
@@ -274,20 +324,21 @@ export const PresetsSection = () => {
             </ul>
           ) : null}
 
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
             <button
               type="submit"
               disabled={!dirty}
-              className="rounded bg-neutral-200 px-3 py-1 text-sm text-neutral-900 disabled:opacity-40"
+              className="bg-ink text-ground flex h-7 items-center rounded-md px-3.5 font-medium disabled:opacity-40"
             >
               Save
             </button>
             <button
               type="button"
-              className="rounded bg-neutral-700 px-3 py-1 text-sm"
+              aria-label="Delete preset"
+              className="border-edge text-alarm hover:bg-raised ml-auto flex size-7 items-center justify-center rounded-md border"
               onClick={() => void remove()}
             >
-              Delete preset
+              <TrashIcon className="size-3.5" />
             </button>
           </div>
         </form>

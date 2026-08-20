@@ -11,6 +11,7 @@ import {
   skip,
   snooze,
   start,
+  stretchProgress,
   tick,
   type Snooze,
   type TimerState,
@@ -59,17 +60,45 @@ export type TimerService = {
   readonly dispose: () => void
 }
 
+/** Everything in the view that only a running timer has an answer for. */
+type RunShape = Pick<TimerView, 'presetName' | 'phases' | 'phaseIndex' | 'loop'>
+
+const IDLE_SHAPE: RunShape = {
+  presetName: null,
+  phases: [],
+  phaseIndex: -1,
+  loop: false,
+}
+
+const runShape = (state: TimerState): RunShape => {
+  if (state.status !== 'running') return IDLE_SHAPE
+
+  return {
+    presetName: state.preset.name,
+    // The phase list the run is on, which is not the one in the store once a
+    // preset has been edited mid-run. Stripped to what a sequence bar draws.
+    phases: state.preset.phases.map(({ label, minutes }) => ({
+      label,
+      minutes,
+    })),
+    phaseIndex: currentPhase(state) ? state.phaseIndex : -1,
+    loop: state.preset.loop,
+  }
+}
+
 const toView = (state: TimerState, now: number): TimerView => {
-  const phase = currentPhase(state)
   const remaining = remainingMs(state, now)
+  const upcoming = nextPhase(state)
 
   return {
     running: state.status === 'running',
-    presetName: state.status === 'running' ? state.preset.name : null,
-    phaseLabel: phase?.label ?? null,
-    nextPhaseLabel: nextPhase(state)?.label ?? null,
+    phaseLabel: currentPhase(state)?.label ?? null,
+    nextPhaseLabel: upcoming?.label ?? null,
+    nextPhaseMinutes: upcoming?.minutes ?? null,
     remainingMs: remaining,
     countdown: formatRemaining(remaining),
+    phaseProgress: stretchProgress(state, now),
+    ...runShape(state),
   }
 }
 

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Preset } from '../../shared/preset'
+import { runningView } from '../../shared/test-support/timer-view'
 import type { TimerView } from '../../shared/timer'
 import type { TimerUpdate } from '../timer/service'
 import {
@@ -8,14 +9,8 @@ import {
   type ViewTarget,
 } from './broadcast'
 
-const view = (countdown: string): TimerView => ({
-  running: true,
-  presetName: 'Pomodoro',
-  phaseLabel: 'Focus',
-  nextPhaseLabel: 'Break',
-  remainingMs: 1_000,
-  countdown,
-})
+const view = (countdown: string): TimerView =>
+  runningView({ countdown, remainingMs: 1_000 })
 
 const pomodoro: Preset = {
   id: 'pomodoro',

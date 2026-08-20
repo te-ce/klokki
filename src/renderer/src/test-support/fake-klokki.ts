@@ -2,29 +2,14 @@ import { vi, type Mock } from 'vitest'
 import type { HistoryStats } from '../../../shared/history'
 import type { KlokkiApi } from '../../../shared/ipc'
 import type { Preset } from '../../../shared/preset'
+// One owner, shared with the main-process suite: see src/shared/test-support.
+import { IDLE_VIEW } from '../../../shared/test-support/timer-view'
 import type { TimerView } from '../../../shared/timer'
+
+export { IDLE_VIEW, runningView } from '../../../shared/test-support/timer-view'
 
 /** Fixed, so a test never depends on the day it runs on. */
 export const TODAY = '2026-08-20'
-
-export const IDLE_VIEW: TimerView = {
-  running: false,
-  presetName: null,
-  phaseLabel: null,
-  nextPhaseLabel: null,
-  remainingMs: 0,
-  countdown: '00:00',
-}
-
-export const runningView = (overrides: Partial<TimerView> = {}): TimerView => ({
-  running: true,
-  presetName: 'Pomodoro',
-  phaseLabel: 'Focus',
-  nextPhaseLabel: 'Break',
-  remainingMs: 1_499_000,
-  countdown: '25:00',
-  ...overrides,
-})
 
 export const emptyStats: HistoryStats = {
   today: { date: TODAY, completed: 0, minutesByLabel: [] },

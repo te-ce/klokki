@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MS_PER_MINUTE } from '../../shared/preset'
 import { SEED_PRESETS } from '../../shared/presets'
+import { IDLE_VIEW } from '../../shared/test-support/timer-view'
 import type { Clock } from './clock'
 import { SNOOZE_MS } from '../../shared/timer'
 import { createTimerService, type TimerUpdate } from './service'
@@ -40,14 +41,7 @@ describe('createTimerService', () => {
   it('is idle before anything starts', () => {
     const service = createTimerService(clock)
 
-    expect(service.getView()).toEqual({
-      running: false,
-      presetName: null,
-      phaseLabel: null,
-      nextPhaseLabel: null,
-      remainingMs: 0,
-      countdown: '00:00',
-    })
+    expect(service.getView()).toEqual(IDLE_VIEW)
     service.dispose()
   })
 
@@ -59,6 +53,36 @@ describe('createTimerService', () => {
 
     expect(service.getView().countdown).toBe('23:30')
     expect(service.getView().phaseLabel).toBe('Focus')
+    service.dispose()
+  })
+
+  it('pushes the phase list the run is on, and where in it the timer is', () => {
+    const service = createTimerService(clock)
+    service.startPreset(pomodoro)
+
+    elapse(90_000)
+
+    const view = service.getView()
+    // Stripped to what a sequence bar draws: no `notify`, no ids.
+    expect(view.phases).toEqual([
+      { label: 'Focus', minutes: 25 },
+      { label: 'Break', minutes: 5 },
+    ])
+    expect(view.phaseIndex).toBe(0)
+    expect(view.loop).toBe(true)
+    expect(view.nextPhaseMinutes).toBe(5)
+    expect(view.phaseProgress).toBeCloseTo(90_000 / (25 * MS_PER_MINUTE))
+    service.dispose()
+  })
+
+  it('reports no phases at all once nothing is running', () => {
+    const service = createTimerService(clock)
+    service.startPreset(pomodoro)
+
+    service.stop()
+
+    expect(service.getView().phases).toEqual([])
+    expect(service.getView().phaseIndex).toBe(-1)
     service.dispose()
   })
 

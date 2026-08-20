@@ -95,6 +95,22 @@ export const remainingMs = (state: TimerState, now: number): number => {
   return Math.max(0, state.phaseEndsAt - now)
 }
 
+/**
+ * How far through the current stretch, from 0 to 1 — what a progress bar draws.
+ *
+ * Measured against the stretch the machine is actually running, not the phase's
+ * configured length: a snoozed stretch is longer than its phase, and a corrected
+ * one shorter, and either way the bar should fill up exactly once. Clamped at
+ * both ends, so a boundary the poll has not drained yet reads as full rather
+ * than as more than full.
+ */
+export const stretchProgress = (state: TimerState, now: number): number => {
+  if (state.status !== 'running' || !currentPhase(state)) return 0
+  const length = state.phaseEndsAt - state.phaseStartedAt
+  if (length <= 0) return 1
+  return Math.min(1, Math.max(0, (now - state.phaseStartedAt) / length))
+}
+
 /** Where the phase after `index` lives, or null if the preset is over. */
 const nextIndex = (preset: Preset, index: number): number | null => {
   const candidate = index + 1

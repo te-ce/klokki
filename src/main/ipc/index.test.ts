@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { IPC, PUSH } from '../../shared/ipc'
 import type { Preset } from '../../shared/preset'
-import type { TimerView } from '../../shared/timer'
+import { IDLE_VIEW } from '../../shared/test-support/timer-view'
 import { registerIpc, type IpcDeps, type RequestSink } from './index'
 
 const pomodoro: Preset = {
@@ -11,14 +11,7 @@ const pomodoro: Preset = {
   phases: [{ label: 'Focus', minutes: 25, notify: true }],
 }
 
-const IDLE: TimerView = {
-  running: false,
-  presetName: null,
-  phaseLabel: null,
-  nextPhaseLabel: null,
-  remainingMs: 0,
-  countdown: '00:00',
-}
+const IDLE = IDLE_VIEW
 
 /** Stands in for ipcMain: keeps the handlers so a test can call one. */
 const fakeSink = () => {

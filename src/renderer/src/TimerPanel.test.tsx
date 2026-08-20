@@ -40,7 +40,46 @@ it('shows the running preset, phase and countdown on mount', async () => {
   render(<TimerPanel />)
 
   expect(await screen.findByText('25:00')).toBeInTheDocument()
-  expect(screen.getByText('Pomodoro — Focus')).toBeInTheDocument()
+  const heading = screen.getByTestId('running-phase')
+  expect(heading).toHaveTextContent('Pomodoro')
+  expect(heading).toHaveTextContent('Focus')
+})
+
+it('draws the phases at the proportions the view reports', async () => {
+  api = mockApi(runningView({ phaseProgress: 0.4 }))
+  render(<TimerPanel />)
+  await screen.findByText('25:00')
+
+  // A 25/5 preset is a long segment and a short one, not two halves — that
+  // ratio is the only reason the bar is worth drawing.
+  const [focus, breather] = screen.getAllByTestId('phase-segment')
+  expect(focus).toHaveStyle({ flexGrow: '25' })
+  expect(breather).toHaveStyle({ flexGrow: '5' })
+  // The fill is the fraction main computed, not one this view worked out.
+  expect(screen.getByTestId('phase-progress')).toHaveStyle({ width: '40%' })
+})
+
+it('says what follows the phase, and that the sequence starts over', async () => {
+  api = mockApi(RUNNING)
+  render(<TimerPanel />)
+
+  expect(await screen.findByText('Break 5m · then repeat')).toBeInTheDocument()
+})
+
+it('promises no repeat for a preset that does not loop', async () => {
+  api = mockApi(runningView({ loop: false }))
+  render(<TimerPanel />)
+
+  expect(await screen.findByText('Break 5m')).toBeInTheDocument()
+})
+
+it('names the last phase of a run as the last one', async () => {
+  api = mockApi(
+    runningView({ nextPhaseLabel: null, nextPhaseMinutes: null, loop: false }),
+  )
+  render(<TimerPanel />)
+
+  expect(await screen.findByText('Last phase')).toBeInTheDocument()
 })
 
 it('renders each view the main process pushes', async () => {

@@ -17,19 +17,19 @@ import { SNOOZE_MS } from '../../shared/timer'
 export const TransitionOverlay = ({ alert }: { alert: Alert }) => (
   <section
     data-testid="transition-overlay"
-    className="flex h-screen flex-col items-center justify-center gap-6 bg-neutral-950/95 p-10 text-center"
+    className="bg-ground/95 flex h-screen flex-col items-center justify-center gap-5 p-10 text-center"
   >
-    <p className="text-sm tracking-widest text-neutral-400 uppercase">
+    <p className="text-ink-faint text-[11px] tracking-[0.22em] uppercase">
       {alert.completedLabel} finished
     </p>
-    <p className="text-5xl font-semibold">
+    <p className="text-[40px] leading-none font-semibold tracking-[-0.02em]">
       {alert.nextLabel ?? 'Timer finished'}
     </p>
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-2.5">
       {alert.nextLabel !== null && (
         <button
           type="button"
-          className="rounded bg-neutral-800 px-6 py-2 text-lg"
+          className="border-edge text-ink-soft hover:bg-panel h-9 rounded-lg border px-5"
           onClick={() => void window.klokki.snoozeAlert()}
         >
           {`Snooze ${SNOOZE_MS / MS_PER_MINUTE} minutes`}
@@ -37,7 +37,7 @@ export const TransitionOverlay = ({ alert }: { alert: Alert }) => (
       )}
       <button
         type="button"
-        className="rounded bg-neutral-700 px-6 py-2 text-lg"
+        className="bg-ink text-ground h-9 rounded-lg px-5 font-medium"
         onClick={() => void window.klokki.dismissAlert()}
       >
         Dismiss

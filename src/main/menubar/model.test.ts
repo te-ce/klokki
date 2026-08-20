@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Preset } from '../../shared/preset'
+import { IDLE_VIEW, runningView } from '../../shared/test-support/timer-view'
 import type { TimerView } from '../../shared/timer'
 import { menuKey, menubarModel } from './model'
 
@@ -17,23 +18,10 @@ const sitStand: Preset = {
   phases: [{ label: 'Sitting', minutes: 30, notify: true }],
 }
 
-const IDLE: TimerView = {
-  running: false,
-  presetName: null,
-  phaseLabel: null,
-  nextPhaseLabel: null,
-  remainingMs: 0,
-  countdown: '00:00',
-}
+const IDLE = IDLE_VIEW
 
-const running = (countdown: string, phaseLabel = 'Focus'): TimerView => ({
-  running: true,
-  presetName: 'Pomodoro',
-  phaseLabel,
-  nextPhaseLabel: 'Break',
-  remainingMs: 60_000,
-  countdown,
-})
+const running = (countdown: string, phaseLabel = 'Focus'): TimerView =>
+  runningView({ countdown, phaseLabel, remainingMs: 60_000 })
 
 const labels = (view: TimerView, presets: readonly Preset[]): string[] =>
   menubarModel(view, presets).items.map((item) =>

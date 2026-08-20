@@ -15,6 +15,7 @@ import {
   skip,
   snooze,
   start,
+  stretchProgress,
   tick,
 } from './machine'
 
@@ -541,6 +542,55 @@ describe('skip', () => {
         expect(next.transitions[0]?.completed.label).toBe('Standing')
         expect(currentPhase(next.state)?.label).toBe('Sitting')
       }),
+    )
+  })
+})
+
+describe('stretchProgress', () => {
+  it('is zero at the start of a phase and one at its end', () => {
+    const running = start(pomodoro, T0)
+
+    expect(stretchProgress(running, T0)).toBe(0)
+    expect(stretchProgress(running, T0 + minutes(25))).toBe(1)
+  })
+
+  it('is the fraction of the phase that has passed', () => {
+    const running = start(pomodoro, T0)
+
+    expect(stretchProgress(running, T0 + minutes(5))).toBeCloseTo(0.2)
+  })
+
+  it('is measured against the snoozed stretch, not the phase it belongs to', () => {
+    // Focus ran out, Break started, and the user snoozed the boundary: the
+    // stretch is now five minutes of Focus, so halfway through it is 2:30 in —
+    // not the 12:30 that half of a 25-minute phase would be.
+    const elapsed = tick(start(pomodoro, T0), T0 + minutes(25))
+    const snoozed = snooze(elapsed.state, T0 + minutes(25), minutes(5))
+
+    expect(stretchProgress(snoozed.state, T0 + minutes(27.5))).toBeCloseTo(0.5)
+  })
+
+  it('reads as full rather than overfull for a boundary no poll has drained', () => {
+    const running = start(pomodoro, T0)
+
+    expect(stretchProgress(running, T0 + minutes(40))).toBe(1)
+  })
+
+  it('is zero while idle: there is no stretch to be part of the way through', () => {
+    expect(stretchProgress(IDLE, T0)).toBe(0)
+  })
+
+  it('never leaves the unit interval, whatever the clock says', () => {
+    fc.assert(
+      fc.property(
+        fc.integer({ min: -minutes(60), max: minutes(60) }),
+        (offset) => {
+          const progress = stretchProgress(start(pomodoro, T0), T0 + offset)
+
+          expect(progress).toBeGreaterThanOrEqual(0)
+          expect(progress).toBeLessThanOrEqual(1)
+        },
+      ),
     )
   })
 })

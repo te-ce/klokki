@@ -57,6 +57,11 @@ The residue is deliberate: `index.ts`, `windows.ts`, and the three `surface.ts` 
 calls. If a decision starts creeping into one of them, it is in the wrong file.
 
 - `pnpm vitest run` — main-process logic (node env) and renderer views (jsdom)
+- The pushed timer view has one fixture, `src/shared/test-support/timer-view.ts`,
+  used by both suites: a field added to `TimerView` should be one edit, not six
+  hand-written literals that quietly drift apart
+- `pnpm e2e` runs against the bundles in `out/`, so build before running it or
+  the suite grades the previous renderer
 - Timelines worth arguing about get vitest snapshots
 - Loop and boundary behaviour gets `fast-check` property tests
 - `pnpm e2e` — the real app; `pnpm e2e:smoke` is the pre-push subset
@@ -101,6 +106,29 @@ waits for the seam to appear, because `electron.launch()` resolves before
   which outcome to write. Elapsed boundaries are drained first, so a skip taken a
   second after a boundary the poll had not reported yet ends the phase the user
   was actually looking at rather than swallowing two.
+- **The settings window is a rail and one pane.** Four destinations — Timer,
+  Presets, Stats, General — sit in a permanent left rail (`src/renderer/src/Rail.tsx`),
+  and the pane on the right is the only one mounted. Which pane is open is the
+  one piece of state the renderer owns outright: nothing outside the window can
+  change it and the main process has no opinion on it. A pane that is not on
+  screen therefore holds no subscription, and coming back to one reads and
+  re-subscribes rather than showing what was true when the window opened — the
+  same shape every pane already had for being reopened.
+- **The phase sequence is pushed, like everything else the timer knows.** The
+  Timer pane draws the running preset's phases as one bar at their real
+  proportions, so `TimerView` carries `phases`, `phaseIndex`, `loop` and
+  `phaseProgress`. All four are the machine's to answer: the phase list a run is
+  on is not the one in the store the moment a preset is edited mid-run, and
+  `phaseProgress` is a fraction rather than a length so no view divides one clock
+  reading by another — and so a snoozed stretch, longer than its phase is
+  configured to be, still fills the bar exactly once (`stretchProgress`).
+- **One palette, named by role.** Every colour, and both type families, are
+  `@theme` tokens in `src/renderer/src/index.css` — `ground`, `panel`, `line`,
+  `ink…`, and two accents (`work`, `rest`) that share a lightness and a chroma
+  and differ only in hue, so neither outweighs the other. A screen that reaches
+  for a Tailwind palette shade is inventing a fifth grey. Icons are drawn in
+  `src/renderer/src/icons.tsx` for the same reason the app icons are drawn by
+  code: an icon font is a binary this repo would carry and never diff.
 - **The menubar title names the phase, not just the number.** "29:14" does not
   say whether to sit or stand, which is the one thing a glance at the menubar is
   for. Each phase already carries a label — that label is the tray text, so

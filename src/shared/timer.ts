@@ -11,6 +11,19 @@ import { MS_PER_MINUTE } from './preset'
  */
 export const SNOOZE_MS = 5 * MS_PER_MINUTE
 
+/**
+ * One phase of the running preset, as a view draws it in the sequence bar: how
+ * long it was configured to be, and what it is called.
+ *
+ * Only the two fields a bar needs. `notify` is not one of them — a view that
+ * carried it would be holding a copy of the preset the run started with, which
+ * is the store's to own and the editor's to change.
+ */
+export type PhaseView = {
+  readonly label: string
+  readonly minutes: number
+}
+
 export type TimerView = {
   readonly running: boolean
   readonly presetName: string | null
@@ -24,6 +37,29 @@ export type TimerView = {
    * and the settings window, and neither holds the phase list.
    */
   readonly nextPhaseLabel: string | null
+  /** How long the phase named by `nextPhaseLabel` is, or null when there is none. */
+  readonly nextPhaseMinutes: number | null
   readonly remainingMs: number
   readonly countdown: string
+  /**
+   * The phases the run started with, in order — empty while idle.
+   *
+   * The settings window draws them as one bar, at their real proportions, which
+   * is the whole reason this is pushed: the phase list a run is on is the
+   * machine's, not the store's, and the two differ the moment a preset is edited
+   * while it runs (see AGENTS.md).
+   */
+  readonly phases: readonly PhaseView[]
+  /** Which of `phases` is running, or -1 while idle. */
+  readonly phaseIndex: number
+  readonly loop: boolean
+  /**
+   * How far through the current stretch, from 0 to 1.
+   *
+   * A fraction rather than the phase's length, so no view divides one pushed
+   * number by another to find out where the timer is — and so a snoozed stretch,
+   * which is longer than the phase is configured to be, still reads as one bar
+   * filling up once.
+   */
+  readonly phaseProgress: number
 }
