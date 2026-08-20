@@ -8,6 +8,7 @@ import {
 import { SEED_PRESETS } from '../../shared/presets'
 import {
   IDLE,
+  addTime,
   currentPhase,
   nextPhase,
   remainingMs,
@@ -451,6 +452,43 @@ describe('setRemaining', () => {
 
   it('has nothing to correct while idle', () => {
     expect(setRemaining(IDLE, T0, minutes(10))).toEqual({
+      state: IDLE,
+      transitions: [],
+    })
+  })
+})
+
+describe('addTime', () => {
+  it('adds to the current phase, relative to whatever remains', () => {
+    const result = addTime(start(pomodoro, T0), T0 + minutes(2), minutes(5))
+
+    expect(result.transitions).toEqual([])
+    expect(currentPhase(result.state)?.label).toBe('Focus')
+    expect(remainingMs(result.state, T0 + minutes(2))).toBe(
+      minutes(23) + minutes(5),
+    )
+  })
+
+  it('drains a boundary the poll had not reported yet before adding', () => {
+    const at = T0 + minutes(25) + 1_000
+    const result = addTime(start(pomodoro, T0), at, minutes(5))
+
+    expect(result.transitions).toEqual([
+      {
+        completed: pomodoro.phases[0],
+        next: pomodoro.phases[1],
+        cause: 'elapsed',
+        presetId: pomodoro.id,
+        startedAt: T0,
+        at: T0 + minutes(25),
+      },
+    ])
+    expect(currentPhase(result.state)?.label).toBe('Break')
+    expect(remainingMs(result.state, at)).toBe(minutes(10) - 1_000)
+  })
+
+  it('has nothing to add to while idle', () => {
+    expect(addTime(IDLE, T0, minutes(5))).toEqual({
       state: IDLE,
       transitions: [],
     })

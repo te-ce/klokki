@@ -28,6 +28,7 @@ const api: KlokkiApi = {
   stopTimer: () => ipcRenderer.invoke(IPC.stopTimer),
   skipPhase: () => ipcRenderer.invoke(IPC.skipPhase),
   setRemaining: (targetMs) => ipcRenderer.invoke(IPC.setRemaining, targetMs),
+  addTime: (extraMs) => ipcRenderer.invoke(IPC.addTime, extraMs),
   dismissAlert: () => ipcRenderer.invoke(IPC.dismissAlert),
   snoozeAlert: () => ipcRenderer.invoke(IPC.snoozeAlert),
   savePreset: (preset) => ipcRenderer.invoke(IPC.savePreset, preset),

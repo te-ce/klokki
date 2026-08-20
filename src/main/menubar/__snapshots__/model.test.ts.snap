@@ -16,6 +16,13 @@ exports[`what the menubar says > matches its snapshot while running 1`] = `
     },
     {
       "action": {
+        "kind": "addTime",
+      },
+      "kind": "command",
+      "label": "+5 min",
+    },
+    {
+      "action": {
         "kind": "stop",
       },
       "kind": "command",

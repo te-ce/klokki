@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, expect, it, vi } from 'vitest'
-import type { Preset } from '../../shared/preset'
+import { MS_PER_MINUTE, type Preset } from '../../shared/preset'
 import type { TimerView } from '../../shared/timer'
 import {
   fakeKlokki,
@@ -188,6 +188,15 @@ it('offers no stop button when nothing is running', async () => {
   await screen.findByRole('button', { name: 'Start Pomodoro' })
 
   expect(screen.queryByRole('button', { name: 'Stop' })).not.toBeInTheDocument()
+})
+
+it('adds five minutes to the running phase on request', async () => {
+  api = mockApi(RUNNING)
+  render(<TimerPanel />)
+
+  fireEvent.click(await screen.findByRole('button', { name: '5 min' }))
+
+  expect(api.addTime).toHaveBeenCalledWith(5 * MS_PER_MINUTE)
 })
 
 it('offers to skip to the phase the view names, and asks main to do it', async () => {

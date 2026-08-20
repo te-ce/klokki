@@ -57,6 +57,7 @@ describe('what the menubar says', () => {
     expect(labels(running('24:59'), [pomodoro])).toEqual([
       'Pomodoro — Focus',
       'Skip to Break',
+      '+5 min',
       'Stop',
       '—',
       'Restart Pomodoro',

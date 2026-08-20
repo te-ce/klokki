@@ -13,6 +13,7 @@ import type { TimerView } from '../../shared/timer'
 export type MenubarAction =
   | { readonly kind: 'stop' }
   | { readonly kind: 'skip' }
+  | { readonly kind: 'addTime' }
   | { readonly kind: 'start'; readonly presetId: string }
   | { readonly kind: 'settings' }
   | { readonly kind: 'quit' }
@@ -71,6 +72,11 @@ export const menubarModel = (
             kind: 'command',
             label: skipLabel(view.nextPhaseLabel),
             action: { kind: 'skip' },
+          },
+          {
+            kind: 'command',
+            label: '+5 min',
+            action: { kind: 'addTime' },
           },
           { kind: 'command', label: 'Stop', action: { kind: 'stop' } },
           { kind: 'separator' },

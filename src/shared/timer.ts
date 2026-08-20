@@ -11,6 +11,9 @@ import { MS_PER_MINUTE } from './preset'
  */
 export const SNOOZE_MS = 5 * MS_PER_MINUTE
 
+/** How much time "+5 min" adds to the running phase, in the tray and the webui. */
+export const ADD_TIME_MS = 5 * MS_PER_MINUTE
+
 /**
  * One phase of the running preset, as a view draws it in the sequence bar: how
  * long it was configured to be, and what it is called.

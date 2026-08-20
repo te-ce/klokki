@@ -24,6 +24,7 @@ export const IPC = {
   stopTimer: 'klokki:stop-timer',
   skipPhase: 'klokki:skip-phase',
   setRemaining: 'klokki:set-remaining',
+  addTime: 'klokki:add-time',
   dismissAlert: 'klokki:dismiss-alert',
   snoozeAlert: 'klokki:snooze-alert',
 } as const
@@ -78,6 +79,12 @@ export interface KlokkiApi {
    * Resolves to whether anything moved; nothing does while idle.
    */
   setRemaining(targetMs: number): Promise<boolean>
+  /**
+   * Adds `extraMs` to the running phase's remaining time — for running long, so
+   * a keystroke or tray click adds minutes without naming a target time.
+   * Resolves to whether anything moved; nothing does while idle.
+   */
+  addTime(extraMs: number): Promise<boolean>
   /** Closes the transition overlay. The only way out of it — it never times out. */
   dismissAlert(): Promise<void>
   /**

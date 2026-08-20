@@ -245,6 +245,25 @@ describe('createTimerService', () => {
     service.dispose()
   })
 
+  it('adds time to the running phase on request', () => {
+    const service = createTimerService(clock)
+    service.startPreset(pomodoro)
+
+    elapse(10 * MS_PER_MINUTE)
+    expect(service.addTime(5 * MS_PER_MINUTE)).toBe(true)
+
+    expect(service.getView().phaseLabel).toBe('Focus')
+    expect(service.getView().countdown).toBe('20:00')
+    service.dispose()
+  })
+
+  it('has nothing to add time to while idle', () => {
+    const service = createTimerService(clock)
+
+    expect(service.addTime(5 * MS_PER_MINUTE)).toBe(false)
+    service.dispose()
+  })
+
   it('resumes a saved state still in progress, keeping its poll running', () => {
     const service = createTimerService(clock)
     clock.advance(10 * MS_PER_MINUTE)

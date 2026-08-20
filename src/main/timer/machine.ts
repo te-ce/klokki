@@ -73,14 +73,15 @@ export type SnoozeResult = {
 }
 
 export const start = (preset: Preset, now: number): TimerState => {
-  if (!isRunnable(preset))
+  const firstPhase = preset.phases[0]
+  if (!isRunnable(preset) || firstPhase === undefined)
     throw new Error(`Preset "${preset.id}" has no runnable phases`)
   return {
     status: 'running',
     preset,
     phaseIndex: 0,
     phaseStartedAt: now,
-    phaseEndsAt: now + phaseDurationMs(preset.phases[0]!),
+    phaseEndsAt: now + phaseDurationMs(firstPhase),
     snoozedMs: 0,
   }
 }
@@ -244,6 +245,30 @@ export const setRemaining = (
 
   return {
     state: { ...current, phaseEndsAt: now + Math.max(0, targetMs) },
+    transitions: drained.transitions,
+  }
+}
+
+/**
+ * Adds `extraMs` to the current phase's remaining time — for running long, so
+ * the phase does not end mid-task.
+ *
+ * Whatever elapsed on its own is drained first, so the phase extended is the one
+ * the user is actually looking at, the same rule `setRemaining` follows. Unlike
+ * `setRemaining` this is relative to wherever the countdown already is, which is
+ * what lets the tray offer it with no input to read back.
+ */
+export const addTime = (
+  state: TimerState,
+  now: number,
+  extraMs: number,
+): TickResult => {
+  const drained = tick(state, now)
+  const current = drained.state
+  if (current.status !== 'running' || !currentPhase(current)) return drained
+
+  return {
+    state: { ...current, phaseEndsAt: current.phaseEndsAt + extraMs },
     transitions: drained.transitions,
   }
 }

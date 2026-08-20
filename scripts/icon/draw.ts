@@ -48,6 +48,40 @@ export const drawTemplate = (size: number): Uint8Array =>
   )
 
 /**
+ * One row of the background gradient, as RGB.
+ *
+ * Channel indices are 0-2 and every palette entry is an RGB triple, so the
+ * fallbacks are unreachable — they are here so nothing is asserted.
+ */
+const gradientRow = (palette: Palette, fall: number): number[] =>
+  [0, 1, 2].map((i) => {
+    const top = palette.top[i] ?? 0
+    const bottom = palette.bottom[i] ?? 0
+    return top + (bottom - top) * fall
+  })
+
+/** The mark laid over the gradient at `ink` opacity, as one RGB byte. */
+const blend = (base: number, mark: number, ink: number): number =>
+  Math.round(base + (mark - base) * ink)
+
+/**
+ * One pixel's three colour bytes, written in place.
+ *
+ * Channel indices are 0-2 and both arguments are RGB triples, so the fallbacks
+ * are unreachable — they are here so nothing is asserted.
+ */
+const writeRgb = (
+  out: Uint8Array,
+  offset: number,
+  row: readonly number[],
+  mark: readonly number[],
+  ink: number,
+): void => {
+  for (let i = 0; i < 3; i++)
+    out[offset + i] = blend(row[i] ?? 0, mark[i] ?? 0, ink)
+}
+
+/**
  * The app icon as RGBA.
  *
  * `pixels` is the resolution to render at; `points` is the size the slot is
@@ -70,20 +104,14 @@ export const drawAppIcon = (
   const out = new Uint8Array(pixels * pixels * 4)
   for (let y = 0; y < pixels; y++) {
     const fall = pixels === 1 ? 0 : y / (pixels - 1)
-    const row = [0, 1, 2].map(
-      (i) => palette.top[i]! + (palette.bottom[i]! - palette.top[i]!) * fall,
-    )
+    const row = gradientRow(palette, fall)
     for (let x = 0; x < pixels; x++) {
       const index = y * pixels + x
-      const alpha = ground[index]!
+      const alpha = ground[index] ?? 0
       if (alpha === 0) continue
-      const ink = mark[index]! / 255
+      const ink = (mark[index] ?? 0) / 255
       const offset = index * 4
-      for (let i = 0; i < 3; i++) {
-        out[offset + i] = Math.round(
-          row[i]! + (palette.mark[i]! - row[i]!) * ink,
-        )
-      }
+      writeRgb(out, offset, row, palette.mark, ink)
       out[offset + 3] = alpha
     }
   }

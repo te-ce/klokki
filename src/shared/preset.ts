@@ -36,7 +36,10 @@ export const samePreset = (a: Preset, b: Preset): boolean =>
   a.name === b.name &&
   a.loop === b.loop &&
   a.phases.length === b.phases.length &&
-  a.phases.every((phase, index) => samePhase(phase, b.phases[index]!))
+  a.phases.every((phase, index) => {
+    const other = b.phases[index]
+    return other !== undefined && samePhase(phase, other)
+  })
 
 /** What the main process answers when a renderer tries to save a preset. */
 export type SaveResult =

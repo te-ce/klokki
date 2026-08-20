@@ -33,11 +33,7 @@ const dayKey = (at: number, timeZone: string | undefined): string =>
  * noon keeps every step inside its intended day whatever the offset does.
  */
 const daysEndingOn = (today: string, count: number): readonly string[] => {
-  const [year, month, day] = today.split('-').map(Number) as [
-    number,
-    number,
-    number,
-  ]
+  const [year = NaN, month = NaN, day = NaN] = today.split('-').map(Number)
   const anchor = Date.UTC(year, month - 1, day, 12)
 
   return Array.from({ length: count }, (_unused, index) =>
@@ -102,6 +98,8 @@ export const summarise = (
   }
 
   const days = wanted.map((date) => summariseDay(date, buckets.get(date) ?? []))
+  // `wanted` is never empty, but the fallback says so instead of asserting it.
+  const [todayStats = summariseDay(today, [])] = days
 
-  return { today: days[0]!, days }
+  return { today: todayStats, days }
 }

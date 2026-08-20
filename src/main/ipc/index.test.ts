@@ -39,6 +39,7 @@ const wire = (overrides: Partial<IpcDeps> = {}) => {
     snooze: vi.fn(() => true),
     skip: vi.fn(() => true),
     setRemaining: vi.fn(() => true),
+    addTime: vi.fn(() => true),
     getView: vi.fn(() => IDLE),
     getState: vi.fn(() => ({ status: 'idle' }) as const),
     resume: vi.fn(),
@@ -204,6 +205,13 @@ describe('what the handlers do', () => {
 
     expect(app.invoke(IPC.setRemaining, 120_000)).toBe(true)
     expect(app.service.setRemaining).toHaveBeenCalledWith(120_000)
+  })
+
+  it('adds time to the running phase, and says whether anything moved', () => {
+    const app = wire()
+
+    expect(app.invoke(IPC.addTime, 300_000)).toBe(true)
+    expect(app.service.addTime).toHaveBeenCalledWith(300_000)
   })
 
   it('deletes a preset by id', () => {

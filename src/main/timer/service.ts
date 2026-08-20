@@ -4,6 +4,7 @@ import { systemClock, type Clock } from './clock'
 import { formatRemaining } from './format'
 import {
   IDLE,
+  addTime,
   currentPhase,
   nextPhase,
   remainingMs,
@@ -46,6 +47,11 @@ export type TimerService = {
    * correct while idle.
    */
   readonly setRemaining: (targetMs: number) => boolean
+  /**
+   * Adds `extraMs` to the current phase's remaining time. Answers whether
+   * anything moved: there is nothing to extend while idle.
+   */
+  readonly addTime: (extraMs: number) => boolean
   readonly getView: () => TimerView
   /** The raw state, for anything that needs more than the view — e.g. persistence. */
   readonly getState: () => TimerState
@@ -169,6 +175,16 @@ export const createTimerService = (
       const result = setRemaining(state, clock.now(), targetMs)
       state = result.state
       // A drained boundary can end a non-looping run before the correction is
+      // even applied, same as a skip landing on the last phase.
+      if (state.status === 'idle') stopPolling()
+      emit(result.transitions)
+      return true
+    },
+    addTime: (extraMs) => {
+      if (state.status !== 'running') return false
+      const result = addTime(state, clock.now(), extraMs)
+      state = result.state
+      // A drained boundary can end a non-looping run before the extra time is
       // even applied, same as a skip landing on the last phase.
       if (state.status === 'idle') stopPolling()
       emit(result.transitions)

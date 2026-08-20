@@ -1,5 +1,5 @@
 import { IPC, type AppInfo } from '../../shared/ipc'
-import type { Preset } from '../../shared/preset'
+import type { Phase, Preset } from '../../shared/preset'
 import type { History } from '../history'
 import type { LoginItem } from '../login-item'
 import { startPresetById } from '../presets/start'
@@ -46,6 +46,61 @@ type Handlers = {
   readonly [K in keyof typeof IPC]: (...args: readonly unknown[]) => unknown
 }
 
+/**
+ * Renderer arguments arrive as `unknown`, and this is a trust boundary: each is
+ * narrowed rather than asserted, so a malformed call fails loudly here instead of
+ * reaching the store or the timer as the wrong shape.
+ */
+const isPhase = (value: unknown): value is Phase =>
+  typeof value === 'object' &&
+  value !== null &&
+  'label' in value &&
+  typeof value.label === 'string' &&
+  'minutes' in value &&
+  typeof value.minutes === 'number' &&
+  'notify' in value &&
+  typeof value.notify === 'boolean'
+
+/** A preset's own fields, checked apart from its phases. */
+const hasPresetFields = (value: object): boolean =>
+  'id' in value &&
+  typeof value.id === 'string' &&
+  'name' in value &&
+  typeof value.name === 'string' &&
+  'loop' in value &&
+  typeof value.loop === 'boolean'
+
+const isPreset = (value: unknown): value is Preset =>
+  typeof value === 'object' &&
+  value !== null &&
+  hasPresetFields(value) &&
+  'phases' in value &&
+  Array.isArray(value.phases) &&
+  value.phases.every(isPhase)
+
+const expect = <T>(
+  value: unknown,
+  is: (candidate: unknown) => candidate is T,
+  what: string,
+): T => {
+  if (!is(value)) throw new TypeError(`IPC: expected ${what}`)
+  return value
+}
+
+const isString = (value: unknown): value is string => typeof value === 'string'
+const isNumber = (value: unknown): value is number => typeof value === 'number'
+const isBoolean = (value: unknown): value is boolean =>
+  typeof value === 'boolean'
+
+/** The channel a handler name registers on. */
+const channelFor = (name: string): string => {
+  const channel: string | undefined = Object.hasOwn(IPC, name)
+    ? Object.entries(IPC).find(([key]) => key === name)?.[1]
+    : undefined
+  if (channel === undefined) throw new Error(`IPC: no channel named ${name}`)
+  return channel
+}
+
 /** The main side of src/shared/ipc.ts. Every renderer capability lands here. */
 export const registerIpc = (deps: IpcDeps): void => {
   const { requests, service, store, loginItem, history, overlay } = deps
@@ -59,14 +114,19 @@ export const registerIpc = (deps: IpcDeps): void => {
     // Summarised per call, from the log's tail: the window is open rarely and a
     // cached summary would be wrong the moment a phase ended behind it.
     getStats: () => history.stats(),
-    startPreset: (id) => startPresetById(service, store, id as string),
-    savePreset: (preset) => store.save(preset as Preset),
-    deletePreset: (id) => store.remove(id as string),
+    startPreset: (id) =>
+      startPresetById(service, store, expect(id, isString, 'a preset id')),
+    savePreset: (preset) => store.save(expect(preset, isPreset, 'a preset')),
+    deletePreset: (id) => store.remove(expect(id, isString, 'a preset id')),
     getLaunchAtLogin: () => loginItem.isEnabled(),
-    setLaunchAtLogin: (enabled) => loginItem.setEnabled(enabled as boolean),
+    setLaunchAtLogin: (enabled) =>
+      loginItem.setEnabled(expect(enabled, isBoolean, 'a boolean')),
     stopTimer: () => service.stop(),
     skipPhase: () => service.skip(),
-    setRemaining: (targetMs) => service.setRemaining(targetMs as number),
+    setRemaining: (targetMs) =>
+      service.setRemaining(expect(targetMs, isNumber, 'a duration in ms')),
+    addTime: (extraMs) =>
+      service.addTime(expect(extraMs, isNumber, 'a duration in ms')),
     dismissAlert: () => overlay.close(),
     // The overlay closes whether or not the boundary moved: a snooze is declined
     // only when its new end has already gone by, and leaving an overlay up that
@@ -80,5 +140,5 @@ export const registerIpc = (deps: IpcDeps): void => {
   }
 
   for (const [name, handler] of Object.entries(handlers))
-    requests.handle(IPC[name as keyof typeof IPC], handler)
+    requests.handle(channelFor(name), handler)
 }

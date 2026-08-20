@@ -1,4 +1,5 @@
 import type { AppInfo } from '../shared/ipc'
+import { ADD_TIME_MS } from '../shared/timer'
 import { createAlertPresenter, type AlertSurface } from './alert/present'
 import { wireAlerts } from './alert/wire'
 import type { History } from './history'
@@ -110,6 +111,9 @@ export const wireApp = (ports: AppPorts): WiredApp => {
       stop: () => ports.service.stop(),
       skip: () => {
         ports.service.skip()
+      },
+      addTime: () => {
+        ports.service.addTime(ADD_TIME_MS)
       },
       start: (id) => startPresetById(ports.service, ports.store, id),
       openSettings: ports.openSettings,

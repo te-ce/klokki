@@ -98,6 +98,7 @@ const fakeActions = () => ({
   stop: vi.fn(),
   start: vi.fn(),
   skip: vi.fn(),
+  addTime: vi.fn(),
   openSettings: vi.fn(),
   quit: vi.fn(),
 })
@@ -200,6 +201,25 @@ describe('the menubar', () => {
     createMenubar(surface, sources, fakeActions())
 
     expect(surface.menuLabels()).not.toContain('Skip to Break')
+  })
+
+  it('adds five minutes from the menu', () => {
+    const surface = fakeSurface()
+    const { sources } = fakeSources(running('24:59'))
+    const actions = fakeActions()
+    createMenubar(surface, sources, actions)
+
+    expect(surface.clickMenuItem('+5 min')).toBe(true)
+
+    expect(actions.addTime).toHaveBeenCalledOnce()
+  })
+
+  it('offers nothing to add time to while idle', () => {
+    const surface = fakeSurface()
+    const { sources } = fakeSources(IDLE)
+    createMenubar(surface, sources, fakeActions())
+
+    expect(surface.menuLabels()).not.toContain('+5 min')
   })
 
   it('cannot be clicked into the running header', () => {

@@ -14,7 +14,8 @@ const CRC_TABLE = Array.from({ length: 256 }, (_, n) => {
 
 const crc32 = (bytes: Buffer): number => {
   let c = 0xffffffff
-  for (const byte of bytes) c = CRC_TABLE[(c ^ byte) & 0xff]! ^ (c >>> 8)
+  // The index is masked to 0-255 and the table has 256 entries.
+  for (const byte of bytes) c = (CRC_TABLE[(c ^ byte) & 0xff] ?? 0) ^ (c >>> 8)
   return (c ^ 0xffffffff) >>> 0
 }
 
@@ -52,7 +53,7 @@ export const encodeGrayAlphaPng = (size: number, alpha: Uint8Array): Buffer => {
   for (let y = 0; y < size; y++) {
     const row = y * (stride + 1)
     for (let x = 0; x < size; x++) {
-      raw[row + 2 + x * 2] = alpha[y * size + x]!
+      raw[row + 2 + x * 2] = alpha[y * size + x] ?? 0
     }
   }
   return assemble(size, 4, raw)

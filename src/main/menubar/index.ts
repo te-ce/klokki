@@ -21,6 +21,7 @@ export type MenubarSources = {
 export type MenubarActions = {
   readonly stop: () => void
   readonly skip: () => void
+  readonly addTime: () => void
   readonly start: (presetId: string) => void
   readonly openSettings: () => void
   readonly quit: () => void
@@ -56,6 +57,8 @@ export const createMenubar = (
         return actions.stop()
       case 'skip':
         return actions.skip()
+      case 'addTime':
+        return actions.addTime()
       case 'start':
         return actions.start(action.presetId)
       case 'settings':

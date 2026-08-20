@@ -1,14 +1,62 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "plugins": ["typescript", "unicorn", "oxc", "react", "jsx-a11y", "import"],
+  "jsPlugins": ["eslint-plugin-react-you-might-not-need-an-effect"],
   "categories": {
     "correctness": "error"
   },
+  "options": {
+    "typeAware": true
+  },
   "rules": {
+    "jsx-a11y/control-has-associated-label": "off",
+    "jsx-a11y/prefer-tag-over-role": "off",
     "jsx-a11y/no-autofocus": "off",
-    "complexity": ["error", { "max": 10 }],
-    "max-depth": ["error", { "max": 4 }],
-    "no-console": ["error", { "allow": ["warn", "error"] }]
+    "react/no-children-prop": "off",
+    "complexity": [
+      "error",
+      {
+        "max": 10
+      }
+    ],
+    "max-depth": [
+      "error",
+      {
+        "max": 4
+      }
+    ],
+    "no-console": [
+      "error",
+      {
+        "allow": ["warn", "error"]
+      }
+    ],
+    "react/rules-of-hooks": "error",
+    "react/exhaustive-deps": "error",
+    "react/no-multi-comp": "error",
+    "react/only-export-components": [
+      "error",
+      {
+        "allowConstantExport": true
+      }
+    ],
+    "typescript/consistent-type-assertions": [
+      "error",
+      {
+        "assertionStyle": "never"
+      }
+    ],
+    "typescript/no-non-null-assertion": "error",
+    "typescript/no-unnecessary-condition": "error",
+    "react-you-might-not-need-an-effect/no-derived-state": "error",
+    "react-you-might-not-need-an-effect/no-chain-state-updates": "error",
+    "react-you-might-not-need-an-effect/no-event-handler": "error",
+    "react-you-might-not-need-an-effect/no-adjust-state-on-prop-change": "error",
+    "react-you-might-not-need-an-effect/no-reset-all-state-on-prop-change": "error",
+    "react-you-might-not-need-an-effect/no-pass-live-state-to-parent": "error",
+    "react-you-might-not-need-an-effect/no-pass-data-to-parent": "error",
+    "react-you-might-not-need-an-effect/no-external-store-subscription": "error",
+    "react-you-might-not-need-an-effect/no-initialize-state": "error"
   },
   "env": {
     "builtin": true
@@ -16,11 +64,34 @@
   "overrides": [
     {
       "files": ["src/main/**", "src/preload/**", "e2e/**", "*.config.ts"],
-      "env": { "node": true }
+      "env": {
+        "node": true
+      }
     },
     {
       "files": ["src/renderer/**"],
-      "env": { "browser": true }
+      "env": {
+        "browser": true
+      }
+    },
+    {
+      "files": [
+        "**/*.test.{ts,tsx}",
+        "**/*.spec.{ts,tsx}",
+        "**/__tests__/**",
+        "e2e/**",
+        "**/*.mock.{ts,tsx}",
+        "**/mocks/**",
+        "src/test/**",
+        "**/test-support/**"
+      ],
+      "rules": {
+        "typescript/no-non-null-assertion": "off",
+        "typescript/consistent-type-assertions": "off",
+        "react/no-multi-comp": "off",
+        "react/only-export-components": "off",
+        "no-console": "off"
+      }
     }
   ],
   "ignorePatterns": [
