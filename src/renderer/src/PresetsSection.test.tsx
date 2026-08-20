@@ -30,6 +30,10 @@ const mockApi = (presets: readonly Preset[] = [pomodoro]) => {
       current = current.filter((preset) => preset.id !== id)
       return Promise.resolve(undefined)
     }),
+    getStats: vi.fn().mockResolvedValue({
+      today: { date: '2026-08-20', completed: 0, minutesByLabel: [] },
+      days: [{ date: '2026-08-20', completed: 0, minutesByLabel: [] }],
+    }),
     getLaunchAtLogin: vi.fn().mockResolvedValue(false),
     setLaunchAtLogin: vi.fn().mockResolvedValue(false),
     onTimerView: vi.fn(() => vi.fn()),

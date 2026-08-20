@@ -13,7 +13,7 @@ const transition = (
   completed: Phase,
   next: Phase | null,
   at = 1_700_000_000_000,
-): Transition => ({ completed, next, at })
+): Transition => ({ completed, next, presetId: 'test', startedAt: at - 1, at })
 
 describe('alertFor', () => {
   it('has nothing to say when no phase ended', () => {

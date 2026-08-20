@@ -64,6 +64,8 @@ describe('tick', () => {
       {
         completed: pomodoro.phases[0],
         next: pomodoro.phases[1],
+        presetId: pomodoro.id,
+        startedAt: T0,
         at: T0 + minutes(25),
       },
     ])
@@ -83,7 +85,13 @@ describe('tick', () => {
 
     expect(result.state.status).toBe('idle')
     expect(result.transitions).toEqual([
-      { completed: once.phases[0], next: null, at: T0 + minutes(10) },
+      {
+        completed: once.phases[0],
+        next: null,
+        presetId: once.id,
+        startedAt: T0,
+        at: T0 + minutes(10),
+      },
     ])
   })
 
@@ -203,6 +211,10 @@ describe('snooze', () => {
       {
         completed: sitStand.phases[0],
         next: sitStand.phases[1],
+        presetId: sitStand.id,
+        // The snoozed stretch started at the boundary it deferred, so its length
+        // is the snooze — which is what the history log records as its duration.
+        startedAt: boundary,
         at: boundary + minutes(5),
       },
     ])

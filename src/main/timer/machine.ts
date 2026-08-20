@@ -30,6 +30,14 @@ export const IDLE: TimerState = { status: 'idle' }
 export type Transition = {
   readonly completed: Phase
   readonly next: Phase | null
+  /** Which preset the completed phase belonged to — what history records it under. */
+  readonly presetId: string
+  /**
+   * When the stretch that just ended began. Carried rather than derived from the
+   * phase's configured length because a snoozed stretch is shorter than it — the
+   * history log records `at - startedAt`, which is the time that actually passed.
+   */
+  readonly startedAt: number
   readonly at: number
 }
 
@@ -112,7 +120,13 @@ export const tick = (state: TimerState, now: number): TickResult => {
     const index = nextIndex(current.preset, current.phaseIndex)
     const upcoming =
       index === null ? null : (current.preset.phases[index] ?? null)
-    transitions.push({ completed: phase, next: upcoming, at: endsAt })
+    transitions.push({
+      completed: phase,
+      next: upcoming,
+      presetId: current.preset.id,
+      startedAt: current.phaseStartedAt,
+      at: endsAt,
+    })
 
     if (index === null || !upcoming) return { state: IDLE, transitions }
     current = {

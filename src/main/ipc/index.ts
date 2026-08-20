@@ -1,6 +1,7 @@
 import { app, ipcMain } from 'electron'
 import { IPC, type AppInfo } from '../../shared/ipc'
 import type { Preset } from '../../shared/preset'
+import type { History } from '../history'
 import type { LoginItem } from '../login-item'
 import { startPresetById } from '../presets/start'
 import type { PresetStore } from '../presets/store'
@@ -12,6 +13,7 @@ export const registerIpc = (
   service: TimerService,
   store: PresetStore,
   loginItem: LoginItem,
+  history: History,
 ): void => {
   ipcMain.handle(IPC.getAppInfo, (): AppInfo => ({
     version: app.getVersion(),
@@ -21,6 +23,9 @@ export const registerIpc = (
   // an edit must not be answered from a stale list.
   ipcMain.handle(IPC.listPresets, () => store.list())
   ipcMain.handle(IPC.getTimerView, () => service.getView())
+  // Summarised per call, from the log's tail: the window is open rarely and a
+  // cached summary would be wrong the moment a phase ended behind it.
+  ipcMain.handle(IPC.getStats, () => history.stats())
   ipcMain.handle(IPC.startPreset, (_event, id: string) =>
     startPresetById(service, store, id),
   )

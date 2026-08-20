@@ -1,6 +1,8 @@
 import { BrowserWindow, app } from 'electron'
 import { presentAlert } from './alert/present'
 import { wireAlerts } from './alert/wire'
+import { createHistory } from './history'
+import { recordHistory } from './history/record'
 import { createViewBroadcaster, type ViewBroadcaster } from './ipc/broadcast'
 import { registerIpc } from './ipc'
 import { createLoginItem } from './login-item'
@@ -56,12 +58,14 @@ const bootstrap = (): void => {
     app.dock?.hide()
 
     const store = createPresetStore(app.getPath('userData'))
+    const history = createHistory(app.getPath('userData'))
     const service = createTimerService()
     const broadcaster = createViewBroadcaster(service)
 
-    registerIpc(service, store, createLoginItem(app))
+    registerIpc(service, store, createLoginItem(app), history)
     pushUpdatesToWindows(broadcaster)
     wireAlerts(service, presentAlert)
+    recordHistory(service, history.append)
 
     const tray = createTray(service, store)
     exposeTestSeam(tray, service, store, broadcaster)

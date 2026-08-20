@@ -82,7 +82,13 @@ waits for the seam to appear, because `electron.launch()` resolves before
   a snooze must only ever move time forwards.
 - **History is local and append-only** (`history.jsonl`). Append-only survives a
   kill mid-write; stats read the tail. Stats cover today + 7 days, which is why
-  no query engine is needed.
+  no query engine is needed. A line is written when a stretch of phase _ends_,
+  never when it starts, so nothing is buffered and a snoozed stretch records the
+  five minutes it actually granted rather than a second full-length phase —
+  which is why `Transition` carries `startedAt` and `presetId`. A day is walked
+  on the calendar, not by subtracting 24 hours, because daylight saving makes a
+  day 23 or 25 hours long; `summarise` takes both the clock and the zone as
+  parameters so every boundary case is a test, not a wait.
 - **oxlint only**, `--type-aware`. No typescript-eslint: the second linter is
   config surface and CI seconds for no coverage this project misses.
 - **Local-only distribution.** arm64, unsigned, no notarization. macOS will warn

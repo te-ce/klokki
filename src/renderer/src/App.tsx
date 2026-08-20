@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { AppInfo } from '../../shared/ipc'
 import { GeneralSection } from './GeneralSection'
 import { PresetsSection } from './PresetsSection'
+import { StatsSection } from './StatsSection'
 import { TimerPanel } from './TimerPanel'
 
 export const App = () => {
@@ -22,6 +23,7 @@ export const App = () => {
       <h1 className="text-2xl font-semibold">Klokki</h1>
       <TimerPanel />
       <PresetsSection />
+      <StatsSection />
       <GeneralSection />
       {info ? (
         <p className="mt-auto text-sm text-neutral-500">

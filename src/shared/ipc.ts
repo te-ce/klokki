@@ -6,6 +6,7 @@
  * and served by src/main.
  */
 
+import type { HistoryStats } from './history'
 import type { Preset, SaveResult } from './preset'
 import type { TimerView } from './timer'
 
@@ -13,6 +14,7 @@ export const IPC = {
   getAppInfo: 'klokki:get-app-info',
   listPresets: 'klokki:list-presets',
   getTimerView: 'klokki:get-timer-view',
+  getStats: 'klokki:get-stats',
   startPreset: 'klokki:start-preset',
   savePreset: 'klokki:save-preset',
   deletePreset: 'klokki:delete-preset',
@@ -38,6 +40,11 @@ export interface KlokkiApi {
    * push would leave it blank for up to a second.
    */
   getTimerView(): Promise<TimerView>
+  /**
+   * Today plus the last seven days, derived from the tail of history.jsonl on
+   * every call — the renderer keeps no copy to go stale.
+   */
+  getStats(): Promise<HistoryStats>
   startPreset(id: string): Promise<void>
   stopTimer(): Promise<void>
   /** Closes the transition overlay. The only way out of it — it never times out. */

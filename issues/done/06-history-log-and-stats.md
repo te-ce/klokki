@@ -21,17 +21,17 @@ skipped, not fatal.
 
 ## Acceptance criteria
 
-- [ ] Each ended phase appends exactly one JSONL line with timestamp, preset id,
+- [x] Each ended phase appends exactly one JSONL line with timestamp, preset id,
       phase label, duration and outcome (completed or snoozed)
-- [ ] The log survives relaunches and is never rewritten in place
-- [ ] A truncated or malformed final line is skipped; the stats still render and
+- [x] The log survives relaunches and is never rewritten in place
+- [x] A truncated or malformed final line is skipped; the stats still render and
       the app still launches
-- [ ] The stats view shows today's completed phases and minutes per phase label
-- [ ] The stats view shows the last 7 days, and reads only the tail of the file
+- [x] The stats view shows today's completed phases and minutes per phase label
+- [x] The stats view shows the last 7 days, and reads only the tail of the file
       rather than parsing all of it
-- [ ] A day with no recorded phases renders as empty rather than missing or
+- [x] A day with no recorded phases renders as empty rather than missing or
       erroring
-- [ ] Unit tests cover append, tail-read, the malformed-line case and the
+- [x] Unit tests cover append, tail-read, the malformed-line case and the
       day-boundary arithmetic against a fixed clock
 
 ## Blocked by

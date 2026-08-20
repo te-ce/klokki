@@ -7,6 +7,7 @@ const mockApi = () => {
   window.klokki = {
     getAppInfo: vi.fn(() => Promise.resolve({ version: '0', electron: '0' })),
     getTimerView: vi.fn(() => Promise.resolve(null)),
+    getStats: vi.fn(() => Promise.resolve(null)),
     listPresets: vi.fn(() => Promise.resolve([])),
     getLaunchAtLogin: vi.fn(() => Promise.resolve(false)),
     onTimerView: vi.fn(() => () => {}),

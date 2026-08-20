@@ -7,6 +7,7 @@ const api: KlokkiApi = {
   getAppInfo: () => ipcRenderer.invoke(IPC.getAppInfo),
   listPresets: () => ipcRenderer.invoke(IPC.listPresets),
   getTimerView: () => ipcRenderer.invoke(IPC.getTimerView),
+  getStats: () => ipcRenderer.invoke(IPC.getStats),
   startPreset: (id) => ipcRenderer.invoke(IPC.startPreset, id),
   stopTimer: () => ipcRenderer.invoke(IPC.stopTimer),
   dismissAlert: () => ipcRenderer.invoke(IPC.dismissAlert),

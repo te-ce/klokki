@@ -15,6 +15,10 @@ beforeEach(() => {
       remainingMs: 0,
       countdown: '00:00',
     }),
+    getStats: vi.fn().mockResolvedValue({
+      today: { date: '2026-08-20', completed: 0, minutesByLabel: [] },
+      days: [{ date: '2026-08-20', completed: 0, minutesByLabel: [] }],
+    }),
     startPreset: vi.fn().mockResolvedValue(undefined),
     stopTimer: vi.fn().mockResolvedValue(undefined),
     savePreset: vi.fn().mockResolvedValue({ ok: true }),
