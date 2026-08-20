@@ -1,5 +1,4 @@
 import type { AppInfo } from '../shared/ipc'
-import type { ReminderView } from '../shared/reminder'
 import { ADD_TIME_MS } from '../shared/timer'
 import { createAlertPresenter, type AlertSurface } from './alert/present'
 import { wireAlerts } from './alert/wire'
@@ -24,7 +23,7 @@ import {
 import type { ReminderRunStore } from './reminders/run-store'
 import type { ReminderService } from './reminders/service'
 import type { ReminderStore } from './reminders/store'
-import { toReminderViews } from './reminders/view'
+import { createReminderViewSource } from './reminders/view-source'
 import { wireReminderAlerts } from './reminders/wire'
 import { systemClock, type Clock } from './timer/clock'
 import type { TimerState } from './timer/machine'
@@ -89,45 +88,6 @@ export type WiredApp = {
  * joined up, and nothing above this line could assert it.
  */
 export const wireApp = (ports: AppPorts): WiredApp => {
-  // The reminder list a window sees is the store's definitions joined with the
-  // engine's live schedule (`toReminderViews`), so it is read fresh from both on
-  // every call rather than cached — the same reasoning `listPresets` reads the
-  // store per call instead of capturing it.
-  const reminderViews = (): readonly ReminderView[] =>
-    toReminderViews(
-      ports.reminderStore.list(),
-      ports.reminderService.getState(),
-    )
-
-  const reminderViewListeners = new Set<
-    (views: readonly ReminderView[]) => void
-  >()
-  const emitReminderViews = (): void => {
-    const views = reminderViews()
-    for (const listener of reminderViewListeners) listener(views)
-  }
-
-  const broadcaster = createViewBroadcaster({
-    timer: ports.service,
-    presets: ports.store,
-    history: ports.history,
-    reminderHistory: ports.reminderHistory,
-    reminders: {
-      subscribe: (listener) => {
-        reminderViewListeners.add(listener)
-        return () => reminderViewListeners.delete(listener)
-      },
-    },
-  })
-
-  // Every window is a subscriber for as long as it exists, and stops being one
-  // the moment it closes. Registering here rather than where windows are opened
-  // means a window added later cannot forget to do it.
-  ports.windows.onOpened((window) => {
-    broadcaster.register(window.target)
-    window.onClosed(() => broadcaster.unregister(window.target))
-  })
-
   const reminderAlerts = wireReminderAlerts(
     ports.reminderService,
     createReminderAlertPresenter(ports.reminderAlerts),
@@ -135,33 +95,6 @@ export const wireApp = (ports: AppPorts): WiredApp => {
     ports.reminderHistory.append,
     ports.clock ?? systemClock,
   )
-
-  registerIpc({
-    requests: ports.requests,
-    service: ports.service,
-    store: ports.store,
-    loginItem: ports.loginItem,
-    history: ports.history,
-    reminderHistory: ports.reminderHistory,
-    overlay: ports.overlay,
-    reminderStore: ports.reminderStore,
-    reminderViews,
-    reminderAnswers: reminderAlerts,
-    appInfo: ports.appInfo,
-  })
-
-  const unwireAlerts = wireAlerts(
-    ports.service,
-    createAlertPresenter(ports.alerts),
-  )
-  const unwireHistory = recordHistory(ports.service, ports.history.append)
-  const unwireSnapshot = persistSnapshot(ports.service, ports.snapshot)
-
-  // Loaded after the listeners above are wired, so a run that finished or
-  // advanced while the app was closed still reaches history and the alert
-  // surface — the same as a boundary the poll drains after waking from sleep.
-  const saved = ports.snapshot.load()
-  if (saved) ports.service.resume(saved)
 
   const persistReminderRun = (): void =>
     ports.reminderRunStore.save(ports.reminderService.getState())
@@ -179,12 +112,61 @@ export const wireApp = (ports: AppPorts): WiredApp => {
   const unwireReminderStore = ports.reminderStore.subscribe((list) => {
     ports.reminderService.setDefinitions(list)
     persistReminderRun()
-    emitReminderViews()
   })
   const unwireReminderTick = ports.reminderService.subscribe(() => {
     persistReminderRun()
-    emitReminderViews()
   })
+
+  // Built after the listeners above, so its own store/service subscriptions
+  // fire after `setDefinitions` has already updated the schedule for this
+  // change — a save picked up by the view join in the same tick it lands.
+  const reminderViewSource = createReminderViewSource(
+    ports.reminderStore,
+    ports.reminderService,
+  )
+
+  const broadcaster = createViewBroadcaster({
+    timer: ports.service,
+    presets: ports.store,
+    history: ports.history,
+    reminderHistory: ports.reminderHistory,
+    reminders: reminderViewSource,
+  })
+
+  // Every window is a subscriber for as long as it exists, and stops being one
+  // the moment it closes. Registering here rather than where windows are opened
+  // means a window added later cannot forget to do it.
+  ports.windows.onOpened((window) => {
+    broadcaster.register(window.target)
+    window.onClosed(() => broadcaster.unregister(window.target))
+  })
+
+  registerIpc({
+    requests: ports.requests,
+    service: ports.service,
+    store: ports.store,
+    loginItem: ports.loginItem,
+    history: ports.history,
+    reminderHistory: ports.reminderHistory,
+    overlay: ports.overlay,
+    reminderStore: ports.reminderStore,
+    reminderViews: reminderViewSource.views,
+    reminderAnswers: reminderAlerts,
+    appInfo: ports.appInfo,
+  })
+
+  const unwireAlerts = wireAlerts(
+    ports.service,
+    createAlertPresenter(ports.alerts),
+  )
+  const unwireHistory = recordHistory(ports.service, ports.history.append)
+  const unwireSnapshot = persistSnapshot(ports.service, ports.snapshot)
+
+  // Loaded after the listeners above are wired, so a run that finished or
+  // advanced while the app was closed still reaches history and the alert
+  // surface — the same as a boundary the poll drains after waking from sleep.
+  const saved = ports.snapshot.load()
+  if (saved) ports.service.resume(saved)
 
   const menubar = createMenubar(
     ports.menubar,
@@ -212,6 +194,7 @@ export const wireApp = (ports: AppPorts): WiredApp => {
       unwireSnapshot()
       unwireReminderStore()
       unwireReminderTick()
+      reminderViewSource.dispose()
       reminderAlerts.dispose()
       menubar.dispose()
       broadcaster.dispose()
