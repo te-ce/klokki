@@ -1,4 +1,5 @@
 import type { Preset } from '../../shared/preset'
+import type { TimerView } from '../../shared/timer'
 import { systemClock, type Clock } from './clock'
 import { formatRemaining } from './format'
 import {
@@ -12,15 +13,6 @@ import {
 } from './machine'
 
 const POLL_INTERVAL_MS = 1_000
-
-/** Everything a view needs to render the timer. Serialisable: it crosses IPC. */
-export type TimerView = {
-  readonly running: boolean
-  readonly presetName: string | null
-  readonly phaseLabel: string | null
-  readonly remainingMs: number
-  readonly countdown: string
-}
 
 export type TimerUpdate = {
   readonly view: TimerView

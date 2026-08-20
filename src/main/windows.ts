@@ -4,6 +4,9 @@ import { join } from 'node:path'
 const PRELOAD = join(import.meta.dirname, '../preload/index.js')
 const RENDERER_HTML = join(import.meta.dirname, '../renderer/index.html')
 const DEV_SERVER_URL = process.env['ELECTRON_RENDERER_URL']
+// macOS has no headless Electron, so the e2e suite keeps windows unshown
+// instead: the renderer still loads and runs, it just never steals focus.
+const HEADLESS = process.env['KLOKKI_E2E'] === '1'
 
 /** Security posture shared by every window: the renderer never gets Node. */
 const HARDENED_WEB_PREFERENCES = {
@@ -39,7 +42,8 @@ export const openSettingsWindow = (): void => {
     webPreferences: HARDENED_WEB_PREFERENCES,
   })
 
-  settingsWindow.on('ready-to-show', () => settingsWindow?.show())
+  if (!HEADLESS)
+    settingsWindow.on('ready-to-show', () => settingsWindow?.show())
   settingsWindow.on('closed', () => {
     settingsWindow = null
   })

@@ -1,15 +1,24 @@
-import { BrowserWindow, app, ipcMain, type Tray } from 'electron'
-import { IPC, type AppInfo } from '../shared/ipc'
+import { BrowserWindow, app } from 'electron'
 import type { Preset } from '../shared/preset'
+import { createViewBroadcaster, type ViewBroadcaster } from './ipc/broadcast'
+import { registerIpc, startPresetById } from './ipc'
 import { loadPresets } from './presets/store'
-import { createTray } from './tray'
+import { createTray, type TrayHandle } from './tray'
 import { createTimerService, type TimerService } from './timer/service'
 
-const registerIpc = (): void => {
-  ipcMain.handle(IPC.getAppInfo, (): AppInfo => ({
-    version: app.getVersion(),
-    electron: process.versions.electron,
-  }))
+/**
+ * Every window is a subscriber for as long as it exists, and stops being one the
+ * moment it closes. Registering here rather than in windows.ts means a window
+ * added later cannot forget to do it.
+ */
+const pushUpdatesToWindows = (broadcaster: ViewBroadcaster): void => {
+  app.on('browser-window-created', (_event, window) => {
+    // Captured now: by the time 'closed' fires the window is destroyed, and
+    // reading `window.webContents` then throws "Object has been destroyed".
+    const { webContents } = window
+    broadcaster.register(webContents)
+    window.on('closed', () => broadcaster.unregister(webContents))
+  })
 }
 
 /**
@@ -17,20 +26,20 @@ const registerIpc = (): void => {
  * e2e suite gets an explicit seam instead of asserting on screenshots.
  */
 const exposeTestSeam = (
-  tray: Tray,
+  tray: TrayHandle,
   service: TimerService,
   presets: readonly Preset[],
+  broadcaster: ViewBroadcaster,
 ): void => {
   if (process.env['KLOKKI_E2E'] !== '1') return
   Object.assign(globalThis, {
     __klokkiTest: {
-      trayTitle: () => tray.getTitle(),
+      trayTitle: () => tray.tray.getTitle(),
+      clickMenuItem: (label: string) => tray.clickMenuItem(label),
       view: () => service.getView(),
-      startPreset: (id: string) => {
-        const preset = presets.find((candidate) => candidate.id === id)
-        if (preset) service.startPreset(preset)
-      },
+      startPreset: (id: string) => startPresetById(service, presets, id),
       stop: () => service.stop(),
+      subscriberCount: () => broadcaster.targetCount(),
     },
   })
 }
@@ -39,14 +48,21 @@ const bootstrap = (): void => {
   void app.whenReady().then(() => {
     // No Dock icon, no app-switcher entry — the tray is the whole app.
     app.dock?.hide()
-    registerIpc()
 
     const presets = loadPresets(app.getPath('userData'))
     const service = createTimerService()
-    const tray = createTray(service, presets)
-    exposeTestSeam(tray, service, presets)
+    const broadcaster = createViewBroadcaster(service)
 
-    app.on('will-quit', () => service.dispose())
+    registerIpc(service, presets)
+    pushUpdatesToWindows(broadcaster)
+
+    const tray = createTray(service, presets)
+    exposeTestSeam(tray, service, presets, broadcaster)
+
+    app.on('will-quit', () => {
+      broadcaster.dispose()
+      service.dispose()
+    })
   })
 
   // Closing the settings window must not quit a menubar app.

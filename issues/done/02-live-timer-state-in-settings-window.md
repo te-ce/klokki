@@ -20,15 +20,15 @@ must show current state immediately rather than waiting for the next tick.
 
 ## Acceptance criteria
 
-- [ ] With a preset running, opening the settings window immediately shows the
+- [x] With a preset running, opening the settings window immediately shows the
       preset name, the current phase and the countdown — without waiting a second
-- [ ] The countdown in the window advances on its own while the window is open
-- [ ] Starting and stopping a preset from the window is reflected in the menubar
+- [x] The countdown in the window advances on its own while the window is open
+- [x] Starting and stopping a preset from the window is reflected in the menubar
       title, and vice versa
-- [ ] Closing the settings window unsubscribes it; no updates are sent to a
+- [x] Closing the settings window unsubscribes it; no updates are sent to a
       destroyed window and no listeners accumulate across open/close cycles
-- [ ] The renderer contains no timer or countdown arithmetic of its own
-- [ ] An e2e test opens the window from the tray and observes the countdown
+- [x] The renderer contains no timer or countdown arithmetic of its own
+- [x] An e2e test opens the window from the tray and observes the countdown
       changing
 
 ## Blocked by

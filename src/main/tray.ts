@@ -1,7 +1,8 @@
 import { Menu, Tray, app, nativeImage } from 'electron'
 import { join } from 'node:path'
 import type { Preset } from '../shared/preset'
-import type { TimerService, TimerView } from './timer/service'
+import type { TimerView } from '../shared/timer'
+import type { TimerService } from './timer/service'
 import { openSettingsWindow } from './windows'
 
 const ICON = join(import.meta.dirname, '../../resources/trayTemplate.png')
@@ -29,13 +30,23 @@ const buildMenu = (
   ])
 
 /**
+ * A live handle on the menubar. `clickMenuItem` exists because macOS exposes no
+ * way to click the menubar from outside the app, so the e2e suite drives the
+ * real menu template through this instead of a screenshot (see AGENTS.md).
+ */
+export type TrayHandle = {
+  readonly tray: Tray
+  readonly clickMenuItem: (label: string) => boolean
+}
+
+/**
  * The menubar is the whole UI: the title carries the countdown as text, because
  * a filling arc is illegible at 22px and a number is not.
  */
 export const createTray = (
   service: TimerService,
   presets: readonly Preset[],
-): Tray => {
+): TrayHandle => {
   const image = nativeImage.createFromPath(ICON)
   // Template images are tinted by macOS to match the menubar.
   image.setTemplateImage(true)
@@ -44,6 +55,7 @@ export const createTray = (
   // The menu only changes when the phase does; rebuilding it every second would
   // be wasted work and would close it under the user's cursor.
   let menuKey = ''
+  let menu: Menu | null = null
 
   const render = (view: TimerView): void => {
     tray.setTitle(view.running ? ` ${view.countdown}` : '')
@@ -52,11 +64,20 @@ export const createTray = (
     const nextKey = `${view.running}:${view.presetName}:${view.phaseLabel}`
     if (nextKey === menuKey) return
     menuKey = nextKey
-    tray.setContextMenu(buildMenu(service, view, presets))
+    menu = buildMenu(service, view, presets)
+    tray.setContextMenu(menu)
   }
 
   service.subscribe(({ view }) => render(view))
   render(service.getView())
 
-  return tray
+  return {
+    tray,
+    clickMenuItem: (label) => {
+      const item = menu?.items.find((candidate) => candidate.label === label)
+      if (!item?.click) return false
+      item.click()
+      return true
+    },
+  }
 }
