@@ -32,6 +32,8 @@ export const IPC = {
   saveReminder: 'klokki:save-reminder',
   deleteReminder: 'klokki:delete-reminder',
   setReminderEnabled: 'klokki:set-reminder-enabled',
+  snoozeReminder: 'klokki:snooze-reminder',
+  completeReminder: 'klokki:complete-reminder',
 } as const
 
 /**
@@ -116,6 +118,20 @@ export interface KlokkiApi {
   saveReminder(definition: ReminderDefinition): Promise<SaveResult>
   deleteReminder(id: string): Promise<void>
   setReminderEnabled(id: string, enabled: boolean): Promise<void>
+  /**
+   * Defers the reminder the overlay is currently showing, by `extraMs` — one of
+   * the fixed +5/+10/+15 options, matching `snoozeAlert`'s convention of the
+   * main process owning the amount. Resolves to whether it was actually
+   * deferred; declined the same way a phase snooze is when its new time has
+   * already passed.
+   */
+  snoozeReminder(extraMs: number): Promise<boolean>
+  /**
+   * Answers the reminder the overlay is currently showing as done, with a
+   * quantity for a step that has a `unit` or null for one that doesn't. Closes
+   * the overlay and lets the engine's normal advance stand.
+   */
+  completeReminder(quantity: number | null): Promise<void>
   /** Read from the OS login item, never from a value the app stored. */
   getLaunchAtLogin(): Promise<boolean>
   /** Returns the state the OS has after the write, which may differ. */

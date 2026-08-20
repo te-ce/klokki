@@ -8,11 +8,17 @@ import { startPresetById } from './presets/start'
 import { createPresetStore } from './presets/store'
 import { createReminderRunStore } from './reminders/run-store'
 import { createReminderService } from './reminders/service'
+import { electronReminderAlertSurface } from './reminders/surface'
 import { createReminderStore } from './reminders/store'
 import { createTimerService, type TimerService } from './timer/service'
 import { createSnapshotStore } from './timer/snapshot'
 import { wireApp, type WiredApp } from './wire'
-import { closeOverlayWindow, openSettingsWindow, overlayState } from './windows'
+import {
+  closeOverlayWindow,
+  closeReminderOverlayWindow,
+  openSettingsWindow,
+  overlayState,
+} from './windows'
 
 /**
  * Electron exposes no way to inspect the menubar from outside the app, so the
@@ -68,6 +74,8 @@ const bootstrap = (): void => {
       menubar: electronMenubarSurface(),
       alerts: electronAlertSurface(),
       overlay: { close: closeOverlayWindow },
+      reminderAlerts: electronReminderAlertSurface(),
+      reminderOverlay: { close: closeReminderOverlayWindow },
       windows: {
         onOpened: (listener) => {
           app.on('browser-window-created', (_event, window) => {

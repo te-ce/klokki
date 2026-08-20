@@ -82,6 +82,8 @@ export const fakeKlokki = (overrides: Partial<KlokkiApi> = {}): FakeKlokki => {
     saveReminder: () => Promise.resolve({ ok: true }),
     deleteReminder: () => Promise.resolve(),
     setReminderEnabled: () => Promise.resolve(),
+    snoozeReminder: () => Promise.resolve(true),
+    completeReminder: () => Promise.resolve(),
     onTimerView: subscriber(views),
     onPresets: subscriber(presets),
     onHistoryChanged: subscriber(history),

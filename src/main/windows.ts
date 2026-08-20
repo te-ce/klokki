@@ -1,6 +1,10 @@
 import { BrowserWindow, shell } from 'electron'
 import { join } from 'node:path'
 import { alertRoute, type Alert } from '../shared/alert'
+import {
+  reminderAlertRoute,
+  type ReminderAlert,
+} from '../shared/reminder-alert'
 
 const PRELOAD = join(import.meta.dirname, '../preload/index.js')
 const RENDERER_HTML = join(import.meta.dirname, '../renderer/index.html')
@@ -113,6 +117,56 @@ export const openOverlayWindow = (alert: Alert): void => {
 export const closeOverlayWindow = (): void => {
   if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.close()
   overlayWindow = null
+}
+
+let reminderOverlayWindow: BrowserWindow | null = null
+
+/**
+ * The reminder overlay — same intrusive-alert platform config as the phase
+ * overlay (see openOverlayWindow), kept as its own window so a reminder due
+ * mid-transition never fights the phase overlay for the same window.
+ */
+export const openReminderOverlayWindow = (alert: ReminderAlert): void => {
+  closeReminderOverlayWindow()
+
+  reminderOverlayWindow = new BrowserWindow({
+    width: 420,
+    height: 260,
+    center: true,
+    show: false,
+    frame: false,
+    resizable: false,
+    movable: false,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    focusable: false,
+    skipTaskbar: true,
+    alwaysOnTop: true,
+    webPreferences: HARDENED_WEB_PREFERENCES,
+  })
+
+  reminderOverlayWindow.setAlwaysOnTop(true, 'screen-saver')
+  reminderOverlayWindow.setVisibleOnAllWorkspaces(true, {
+    visibleOnFullScreen: true,
+  })
+
+  if (!HEADLESS)
+    reminderOverlayWindow.on('ready-to-show', () =>
+      reminderOverlayWindow?.showInactive(),
+    )
+  reminderOverlayWindow.on('closed', () => {
+    reminderOverlayWindow = null
+  })
+
+  loadRenderer(reminderOverlayWindow, reminderAlertRoute(alert))
+}
+
+/** Answering the overlay is the only thing that closes it; there is no timer. */
+export const closeReminderOverlayWindow = (): void => {
+  if (reminderOverlayWindow && !reminderOverlayWindow.isDestroyed())
+    reminderOverlayWindow.close()
+  reminderOverlayWindow = null
 }
 
 /** The e2e suite's view of the overlay — the platform config is the feature. */

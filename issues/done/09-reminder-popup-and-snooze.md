@@ -29,17 +29,17 @@ step rather than advance past it.
 
 ## Acceptance criteria
 
-- [ ] A reminder firing shows a native notification and the overlay, same
+- [x] A reminder firing shows a native notification and the overlay, same
       trigger shape as a phase transition
-- [ ] Overlay offers Snooze (+5/+10/+15) and Done; no separate dismiss
-- [ ] Done is disabled until a quantity is entered when the step has a `unit`,
+- [x] Overlay offers Snooze (+5/+10/+15) and Done; no separate dismiss
+- [x] Done is disabled until a quantity is entered when the step has a `unit`,
       and needs no input when it doesn't
-- [ ] Two reminders due close together queue rather than opening two overlay
+- [x] Two reminders due close together queue rather than opening two overlay
       windows at once
-- [ ] Snooze re-fires the same step later; it does not skip to the next step
-- [ ] A snooze whose new time would already be past is declined, matching the
+- [x] Snooze re-fires the same step later; it does not skip to the next step
+- [x] A snooze whose new time would already be past is declined, matching the
       existing "a snooze must only ever move time forwards" rule
-- [ ] Renderer test coverage for the overlay's states (no-unit step, unit step
+- [x] Renderer test coverage for the overlay's states (no-unit step, unit step
       with/without a value entered, queued-second-reminder) mirrors the existing
       `TransitionOverlay` tests
 

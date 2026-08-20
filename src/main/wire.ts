@@ -16,9 +16,14 @@ import type { MenubarSurface } from './menubar/surface'
 import { startPresetById } from './presets/start'
 import type { PresetStore } from './presets/store'
 import type { RemindersState } from './reminders/engine'
+import {
+  createReminderAlertPresenter,
+  type ReminderAlertSurface,
+} from './reminders/present'
 import type { ReminderRunStore } from './reminders/run-store'
 import type { ReminderService } from './reminders/service'
 import type { ReminderStore } from './reminders/store'
+import { wireReminderAlerts } from './reminders/wire'
 import type { TimerState } from './timer/machine'
 import { persistSnapshot } from './timer/persist'
 import type { TimerService } from './timer/service'
@@ -53,6 +58,8 @@ export type AppPorts = {
   readonly menubar: MenubarSurface
   readonly alerts: AlertSurface
   readonly overlay: OverlayControl
+  readonly reminderAlerts: ReminderAlertSurface
+  readonly reminderOverlay: OverlayControl
   readonly windows: {
     readonly onOpened: (listener: (window: WindowHandle) => void) => void
   }
@@ -91,6 +98,12 @@ export const wireApp = (ports: AppPorts): WiredApp => {
     window.onClosed(() => broadcaster.unregister(window.target))
   })
 
+  const reminderAlerts = wireReminderAlerts(
+    ports.reminderService,
+    createReminderAlertPresenter(ports.reminderAlerts),
+    ports.reminderOverlay.close,
+  )
+
   registerIpc({
     requests: ports.requests,
     service: ports.service,
@@ -99,6 +112,7 @@ export const wireApp = (ports: AppPorts): WiredApp => {
     history: ports.history,
     overlay: ports.overlay,
     reminderStore: ports.reminderStore,
+    reminderAnswers: reminderAlerts,
     appInfo: ports.appInfo,
   })
 
@@ -162,6 +176,7 @@ export const wireApp = (ports: AppPorts): WiredApp => {
       unwireSnapshot()
       unwireReminderStore()
       unwireReminderTick()
+      reminderAlerts.dispose()
       menubar.dispose()
       broadcaster.dispose()
       ports.service.dispose()

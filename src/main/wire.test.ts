@@ -182,6 +182,8 @@ const build = (
   const menubar = fakeMenubar()
   const alerts = { notify: vi.fn(), showOverlay: vi.fn() }
   const overlay = { close: vi.fn() }
+  const reminderAlerts = { notify: vi.fn(), showOverlay: vi.fn() }
+  const reminderOverlay = { close: vi.fn() }
   const requests = new Map<string, (...args: readonly unknown[]) => unknown>()
   let onOpened: (window: WindowHandle) => void = () => {}
 
@@ -201,6 +203,8 @@ const build = (
     menubar,
     alerts,
     overlay,
+    reminderAlerts,
+    reminderOverlay,
     windows: {
       onOpened: (listener) => {
         onOpened = listener
@@ -224,6 +228,8 @@ const build = (
     menubar,
     alerts,
     overlay,
+    reminderAlerts,
+    reminderOverlay,
     openWindow: () => {
       const window = fakeWindow()
       onOpened(window.handle)
@@ -485,6 +491,62 @@ describe('reminders, saved for a restart', () => {
     expect(window.on(PUSH.reminders)).toEqual([
       { channel: PUSH.reminders, payload: [water] },
     ])
+  })
+
+  it('shows both halves of the alert when a reminder comes due', () => {
+    const wired = build(null, { reminders: [water] })
+
+    elapse(30 * MINUTE)
+
+    expect(wired.reminderAlerts.notify).toHaveBeenCalledOnce()
+    expect(wired.reminderAlerts.showOverlay).toHaveBeenCalledWith({
+      label: 'Drink a glass of water',
+      unit: null,
+    })
+  })
+
+  it('reschedules the same step on snooze rather than skipping it', () => {
+    const wired = build(null, { reminders: [water] })
+    elapse(30 * MINUTE)
+
+    expect(wired.invoke(IPC.snoozeReminder, 10 * MINUTE)).toBe(true)
+
+    expect(wired.reminderOverlay.close).toHaveBeenCalledOnce()
+    expect(wired.reminderService.getState()).toEqual([
+      { definitionId: 'water', nextFireAt: 40 * MINUTE, stepIndex: 0 },
+    ])
+  })
+
+  it('closes the overlay and lets the engine advance on Done', () => {
+    const wired = build(null, { reminders: [water] })
+    elapse(30 * MINUTE)
+
+    wired.invoke(IPC.completeReminder, null)
+
+    expect(wired.reminderOverlay.close).toHaveBeenCalledOnce()
+  })
+
+  it('queues a second reminder due before the first is answered', () => {
+    const pushups: ReminderDefinition = {
+      id: 'pushups',
+      name: 'Pushups',
+      intervalMinutes: 30,
+      steps: [{ label: 'Pushups', unit: 'reps' }],
+      enabled: true,
+    }
+    const wired = build(null, { reminders: [water, pushups] })
+
+    elapse(30 * MINUTE)
+
+    expect(wired.reminderAlerts.showOverlay).toHaveBeenCalledTimes(1)
+
+    wired.invoke(IPC.completeReminder, null)
+
+    expect(wired.reminderAlerts.showOverlay).toHaveBeenCalledTimes(2)
+    expect(wired.reminderAlerts.showOverlay).toHaveBeenLastCalledWith({
+      label: 'Pushups',
+      unit: 'reps',
+    })
   })
 })
 

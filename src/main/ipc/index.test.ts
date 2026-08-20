@@ -74,6 +74,10 @@ const wire = (overrides: Partial<IpcDeps> = {}) => {
     subscribe: vi.fn(() => () => {}),
   }
   const overlay = { close: vi.fn() }
+  const reminderAnswers = {
+    snooze: vi.fn(() => true),
+    complete: vi.fn(),
+  }
   const reminderStore = {
     list: vi.fn((): readonly ReminderDefinition[] => [water]),
     save: vi.fn(() => ({ ok: true }) as const),
@@ -89,12 +93,22 @@ const wire = (overrides: Partial<IpcDeps> = {}) => {
     history,
     overlay,
     reminderStore,
+    reminderAnswers,
     appInfo: () => ({ version: '1.2.3', electron: '43.0.0' }),
     ...overrides,
   }
 
   registerIpc(deps)
-  return { ...sink, service, store, loginItem, history, overlay, reminderStore }
+  return {
+    ...sink,
+    service,
+    store,
+    loginItem,
+    history,
+    overlay,
+    reminderStore,
+    reminderAnswers,
+  }
 }
 
 describe('the request contract', () => {
@@ -288,5 +302,29 @@ describe('what the handlers do', () => {
     app.invoke(IPC.setReminderEnabled, 'water', false)
 
     expect(app.reminderStore.setEnabled).toHaveBeenCalledWith('water', false)
+  })
+
+  it('defers the reminder currently showing, and says whether it moved', () => {
+    const app = wire()
+
+    expect(app.invoke(IPC.snoozeReminder, 600_000)).toBe(true)
+
+    expect(app.reminderAnswers.snooze).toHaveBeenCalledWith(600_000)
+  })
+
+  it('answers the reminder currently showing as done, with its quantity', () => {
+    const app = wire()
+
+    app.invoke(IPC.completeReminder, 20)
+
+    expect(app.reminderAnswers.complete).toHaveBeenCalledWith(20)
+  })
+
+  it('completes a unit-less reminder with a null quantity', () => {
+    const app = wire()
+
+    app.invoke(IPC.completeReminder, null)
+
+    expect(app.reminderAnswers.complete).toHaveBeenCalledWith(null)
   })
 })

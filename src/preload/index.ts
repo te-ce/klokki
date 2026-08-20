@@ -43,6 +43,9 @@ const api: KlokkiApi = {
   deleteReminder: (id) => ipcRenderer.invoke(IPC.deleteReminder, id),
   setReminderEnabled: (id, enabled) =>
     ipcRenderer.invoke(IPC.setReminderEnabled, id, enabled),
+  snoozeReminder: (extraMs) => ipcRenderer.invoke(IPC.snoozeReminder, extraMs),
+  completeReminder: (quantity) =>
+    ipcRenderer.invoke(IPC.completeReminder, quantity),
   onTimerView: (listener) => on<TimerView>(PUSH.timerView, listener),
   onPresets: (listener) => on<readonly Preset[]>(PUSH.presets, listener),
   onHistoryChanged: (listener) => on(PUSH.historyChanged, listener),

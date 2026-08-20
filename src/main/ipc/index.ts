@@ -25,6 +25,12 @@ export type OverlayControl = {
   readonly close: () => void
 }
 
+/** Answering the reminder overlay currently showing — see reminders/wire.ts. */
+export type ReminderAnswers = {
+  readonly snooze: (extraMs: number) => boolean
+  readonly complete: (quantity: number | null) => void
+}
+
 export type IpcDeps = {
   readonly requests: RequestSink
   readonly service: TimerService
@@ -33,6 +39,7 @@ export type IpcDeps = {
   readonly history: History
   readonly overlay: OverlayControl
   readonly reminderStore: ReminderStore
+  readonly reminderAnswers: ReminderAnswers
   readonly appInfo: () => AppInfo
 }
 
@@ -94,6 +101,8 @@ const isString = (value: unknown): value is string => typeof value === 'string'
 const isNumber = (value: unknown): value is number => typeof value === 'number'
 const isBoolean = (value: unknown): value is boolean =>
   typeof value === 'boolean'
+const isNumberOrNull = (value: unknown): value is number | null =>
+  value === null || typeof value === 'number'
 
 /** The channel a handler name registers on. */
 const channelFor = (name: string): string => {
@@ -114,6 +123,7 @@ export const registerIpc = (deps: IpcDeps): void => {
     history,
     overlay,
     reminderStore,
+    reminderAnswers,
   } = deps
 
   const handlers: Handlers = {
@@ -159,6 +169,12 @@ export const registerIpc = (deps: IpcDeps): void => {
       reminderStore.setEnabled(
         expect(id, isString, 'a reminder id'),
         expect(enabled, isBoolean, 'a boolean'),
+      ),
+    snoozeReminder: (extraMs) =>
+      reminderAnswers.snooze(expect(extraMs, isNumber, 'a duration in ms')),
+    completeReminder: (quantity) =>
+      reminderAnswers.complete(
+        expect(quantity, isNumberOrNull, 'a quantity or null'),
       ),
   }
 
