@@ -6,7 +6,7 @@
  * and served by src/main.
  */
 
-import type { Preset } from './preset'
+import type { Preset, SaveResult } from './preset'
 import type { TimerView } from './timer'
 
 export const IPC = {
@@ -14,6 +14,10 @@ export const IPC = {
   listPresets: 'klokki:list-presets',
   getTimerView: 'klokki:get-timer-view',
   startPreset: 'klokki:start-preset',
+  savePreset: 'klokki:save-preset',
+  deletePreset: 'klokki:delete-preset',
+  getLaunchAtLogin: 'klokki:get-launch-at-login',
+  setLaunchAtLogin: 'klokki:set-launch-at-login',
   stopTimer: 'klokki:stop-timer',
   /** Main → renderer: a fresh view, once a second while the timer runs. */
   timerView: 'klokki:timer-view',
@@ -34,6 +38,16 @@ export interface KlokkiApi {
   getTimerView(): Promise<TimerView>
   startPreset(id: string): Promise<void>
   stopTimer(): Promise<void>
+  /**
+   * Upsert by id. The main process validates again — it owns presets.json — so a
+   * rejected preset comes back with the reasons instead of throwing.
+   */
+  savePreset(preset: Preset): Promise<SaveResult>
+  deletePreset(id: string): Promise<void>
+  /** Read from the OS login item, never from a value the app stored. */
+  getLaunchAtLogin(): Promise<boolean>
+  /** Returns the state the OS has after the write, which may differ. */
+  setLaunchAtLogin(enabled: boolean): Promise<boolean>
   /** Returns its own unsubscribe, so a view can clean up on unmount. */
   onTimerView(listener: (view: TimerView) => void): () => void
 }

@@ -17,6 +17,10 @@ beforeEach(() => {
     }),
     startPreset: vi.fn().mockResolvedValue(undefined),
     stopTimer: vi.fn().mockResolvedValue(undefined),
+    savePreset: vi.fn().mockResolvedValue({ ok: true }),
+    deletePreset: vi.fn().mockResolvedValue(undefined),
+    getLaunchAtLogin: vi.fn().mockResolvedValue(false),
+    setLaunchAtLogin: vi.fn().mockResolvedValue(false),
     onTimerView: vi.fn(() => vi.fn()),
   }
 })

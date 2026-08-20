@@ -2,6 +2,7 @@ import { Menu, Tray, app, nativeImage } from 'electron'
 import { join } from 'node:path'
 import type { Preset } from '../shared/preset'
 import type { TimerView } from '../shared/timer'
+import type { PresetStore } from './presets/store'
 import type { TimerService } from './timer/service'
 import { openSettingsWindow } from './windows'
 
@@ -37,6 +38,8 @@ const buildMenu = (
 export type TrayHandle = {
   readonly tray: Tray
   readonly clickMenuItem: (label: string) => boolean
+  /** The menu as the user would read it — the e2e suite's only view of it. */
+  readonly menuLabels: () => readonly string[]
 }
 
 /**
@@ -45,7 +48,7 @@ export type TrayHandle = {
  */
 export const createTray = (
   service: TimerService,
-  presets: readonly Preset[],
+  store: PresetStore,
 ): TrayHandle => {
   const image = nativeImage.createFromPath(ICON)
   // Template images are tinted by macOS to match the menubar.
@@ -56,23 +59,31 @@ export const createTray = (
   // be wasted work and would close it under the user's cursor.
   let menuKey = ''
   let menu: Menu | null = null
+  // Bumped whenever the preset list changes, so the key below stops matching and
+  // an edit shows up in the menubar without a relaunch.
+  let presetsRevision = 0
 
   const render = (view: TimerView): void => {
     tray.setTitle(view.running ? ` ${view.countdown}` : '')
     tray.setToolTip(view.running ? `Klokki — ${view.phaseLabel}` : 'Klokki')
 
-    const nextKey = `${view.running}:${view.presetName}:${view.phaseLabel}`
+    const nextKey = `${view.running}:${view.presetName}:${view.phaseLabel}:${presetsRevision}`
     if (nextKey === menuKey) return
     menuKey = nextKey
-    menu = buildMenu(service, view, presets)
+    menu = buildMenu(service, view, store.list())
     tray.setContextMenu(menu)
   }
 
   service.subscribe(({ view }) => render(view))
+  store.subscribe(() => {
+    presetsRevision += 1
+    render(service.getView())
+  })
   render(service.getView())
 
   return {
     tray,
+    menuLabels: () => (menu?.items ?? []).map((item) => item.label),
     clickMenuItem: (label) => {
       const item = menu?.items.find((candidate) => candidate.label === label)
       if (!item?.click) return false

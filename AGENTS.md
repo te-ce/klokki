@@ -50,6 +50,19 @@ waits for the seam to appear, because `electron.launch()` resolves before
 - **Electron, not Tauri.** Chosen because Playwright can drive a real Electron
   window on macOS while `tauri-driver` cannot, and the tray and always-on-top
   overlay are exactly the platform-fiddly surfaces that need automated tests.
+- **Editing a preset never disturbs a run in progress.** A save is visible in
+  the tray immediately, but the running timer keeps the phase list it started
+  with until it is restarted — a phase that shortened under the user's feet would
+  fire at once, and one that lengthened would move a break they were counting on.
+  `startPresetById` reads the store at the moment of the start, so the next start
+  picks the edit up. Deleting the running preset does not stop the timer.
+- **The preset list has one owner.** `createPresetStore` holds it, writes
+  `presets.json`, validates every save (`validatePreset` in `src/shared/preset.ts`,
+  so the form and the file agree), and notifies subscribers — which is how the
+  tray menu rebuilds without a relaunch. Nothing else reads the file after launch.
+- **Launch at login is read from macOS, never remembered.** The toggle asks the OS
+  on mount and re-reads it after every write, so removing the login item in System
+  Settings cannot leave the checkbox lying (`src/main/login-item.ts`).
 - **Wall-clock timing.** The timer keeps running through sleep; the user restarts
   a preset manually if drift makes a phase meaningless. Likely to change.
   Consequence: `tick()` must drain _every_ phase that elapsed since the last

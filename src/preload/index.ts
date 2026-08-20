@@ -9,6 +9,11 @@ const api: KlokkiApi = {
   getTimerView: () => ipcRenderer.invoke(IPC.getTimerView),
   startPreset: (id) => ipcRenderer.invoke(IPC.startPreset, id),
   stopTimer: () => ipcRenderer.invoke(IPC.stopTimer),
+  savePreset: (preset) => ipcRenderer.invoke(IPC.savePreset, preset),
+  deletePreset: (id) => ipcRenderer.invoke(IPC.deletePreset, id),
+  getLaunchAtLogin: () => ipcRenderer.invoke(IPC.getLaunchAtLogin),
+  setLaunchAtLogin: (enabled) =>
+    ipcRenderer.invoke(IPC.setLaunchAtLogin, enabled),
   onTimerView: (listener) => {
     const handler = (_event: unknown, view: TimerView): void => listener(view)
     ipcRenderer.on(IPC.timerView, handler)

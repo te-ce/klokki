@@ -1,6 +1,12 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { isRunnable, type Phase, type Preset } from '../../shared/preset'
+import {
+  isRunnable,
+  validatePreset,
+  type Phase,
+  type Preset,
+  type SaveResult,
+} from '../../shared/preset'
 import { SEED_PRESETS } from '../../shared/presets'
 
 /** Bumped only when the on-disk shape changes; a migration hooks in here. */
@@ -46,7 +52,13 @@ const decode = (raw: string): readonly Preset[] | null => {
   if (!isRecord(parsed) || !Array.isArray(parsed.presets)) return null
   if (!parsed.presets.every(isPreset)) return null
 
-  return parsed.presets.filter(isRunnable)
+  const runnable = parsed.presets.filter(isRunnable)
+  // A file that legitimately holds no presets — the user deleted them all — is
+  // not the same as one whose every entry was a typo. The first is honoured, the
+  // second falls back to the seeds, which is why the caller sees [] only here.
+  if (parsed.presets.length > 0 && runnable.length === 0) return null
+
+  return runnable
 }
 
 /**
@@ -74,7 +86,64 @@ export const loadPresets = (dir: string): readonly Preset[] => {
     return SEED_PRESETS
   }
 
-  const presets = decode(raw)
-  // An empty list would leave the tray with nothing to start.
-  return presets === null || presets.length === 0 ? SEED_PRESETS : presets
+  return decode(raw) ?? SEED_PRESETS
+}
+
+/**
+ * The main process's live preset list. Everything that reads presets — the tray,
+ * IPC, the timer — goes through one of these, so a save is visible everywhere
+ * without a relaunch.
+ */
+export type PresetStore = {
+  readonly list: () => readonly Preset[]
+  /** Upsert by id, keeping an edited preset in its place in the list. */
+  readonly save: (preset: Preset) => SaveResult
+  readonly remove: (id: string) => void
+  readonly subscribe: (
+    listener: (presets: readonly Preset[]) => void,
+  ) => () => void
+}
+
+export const createPresetStore = (dir: string): PresetStore => {
+  const path = join(dir, FILE_NAME)
+  let presets = loadPresets(dir)
+  const listeners = new Set<(presets: readonly Preset[]) => void>()
+
+  const commit = (next: readonly Preset[]): void => {
+    presets = next
+    // Best-effort, like seeding: the in-memory list is still correct if the disk
+    // is not writable, and refusing the edit would be worse than losing it.
+    try {
+      writeFileSync(path, serialise(next), 'utf8')
+    } catch {
+      /* empty */
+    }
+    for (const listener of listeners) listener(next)
+  }
+
+  return {
+    list: () => presets,
+    save: (preset) => {
+      // The editor validates too, but this is the boundary that owns the file.
+      const problems = validatePreset(preset)
+      if (problems.length > 0) return { ok: false, problems }
+
+      const index = presets.findIndex((candidate) => candidate.id === preset.id)
+      commit(
+        index === -1
+          ? [...presets, preset]
+          : presets.map((candidate, at) => (at === index ? preset : candidate)),
+      )
+      return { ok: true }
+    },
+    remove: (id) => {
+      const next = presets.filter((candidate) => candidate.id !== id)
+      if (next.length === presets.length) return
+      commit(next)
+    },
+    subscribe: (listener) => {
+      listeners.add(listener)
+      return () => listeners.delete(listener)
+    },
+  }
 }

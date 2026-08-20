@@ -24,17 +24,17 @@ the app does not leave the UI lying.
 
 ## Acceptance criteria
 
-- [ ] A user can create a preset, name it, add and reorder phases, set each
+- [x] A user can create a preset, name it, add and reorder phases, set each
       phase's label / minutes / notify flag, toggle looping, and delete it
-- [ ] Saving updates `presets.json` and the tray menu immediately — no relaunch
-- [ ] Editing the preset that is currently running is possible, and the running
-      timer's behaviour after the edit is defined and tested (either applies at
-      the next phase or requires a restart — pick one and document it)
-- [ ] A preset with no phases or a zero-minute phase cannot be saved, and the
+- [x] Saving updates `presets.json` and the tray menu immediately — no relaunch
+- [x] Editing the preset that is currently running is possible, and the running
+      timer's behaviour after the edit is defined and tested — the run keeps the
+      phases it started with and picks the edit up on the next start (AGENTS.md)
+- [x] A preset with no phases or a zero-minute phase cannot be saved, and the
       form says why
-- [ ] The General section has a launch-at-login toggle, off by default, whose
+- [x] The General section has a launch-at-login toggle, off by default, whose
       state is read from the OS login-item settings
-- [ ] Component tests cover the validation paths; the editor's IPC calls are
+- [x] Component tests cover the validation paths; the editor's IPC calls are
       exercised against a fake bridge
 
 ## Blocked by

@@ -16,6 +16,7 @@ const APP_ENTRY = fileURLToPath(
 type TestSeam = {
   trayTitle: () => string
   clickMenuItem: (label: string) => boolean
+  menuLabels: () => string[]
   view: () => { running: boolean; phaseLabel: string | null; countdown: string }
   startPreset: (id: string) => void
   stop: () => void
@@ -98,6 +99,12 @@ export const clickMenuItem = (
     (_electron, itemLabel) =>
       (globalThis as unknown as SeamHost).__klokkiTest.clickMenuItem(itemLabel),
     label,
+  )
+
+/** The tray menu as the user would read it. */
+export const menuLabels = (app: ElectronApplication): Promise<string[]> =>
+  app.evaluate(() =>
+    (globalThis as unknown as SeamHost).__klokkiTest.menuLabels(),
   )
 
 /** How many windows the main process is currently pushing updates to. */

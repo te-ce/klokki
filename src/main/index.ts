@@ -1,8 +1,9 @@
 import { BrowserWindow, app } from 'electron'
-import type { Preset } from '../shared/preset'
 import { createViewBroadcaster, type ViewBroadcaster } from './ipc/broadcast'
-import { registerIpc, startPresetById } from './ipc'
-import { loadPresets } from './presets/store'
+import { registerIpc } from './ipc'
+import { createLoginItem } from './login-item'
+import { startPresetById } from './presets/start'
+import { createPresetStore, type PresetStore } from './presets/store'
 import { createTray, type TrayHandle } from './tray'
 import { createTimerService, type TimerService } from './timer/service'
 
@@ -28,7 +29,7 @@ const pushUpdatesToWindows = (broadcaster: ViewBroadcaster): void => {
 const exposeTestSeam = (
   tray: TrayHandle,
   service: TimerService,
-  presets: readonly Preset[],
+  store: PresetStore,
   broadcaster: ViewBroadcaster,
 ): void => {
   if (process.env['KLOKKI_E2E'] !== '1') return
@@ -36,8 +37,9 @@ const exposeTestSeam = (
     __klokkiTest: {
       trayTitle: () => tray.tray.getTitle(),
       clickMenuItem: (label: string) => tray.clickMenuItem(label),
+      menuLabels: () => tray.menuLabels(),
       view: () => service.getView(),
-      startPreset: (id: string) => startPresetById(service, presets, id),
+      startPreset: (id: string) => startPresetById(service, store, id),
       stop: () => service.stop(),
       subscriberCount: () => broadcaster.targetCount(),
     },
@@ -49,15 +51,15 @@ const bootstrap = (): void => {
     // No Dock icon, no app-switcher entry — the tray is the whole app.
     app.dock?.hide()
 
-    const presets = loadPresets(app.getPath('userData'))
+    const store = createPresetStore(app.getPath('userData'))
     const service = createTimerService()
     const broadcaster = createViewBroadcaster(service)
 
-    registerIpc(service, presets)
+    registerIpc(service, store, createLoginItem(app))
     pushUpdatesToWindows(broadcaster)
 
-    const tray = createTray(service, presets)
-    exposeTestSeam(tray, service, presets, broadcaster)
+    const tray = createTray(service, store)
+    exposeTestSeam(tray, service, store, broadcaster)
 
     app.on('will-quit', () => {
       broadcaster.dispose()

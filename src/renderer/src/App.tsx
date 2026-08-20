@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { AppInfo } from '../../shared/ipc'
+import { GeneralSection } from './GeneralSection'
+import { PresetsSection } from './PresetsSection'
 import { TimerPanel } from './TimerPanel'
 
 export const App = () => {
@@ -19,6 +21,8 @@ export const App = () => {
     <main className="flex min-h-screen flex-col gap-6 p-8">
       <h1 className="text-2xl font-semibold">Klokki</h1>
       <TimerPanel />
+      <PresetsSection />
+      <GeneralSection />
       {info ? (
         <p className="mt-auto text-sm text-neutral-500">
           v{info.version} · Electron {info.electron}
