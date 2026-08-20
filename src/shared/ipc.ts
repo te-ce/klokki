@@ -8,6 +8,7 @@
 
 import type { HistoryStats } from './history'
 import type { Preset, SaveResult } from './preset'
+import type { ReminderDefinition } from './reminder'
 import type { TimerView } from './timer'
 
 /** Renderer → main. Every one of these has a handler in src/main/ipc. */
@@ -27,6 +28,10 @@ export const IPC = {
   addTime: 'klokki:add-time',
   dismissAlert: 'klokki:dismiss-alert',
   snoozeAlert: 'klokki:snooze-alert',
+  listReminders: 'klokki:list-reminders',
+  saveReminder: 'klokki:save-reminder',
+  deleteReminder: 'klokki:delete-reminder',
+  setReminderEnabled: 'klokki:set-reminder-enabled',
 } as const
 
 /**
@@ -45,6 +50,8 @@ export const PUSH = {
   presets: 'klokki:presets',
   /** A stretch of phase was written to the log. Carries nothing: re-read. */
   historyChanged: 'klokki:history-changed',
+  /** The saved reminder list, whenever it changes — mirrors `presets`. */
+  reminders: 'klokki:reminders',
 } as const
 
 export type AppInfo = {
@@ -103,6 +110,12 @@ export interface KlokkiApi {
    */
   savePreset(preset: Preset): Promise<SaveResult>
   deletePreset(id: string): Promise<void>
+  /** A second, independent list from presets — see issues/open/08. */
+  listReminders(): Promise<readonly ReminderDefinition[]>
+  /** Upsert by id. The main process validates again — it owns reminders.json. */
+  saveReminder(definition: ReminderDefinition): Promise<SaveResult>
+  deleteReminder(id: string): Promise<void>
+  setReminderEnabled(id: string, enabled: boolean): Promise<void>
   /** Read from the OS login item, never from a value the app stored. */
   getLaunchAtLogin(): Promise<boolean>
   /** Returns the state the OS has after the write, which may differ. */
@@ -119,4 +132,7 @@ export interface KlokkiApi {
    * predicate — a snooze, and two phases sharing a label, both write without it.
    */
   onHistoryChanged(listener: () => void): () => void
+  onReminders(
+    listener: (reminders: readonly ReminderDefinition[]) => void,
+  ): () => void
 }

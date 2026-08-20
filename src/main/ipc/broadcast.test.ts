@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Preset } from '../../shared/preset'
+import type { ReminderDefinition } from '../../shared/reminder'
 import { runningView } from '../../shared/test-support/timer-view'
 import type { TimerView } from '../../shared/timer'
 import type { TimerUpdate } from '../timer/service'
@@ -24,6 +25,9 @@ const fakeSources = () => {
   const timer = new Set<(update: TimerUpdate) => void>()
   const presets = new Set<(presets: readonly Preset[]) => void>()
   const history = new Set<() => void>()
+  const reminders = new Set<
+    (reminders: readonly ReminderDefinition[]) => void
+  >()
 
   const subscriber =
     <T>(set: Set<T>) =>
@@ -37,6 +41,7 @@ const fakeSources = () => {
       timer: { subscribe: subscriber(timer) },
       presets: { subscribe: subscriber(presets) },
       history: { subscribe: subscriber(history) },
+      reminders: { subscribe: subscriber(reminders) },
     } satisfies BroadcastSources,
     pushView: (countdown: string) => {
       for (const listener of timer)
@@ -48,7 +53,11 @@ const fakeSources = () => {
     pushHistory: () => {
       for (const listener of history) listener()
     },
-    listenerCount: () => timer.size + presets.size + history.size,
+    pushReminders: (next: readonly ReminderDefinition[]) => {
+      for (const listener of reminders) listener(next)
+    },
+    listenerCount: () =>
+      timer.size + presets.size + history.size + reminders.size,
   }
 }
 
@@ -104,6 +113,23 @@ describe('createViewBroadcaster', () => {
     )
   })
 
+  it('pushes the saved reminder list, so no window has to re-ask for it', () => {
+    const broadcaster = createViewBroadcaster(source.sources)
+    const target = fakeTarget()
+    const water: ReminderDefinition = {
+      id: 'water',
+      name: 'Drink water',
+      intervalMinutes: 30,
+      steps: [{ label: 'Drink a glass of water' }],
+      enabled: true,
+    }
+
+    broadcaster.register(target)
+    source.pushReminders([water])
+
+    expect(target.send).toHaveBeenCalledWith('klokki:reminders', [water])
+  })
+
   it('sends nothing to a target that has been unregistered', () => {
     const broadcaster = createViewBroadcaster(source.sources)
     const target = fakeTarget()
@@ -156,7 +182,7 @@ describe('createViewBroadcaster', () => {
 
   it('subscribes to each source once and releases them all on dispose', () => {
     const broadcaster = createViewBroadcaster(source.sources)
-    expect(source.listenerCount()).toBe(3)
+    expect(source.listenerCount()).toBe(4)
 
     broadcaster.dispose()
 

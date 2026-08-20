@@ -2,6 +2,7 @@ import { vi, type Mock } from 'vitest'
 import type { HistoryStats } from '../../../shared/history'
 import type { KlokkiApi } from '../../../shared/ipc'
 import type { Preset } from '../../../shared/preset'
+import type { ReminderDefinition } from '../../../shared/reminder'
 // One owner, shared with the main-process suite: see src/shared/test-support.
 import { IDLE_VIEW } from '../../../shared/test-support/timer-view'
 import type { TimerView } from '../../../shared/timer'
@@ -25,6 +26,8 @@ export type FakeKlokki = Mocked & {
   readonly pushPresets: (presets: readonly Preset[]) => void
   /** Announces a line written to the log. */
   readonly pushHistoryChanged: () => void
+  /** Pushes the saved reminder list, the way the store does after a save. */
+  readonly pushReminders: (reminders: readonly ReminderDefinition[]) => void
   /** How many listeners are still registered — unmount should leave none. */
   readonly listenerCount: () => number
 }
@@ -46,6 +49,9 @@ export const fakeKlokki = (overrides: Partial<KlokkiApi> = {}): FakeKlokki => {
   const views = new Set<(view: TimerView) => void>()
   const presets = new Set<(presets: readonly Preset[]) => void>()
   const history = new Set<() => void>()
+  const reminders = new Set<
+    (reminders: readonly ReminderDefinition[]) => void
+  >()
 
   const subscriber =
     <T>(set: Set<T>) =>
@@ -72,9 +78,14 @@ export const fakeKlokki = (overrides: Partial<KlokkiApi> = {}): FakeKlokki => {
     deletePreset: () => Promise.resolve(),
     getLaunchAtLogin: () => Promise.resolve(false),
     setLaunchAtLogin: (enabled) => Promise.resolve(enabled),
+    listReminders: () => Promise.resolve([]),
+    saveReminder: () => Promise.resolve({ ok: true }),
+    deleteReminder: () => Promise.resolve(),
+    setReminderEnabled: () => Promise.resolve(),
     onTimerView: subscriber(views),
     onPresets: subscriber(presets),
     onHistoryChanged: subscriber(history),
+    onReminders: subscriber(reminders),
   }
 
   const api = Object.fromEntries(
@@ -94,7 +105,11 @@ export const fakeKlokki = (overrides: Partial<KlokkiApi> = {}): FakeKlokki => {
     pushHistoryChanged: () => {
       for (const listener of history) listener()
     },
-    listenerCount: () => views.size + presets.size + history.size,
+    pushReminders: (next: readonly ReminderDefinition[]) => {
+      for (const listener of reminders) listener(next)
+    },
+    listenerCount: () =>
+      views.size + presets.size + history.size + reminders.size,
   })
 
   window.klokki = fake

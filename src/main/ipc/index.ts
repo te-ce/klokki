@@ -1,9 +1,11 @@
 import { IPC, type AppInfo } from '../../shared/ipc'
 import type { Phase, Preset } from '../../shared/preset'
+import { isReminderDefinition } from '../../shared/reminder'
 import type { History } from '../history'
 import type { LoginItem } from '../login-item'
 import { startPresetById } from '../presets/start'
 import type { PresetStore } from '../presets/store'
+import type { ReminderStore } from '../reminders/store'
 import type { TimerService } from '../timer/service'
 
 /**
@@ -30,6 +32,7 @@ export type IpcDeps = {
   readonly loginItem: LoginItem
   readonly history: History
   readonly overlay: OverlayControl
+  readonly reminderStore: ReminderStore
   readonly appInfo: () => AppInfo
 }
 
@@ -103,7 +106,15 @@ const channelFor = (name: string): string => {
 
 /** The main side of src/shared/ipc.ts. Every renderer capability lands here. */
 export const registerIpc = (deps: IpcDeps): void => {
-  const { requests, service, store, loginItem, history, overlay } = deps
+  const {
+    requests,
+    service,
+    store,
+    loginItem,
+    history,
+    overlay,
+    reminderStore,
+  } = deps
 
   const handlers: Handlers = {
     getAppInfo: deps.appInfo,
@@ -137,6 +148,18 @@ export const registerIpc = (deps: IpcDeps): void => {
       overlay.close()
       return snoozed
     },
+    listReminders: () => reminderStore.list(),
+    saveReminder: (definition) =>
+      reminderStore.save(
+        expect(definition, isReminderDefinition, 'a reminder'),
+      ),
+    deleteReminder: (id) =>
+      reminderStore.remove(expect(id, isString, 'a reminder id')),
+    setReminderEnabled: (id, enabled) =>
+      reminderStore.setEnabled(
+        expect(id, isString, 'a reminder id'),
+        expect(enabled, isBoolean, 'a boolean'),
+      ),
   }
 
   for (const [name, handler] of Object.entries(handlers))

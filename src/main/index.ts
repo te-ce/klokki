@@ -6,6 +6,9 @@ import { createLoginItem } from './login-item'
 import { electronMenubarSurface } from './menubar/surface'
 import { startPresetById } from './presets/start'
 import { createPresetStore } from './presets/store'
+import { createReminderRunStore } from './reminders/run-store'
+import { createReminderService } from './reminders/service'
+import { createReminderStore } from './reminders/store'
 import { createTimerService, type TimerService } from './timer/service'
 import { createSnapshotStore } from './timer/snapshot'
 import { wireApp, type WiredApp } from './wire'
@@ -47,12 +50,18 @@ const bootstrap = (): void => {
     const history = createHistory(app.getPath('userData'))
     const snapshot = createSnapshotStore(app.getPath('userData'))
     const service = createTimerService()
+    const reminderStore = createReminderStore(app.getPath('userData'))
+    const reminderService = createReminderService()
+    const reminderRunStore = createReminderRunStore(app.getPath('userData'))
 
     const wired = wireApp({
       service,
       store,
       history,
       snapshot,
+      reminderStore,
+      reminderService,
+      reminderRunStore,
       loginItem: createLoginItem(app),
       requests: electronRequestSink(),
       appInfo: electronAppInfo,

@@ -1,5 +1,6 @@
 import { PUSH } from '../../shared/ipc'
 import type { Preset } from '../../shared/preset'
+import type { ReminderDefinition } from '../../shared/reminder'
 import type { TimerUpdate } from '../timer/service'
 
 /** The slice of a window's webContents the broadcaster needs. */
@@ -26,6 +27,11 @@ export type BroadcastSources = {
   }
   readonly history: {
     readonly subscribe: (listener: () => void) => () => void
+  }
+  readonly reminders: {
+    readonly subscribe: (
+      listener: (reminders: readonly ReminderDefinition[]) => void,
+    ) => () => void
   }
 }
 
@@ -64,6 +70,7 @@ export const createViewBroadcaster = (
     sources.timer.subscribe(({ view }) => push(PUSH.timerView, view)),
     sources.presets.subscribe((presets) => push(PUSH.presets, presets)),
     sources.history.subscribe(() => push(PUSH.historyChanged)),
+    sources.reminders.subscribe((reminders) => push(PUSH.reminders, reminders)),
   ]
 
   return {

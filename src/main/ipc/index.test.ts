@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { IPC, PUSH } from '../../shared/ipc'
 import type { Preset } from '../../shared/preset'
+import type { ReminderDefinition } from '../../shared/reminder'
 import { IDLE_VIEW } from '../../shared/test-support/timer-view'
 import { registerIpc, type IpcDeps, type RequestSink } from './index'
 
@@ -9,6 +10,14 @@ const pomodoro: Preset = {
   name: 'Pomodoro',
   loop: true,
   phases: [{ label: 'Focus', minutes: 25, notify: true }],
+}
+
+const water: ReminderDefinition = {
+  id: 'water',
+  name: 'Drink water',
+  intervalMinutes: 30,
+  steps: [{ label: 'Drink a glass of water' }],
+  enabled: true,
 }
 
 const IDLE = IDLE_VIEW
@@ -65,6 +74,13 @@ const wire = (overrides: Partial<IpcDeps> = {}) => {
     subscribe: vi.fn(() => () => {}),
   }
   const overlay = { close: vi.fn() }
+  const reminderStore = {
+    list: vi.fn((): readonly ReminderDefinition[] => [water]),
+    save: vi.fn(() => ({ ok: true }) as const),
+    remove: vi.fn(),
+    setEnabled: vi.fn(),
+    subscribe: vi.fn(() => () => {}),
+  }
   const deps: IpcDeps = {
     requests: sink.sink,
     service,
@@ -72,12 +88,13 @@ const wire = (overrides: Partial<IpcDeps> = {}) => {
     loginItem,
     history,
     overlay,
+    reminderStore,
     appInfo: () => ({ version: '1.2.3', electron: '43.0.0' }),
     ...overrides,
   }
 
   registerIpc(deps)
-  return { ...sink, service, store, loginItem, history, overlay }
+  return { ...sink, service, store, loginItem, history, overlay, reminderStore }
 }
 
 describe('the request contract', () => {
@@ -229,5 +246,47 @@ describe('what the handlers do', () => {
     app.invoke(IPC.getStats)
 
     expect(app.history.stats).toHaveBeenCalledTimes(2)
+  })
+
+  it('reads the reminder list per call', () => {
+    const app = wire()
+
+    expect(app.invoke(IPC.listReminders)).toEqual([water])
+  })
+
+  it('saves a reminder, upserting by id', () => {
+    const app = wire()
+
+    expect(app.invoke(IPC.saveReminder, water)).toEqual({ ok: true })
+    expect(app.reminderStore.save).toHaveBeenCalledWith(water)
+  })
+
+  it('returns the reasons a reminder was rejected rather than throwing', () => {
+    const app = wire()
+    app.reminderStore.save.mockReturnValue({
+      ok: false,
+      problems: ['A reminder needs a name.'],
+    } as never)
+
+    expect(app.invoke(IPC.saveReminder, water)).toEqual({
+      ok: false,
+      problems: ['A reminder needs a name.'],
+    })
+  })
+
+  it('deletes a reminder by id', () => {
+    const app = wire()
+
+    app.invoke(IPC.deleteReminder, 'water')
+
+    expect(app.reminderStore.remove).toHaveBeenCalledWith('water')
+  })
+
+  it('enables and disables a reminder by id', () => {
+    const app = wire()
+
+    app.invoke(IPC.setReminderEnabled, 'water', false)
+
+    expect(app.reminderStore.setEnabled).toHaveBeenCalledWith('water', false)
   })
 })

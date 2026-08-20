@@ -39,18 +39,18 @@ reminder, plus a push channel for the reminder list (mirrors the existing
 
 ## Acceptance criteria
 
-- [ ] `ReminderDefinition` and its persisted store (`reminders.json`,
+- [x] `ReminderDefinition` and its persisted store (`reminders.json`,
       `schemaVersion`) exist, validated the way `validatePreset` validates presets
-- [ ] Multiple reminders can be enabled and scheduled at once, independently
-- [ ] Each reminder's `nextFireAt` and step cursor survive an app restart
-- [ ] A step with no `unit` requires no quantity to mark done; a step with a
+- [x] Multiple reminders can be enabled and scheduled at once, independently
+- [x] Each reminder's `nextFireAt` and step cursor survive an app restart
+- [x] A step with no `unit` requires no quantity to mark done; a step with a
       `unit` is the one place a quantity is meaningful
-- [ ] The engine emits a due event through the existing tick loop, not a new timer
-- [ ] Answering a due event (see 09) advances the step cursor and reschedules
+- [x] The engine emits a due event through the existing tick loop, not a new timer
+- [x] Answering a due event (see 09) advances the step cursor and reschedules
       `nextFireAt`; a snooze reschedules the same step rather than advancing it
-- [ ] IPC: list/create/update/delete/enable reminders, plus a `reminders` push on
+- [x] IPC: list/create/update/delete/enable reminders, plus a `reminders` push on
       any change
-- [ ] Unit tests cover scheduling against a fixed clock, step-cursor wraparound,
+- [x] Unit tests cover scheduling against a fixed clock, step-cursor wraparound,
       and restart persistence — no `Date.now()` inside the engine, a clock is
       passed in, matching the phase machine's rule
 

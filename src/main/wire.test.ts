@@ -4,10 +4,15 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { IPC, PUSH } from '../shared/ipc'
 import type { Preset } from '../shared/preset'
+import type { ReminderDefinition } from '../shared/reminder'
 import { createHistory } from './history'
 import type { ViewTarget } from './ipc/broadcast'
 import type { MenubarAction, MenubarItem } from './menubar/surface'
 import type { PresetStore } from './presets/store'
+import type { RemindersState } from './reminders/engine'
+import type { ReminderRunStore } from './reminders/run-store'
+import { createReminderService } from './reminders/service'
+import type { ReminderStore } from './reminders/store'
 import type { TimerState } from './timer/machine'
 import { createTimerService } from './timer/service'
 import type { SnapshotStore } from './timer/snapshot'
@@ -110,10 +115,60 @@ const fakeSnapshot = (initial: TimerState | null = null) => {
   return store
 }
 
+/** A reminder store with no file behind it. */
+const fakeReminderStore = (
+  reminders: readonly ReminderDefinition[] = [],
+): ReminderStore => {
+  let list = reminders
+  const listeners = new Set<(next: readonly ReminderDefinition[]) => void>()
+  return {
+    list: () => list,
+    save: (definition) => {
+      list = [...list.filter((d) => d.id !== definition.id), definition]
+      for (const listener of listeners) listener(list)
+      return { ok: true }
+    },
+    remove: (id) => {
+      list = list.filter((d) => d.id !== id)
+      for (const listener of listeners) listener(list)
+    },
+    setEnabled: (id, enabled) => {
+      list = list.map((d) => (d.id === id ? { ...d, enabled } : d))
+      for (const listener of listeners) listener(list)
+    },
+    subscribe: (listener) => {
+      listeners.add(listener)
+      return () => listeners.delete(listener)
+    },
+  }
+}
+
+/** A reminder run store with no file behind it, seeded with an optional saved run. */
+const fakeReminderRunStore = (
+  initial: RemindersState = [],
+): ReminderRunStore & { load: () => RemindersState } => {
+  let saved = initial
+  return {
+    save: (state) => {
+      saved = state
+    },
+    clear: () => {
+      saved = []
+    },
+    load: () => saved,
+  }
+}
+
 let now = 0
 const clock = { now: () => now }
 
-const build = (initialSnapshot: TimerState | null = null) => {
+const build = (
+  initialSnapshot: TimerState | null = null,
+  options: {
+    reminders?: readonly ReminderDefinition[]
+    reminderRun?: RemindersState
+  } = {},
+) => {
   const store = fakeStore()
   const history = createHistory(
     mkdtempSync(join(tmpdir(), 'klokki-wire-')),
@@ -121,6 +176,9 @@ const build = (initialSnapshot: TimerState | null = null) => {
   )
   const service = createTimerService(clock)
   const snapshot = fakeSnapshot(initialSnapshot)
+  const reminderStore = fakeReminderStore(options.reminders)
+  const reminderService = createReminderService(clock)
+  const reminderRunStore = fakeReminderRunStore(options.reminderRun)
   const menubar = fakeMenubar()
   const alerts = { notify: vi.fn(), showOverlay: vi.fn() }
   const overlay = { close: vi.fn() }
@@ -132,6 +190,9 @@ const build = (initialSnapshot: TimerState | null = null) => {
     store,
     history,
     snapshot,
+    reminderStore,
+    reminderService,
+    reminderRunStore,
     loginItem: { isEnabled: () => false, setEnabled: () => true },
     requests: {
       handle: (channel, handler) => requests.set(channel, handler),
@@ -157,6 +218,9 @@ const build = (initialSnapshot: TimerState | null = null) => {
     history,
     service,
     snapshot,
+    reminderStore,
+    reminderService,
+    reminderRunStore,
     menubar,
     alerts,
     overlay,
@@ -345,6 +409,82 @@ describe('the running timer, saved for a restart', () => {
     })
     expect(wired.history.stats().today.completed).toBe(1)
     expect(wired.menubar.title()).toBe(' Break 04:00')
+  })
+})
+
+describe('reminders, saved for a restart', () => {
+  const water: ReminderDefinition = {
+    id: 'water',
+    name: 'Drink water',
+    intervalMinutes: 30,
+    steps: [{ label: 'Drink a glass of water' }],
+    enabled: true,
+  }
+
+  it('schedules a reminder from the store on launch and persists it', () => {
+    const wired = build(null, { reminders: [water] })
+
+    expect(wired.reminderRunStore.load()).toEqual([
+      { definitionId: 'water', nextFireAt: 30 * MINUTE, stepIndex: 0 },
+    ])
+  })
+
+  it('resumes a saved schedule instead of rescheduling fresh', () => {
+    now = 10 * MINUTE
+    const wired = build(null, {
+      reminders: [water],
+      reminderRun: [
+        { definitionId: 'water', nextFireAt: 20 * MINUTE, stepIndex: 0 },
+      ],
+    })
+
+    expect(wired.reminderService.getState()).toEqual([
+      { definitionId: 'water', nextFireAt: 20 * MINUTE, stepIndex: 0 },
+    ])
+  })
+
+  it('drains a due reminder from while the app was closed', () => {
+    now = 31 * MINUTE
+    const wired = build(null, {
+      reminders: [water],
+      reminderRun: [
+        { definitionId: 'water', nextFireAt: 30 * MINUTE, stepIndex: 0 },
+      ],
+    })
+
+    expect(wired.reminderService.getState()).toEqual([
+      { definitionId: 'water', nextFireAt: 60 * MINUTE, stepIndex: 0 },
+    ])
+  })
+
+  it('schedules a reminder created after launch, and persists it', () => {
+    const wired = build()
+
+    wired.reminderStore.save(water)
+
+    expect(wired.reminderRunStore.load()).toEqual([
+      { definitionId: 'water', nextFireAt: 30 * MINUTE, stepIndex: 0 },
+    ])
+  })
+
+  it('drops the schedule when a reminder is disabled', () => {
+    const wired = build(null, { reminders: [water] })
+
+    wired.reminderStore.setEnabled('water', false)
+
+    expect(wired.reminderRunStore.load()).toEqual([])
+    expect(wired.reminderService.getState()).toEqual([])
+  })
+
+  it('pushes the reminder list to every open window', () => {
+    const wired = build()
+    const window = wired.openWindow()
+
+    wired.reminderStore.save(water)
+
+    expect(window.on(PUSH.reminders)).toEqual([
+      { channel: PUSH.reminders, payload: [water] },
+    ])
   })
 })
 
