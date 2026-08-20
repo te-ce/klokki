@@ -1,6 +1,7 @@
 import { BrowserWindow, app, ipcMain, type Tray } from 'electron'
 import { IPC, type AppInfo } from '../shared/ipc'
-import { SEED_PRESETS } from '../shared/presets'
+import type { Preset } from '../shared/preset'
+import { loadPresets } from './presets/store'
 import { createTray } from './tray'
 import { createTimerService, type TimerService } from './timer/service'
 
@@ -15,14 +16,18 @@ const registerIpc = (): void => {
  * Electron exposes no way to inspect the menubar from outside the app, so the
  * e2e suite gets an explicit seam instead of asserting on screenshots.
  */
-const exposeTestSeam = (tray: Tray, service: TimerService): void => {
+const exposeTestSeam = (
+  tray: Tray,
+  service: TimerService,
+  presets: readonly Preset[],
+): void => {
   if (process.env['KLOKKI_E2E'] !== '1') return
   Object.assign(globalThis, {
     __klokkiTest: {
       trayTitle: () => tray.getTitle(),
       view: () => service.getView(),
       startPreset: (id: string) => {
-        const preset = SEED_PRESETS.find((candidate) => candidate.id === id)
+        const preset = presets.find((candidate) => candidate.id === id)
         if (preset) service.startPreset(preset)
       },
       stop: () => service.stop(),
@@ -36,9 +41,10 @@ const bootstrap = (): void => {
     app.dock?.hide()
     registerIpc()
 
+    const presets = loadPresets(app.getPath('userData'))
     const service = createTimerService()
-    const tray = createTray(service)
-    exposeTestSeam(tray, service)
+    const tray = createTray(service, presets)
+    exposeTestSeam(tray, service, presets)
 
     app.on('will-quit', () => service.dispose())
   })

@@ -1,7 +1,6 @@
 import { Menu, Tray, app, nativeImage } from 'electron'
 import { join } from 'node:path'
 import type { Preset } from '../shared/preset'
-import { SEED_PRESETS } from '../shared/presets'
 import type { TimerService, TimerView } from './timer/service'
 import { openSettingsWindow } from './windows'
 
@@ -33,7 +32,10 @@ const buildMenu = (
  * The menubar is the whole UI: the title carries the countdown as text, because
  * a filling arc is illegible at 22px and a number is not.
  */
-export const createTray = (service: TimerService): Tray => {
+export const createTray = (
+  service: TimerService,
+  presets: readonly Preset[],
+): Tray => {
   const image = nativeImage.createFromPath(ICON)
   // Template images are tinted by macOS to match the menubar.
   image.setTemplateImage(true)
@@ -50,7 +52,7 @@ export const createTray = (service: TimerService): Tray => {
     const nextKey = `${view.running}:${view.presetName}:${view.phaseLabel}`
     if (nextKey === menuKey) return
     menuKey = nextKey
-    tray.setContextMenu(buildMenu(service, view, SEED_PRESETS))
+    tray.setContextMenu(buildMenu(service, view, presets))
   }
 
   service.subscribe(({ view }) => render(view))

@@ -21,16 +21,16 @@ what the tray offers.
 
 ## Acceptance criteria
 
-- [ ] First launch with no `presets.json` writes one containing the Pomodoro and
+- [x] First launch with no `presets.json` writes one containing the Pomodoro and
       Sit / Stand seeds, and the tray menu lists both
-- [ ] Presets added or renamed by hand-editing the file appear in the tray menu
+- [x] Presets added or renamed by hand-editing the file appear in the tray menu
       on next launch
-- [ ] A preset with an empty phase list or a zero-minute phase is rejected at
+- [x] A preset with an empty phase list or a zero-minute phase is rejected at
       load and does not appear as startable (the machine assumes progress)
-- [ ] A malformed or unreadable `presets.json` falls back to the seeded presets
+- [x] A malformed or unreadable `presets.json` falls back to the seeded presets
       and the app still launches
-- [ ] The written file carries a `schemaVersion` field
-- [ ] Unit tests cover the round trip, the malformed-file fallback and the
+- [x] The written file carries a `schemaVersion` field
+- [x] Unit tests cover the round trip, the malformed-file fallback and the
       invalid-preset rejection, without touching the real user-data directory
 
 ## Blocked by

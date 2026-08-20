@@ -4,7 +4,7 @@ import {
   test,
   type ElectronApplication,
 } from '@playwright/test'
-import { mkdtempSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -28,12 +28,14 @@ type SeamHost = { __klokkiTest: TestSeam }
  * lock keyed on that directory, so without this a test launching while the
  * previous app is still shutting down would lose the lock and exit.
  */
-const launch = async (): Promise<ElectronApplication> => {
+const launch = async (
+  seed?: (userDataDir: string) => void,
+): Promise<ElectronApplication & { userDataDir: string }> => {
+  const userDataDir = mkdtempSync(join(tmpdir(), 'klokki-e2e-'))
+  seed?.(userDataDir)
+
   const app = await electron.launch({
-    args: [
-      APP_ENTRY,
-      `--user-data-dir=${mkdtempSync(join(tmpdir(), 'klokki-e2e-'))}`,
-    ],
+    args: [APP_ENTRY, `--user-data-dir=${userDataDir}`],
     env: { ...process.env, KLOKKI_E2E: '1' },
   })
 
@@ -51,7 +53,7 @@ const launch = async (): Promise<ElectronApplication> => {
     )
     .toBe(true)
 
-  return app
+  return Object.assign(app, { userDataDir })
 }
 
 // These run inside the app's main process, which is the only place the menubar
@@ -118,6 +120,49 @@ test('stopping clears the menubar countdown', async () => {
 
   expect(await trayTitle(app)).toBe('')
   expect(await isRunning(app)).toBe(false)
+
+  await app.close()
+})
+
+test('seeds presets.json on first launch', async () => {
+  const app = await launch()
+
+  const file = join(app.userDataDir, 'presets.json')
+  expect(existsSync(file)).toBe(true)
+  expect(JSON.parse(readFileSync(file, 'utf8'))).toMatchObject({
+    schemaVersion: 1,
+    presets: [{ id: 'pomodoro' }, { id: 'sit-stand' }],
+  })
+
+  await app.close()
+})
+
+test('runs a preset added by hand-editing presets.json', async () => {
+  const app = await launch((dir) =>
+    writeFileSync(
+      join(dir, 'presets.json'),
+      JSON.stringify({
+        schemaVersion: 1,
+        presets: [
+          {
+            id: 'tea',
+            name: 'Tea',
+            loop: false,
+            phases: [{ label: 'Steep', minutes: 3, notify: true }],
+          },
+        ],
+      }),
+    ),
+  )
+
+  await startPreset(app, 'tea')
+
+  expect(await trayTitle(app)).toMatch(/^\s*03:00$/)
+  expect(await phaseLabel(app)).toBe('Steep')
+
+  // The seeds are gone: the file, not the constant, is the source of presets.
+  await startPreset(app, 'pomodoro')
+  expect(await phaseLabel(app)).toBe('Steep')
 
   await app.close()
 })
