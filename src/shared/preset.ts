@@ -46,6 +46,23 @@ export type SaveResult =
 export const phaseDurationMs = (phase: Phase): number =>
   phase.minutes * MS_PER_MINUTE
 
+export const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+
+export const isPhase = (value: unknown): value is Phase =>
+  isRecord(value) &&
+  typeof value.label === 'string' &&
+  typeof value.minutes === 'number' &&
+  typeof value.notify === 'boolean'
+
+export const isPreset = (value: unknown): value is Preset =>
+  isRecord(value) &&
+  typeof value.id === 'string' &&
+  typeof value.name === 'string' &&
+  typeof value.loop === 'boolean' &&
+  Array.isArray(value.phases) &&
+  value.phases.every(isPhase)
+
 /**
  * A preset with an empty phase list, or a phase of zero length, would make the
  * timer advance forever without time passing. Rejecting it here means the

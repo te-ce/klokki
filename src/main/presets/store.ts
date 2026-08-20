@@ -1,9 +1,10 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
+  isPreset,
+  isRecord,
   isRunnable,
   validatePreset,
-  type Phase,
   type Preset,
   type SaveResult,
 } from '../../shared/preset'
@@ -16,23 +17,6 @@ const FILE_NAME = 'presets.json'
 
 const serialise = (presets: readonly Preset[]): string =>
   `${JSON.stringify({ schemaVersion: PRESETS_SCHEMA_VERSION, presets }, null, 2)}\n`
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
-
-const isPhase = (value: unknown): value is Phase =>
-  isRecord(value) &&
-  typeof value.label === 'string' &&
-  typeof value.minutes === 'number' &&
-  typeof value.notify === 'boolean'
-
-const isPreset = (value: unknown): value is Preset =>
-  isRecord(value) &&
-  typeof value.id === 'string' &&
-  typeof value.name === 'string' &&
-  typeof value.loop === 'boolean' &&
-  Array.isArray(value.phases) &&
-  value.phases.every(isPhase)
 
 /**
  * The file is hand-editable, so every field is untrusted. A file that is not a

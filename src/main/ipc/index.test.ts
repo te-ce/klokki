@@ -47,6 +47,8 @@ const wire = (overrides: Partial<IpcDeps> = {}) => {
     skip: vi.fn(() => true),
     setRemaining: vi.fn(() => true),
     getView: vi.fn(() => IDLE),
+    getState: vi.fn(() => ({ status: 'idle' }) as const),
+    resume: vi.fn(),
     subscribe: vi.fn(() => () => {}),
     dispose: vi.fn(),
   }

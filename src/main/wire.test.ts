@@ -8,7 +8,9 @@ import { createHistory } from './history'
 import type { ViewTarget } from './ipc/broadcast'
 import type { MenubarAction, MenubarItem } from './menubar/surface'
 import type { PresetStore } from './presets/store'
+import type { TimerState } from './timer/machine'
 import { createTimerService } from './timer/service'
+import type { SnapshotStore } from './timer/snapshot'
 import { wireApp, type AppPorts, type WindowHandle } from './wire'
 
 const pomodoro: Preset = {
@@ -93,16 +95,32 @@ const fakeWindow = () => {
   }
 }
 
+/** A snapshot store with no file behind it, seeded with an optional saved run. */
+const fakeSnapshot = (initial: TimerState | null = null) => {
+  let saved = initial
+  const store: SnapshotStore & { load: () => TimerState | null } = {
+    save: (state) => {
+      saved = state
+    },
+    clear: () => {
+      saved = null
+    },
+    load: () => saved,
+  }
+  return store
+}
+
 let now = 0
 const clock = { now: () => now }
 
-const build = () => {
+const build = (initialSnapshot: TimerState | null = null) => {
   const store = fakeStore()
   const history = createHistory(
     mkdtempSync(join(tmpdir(), 'klokki-wire-')),
     clock,
   )
   const service = createTimerService(clock)
+  const snapshot = fakeSnapshot(initialSnapshot)
   const menubar = fakeMenubar()
   const alerts = { notify: vi.fn(), showOverlay: vi.fn() }
   const overlay = { close: vi.fn() }
@@ -113,6 +131,7 @@ const build = () => {
     service,
     store,
     history,
+    snapshot,
     loginItem: { isEnabled: () => false, setEnabled: () => true },
     requests: {
       handle: (channel, handler) => requests.set(channel, handler),
@@ -137,6 +156,7 @@ const build = () => {
     store,
     history,
     service,
+    snapshot,
     menubar,
     alerts,
     overlay,
@@ -262,6 +282,69 @@ describe('a phase boundary, all the way out', () => {
 
     expect(wired.invoke(IPC.snoozeAlert)).toBe(false)
     expect(wired.overlay.close).toHaveBeenCalledOnce()
+  })
+})
+
+describe('the running timer, saved for a restart', () => {
+  it('saves the running state on every change, and clears it when the run ends', () => {
+    const wired = build()
+    wired.invoke(IPC.startPreset, 'pomodoro')
+
+    expect(wired.snapshot.load()).toMatchObject({
+      status: 'running',
+      phaseIndex: 0,
+    })
+
+    elapse(25 * MINUTE)
+    expect(wired.snapshot.load()).toMatchObject({
+      status: 'running',
+      phaseIndex: 1,
+    })
+
+    elapse(5 * MINUTE)
+    expect(wired.snapshot.load()).toBeNull()
+  })
+
+  it('clears the saved state when the run is stopped', () => {
+    const wired = build()
+    wired.invoke(IPC.startPreset, 'pomodoro')
+
+    wired.menubar.clickMenuItem('Stop')
+
+    expect(wired.snapshot.load()).toBeNull()
+  })
+
+  it('resumes a saved run still in progress, picking up where wall-clock time says it should be', () => {
+    now = 10 * MINUTE
+    const wired = build({
+      status: 'running',
+      preset: pomodoro,
+      phaseIndex: 0,
+      phaseStartedAt: 0,
+      phaseEndsAt: 25 * MINUTE,
+      snoozedMs: 0,
+    })
+
+    expect(wired.menubar.title()).toBe(' Focus 15:00')
+  })
+
+  it('drains a phase that finished while the app was closed, reaching history and the alert', () => {
+    now = 26 * MINUTE
+    const wired = build({
+      status: 'running',
+      preset: pomodoro,
+      phaseIndex: 0,
+      phaseStartedAt: 0,
+      phaseEndsAt: 25 * MINUTE,
+      snoozedMs: 0,
+    })
+
+    expect(wired.alerts.notify).toHaveBeenCalledWith({
+      title: 'Focus finished',
+      body: 'Break starting now',
+    })
+    expect(wired.history.stats().today.completed).toBe(1)
+    expect(wired.menubar.title()).toBe(' Break 04:00')
   })
 })
 

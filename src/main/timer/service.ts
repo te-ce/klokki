@@ -46,6 +46,15 @@ export type TimerService = {
    */
   readonly setRemaining: (targetMs: number) => boolean
   readonly getView: () => TimerView
+  /** The raw state, for anything that needs more than the view — e.g. persistence. */
+  readonly getState: () => TimerState
+  /**
+   * Restores a state loaded from disk. Drains whatever elapsed while the app was
+   * closed the same way a poll drains a machine that has been asleep — a run
+   * that fully finished lands on idle and its transitions still reach history
+   * and the alert surface, and a run still in progress resumes its poll.
+   */
+  readonly resume: (loaded: TimerState) => void
   readonly subscribe: (listener: (update: TimerUpdate) => void) => () => void
   readonly dispose: () => void
 }
@@ -141,7 +150,16 @@ export const createTimerService = (
       stopPolling()
       emit([])
     },
+    resume: (loaded) => {
+      const result = tick(loaded, clock.now())
+      state = result.state
+      stopPolling()
+      if (state.status === 'running')
+        poll = setInterval(advance, POLL_INTERVAL_MS)
+      emit(result.transitions)
+    },
     getView: () => toView(state, clock.now()),
+    getState: () => state,
     subscribe: (listener) => {
       listeners.add(listener)
       return () => listeners.delete(listener)

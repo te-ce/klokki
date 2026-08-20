@@ -7,6 +7,7 @@ import { electronMenubarSurface } from './menubar/surface'
 import { startPresetById } from './presets/start'
 import { createPresetStore } from './presets/store'
 import { createTimerService, type TimerService } from './timer/service'
+import { createSnapshotStore } from './timer/snapshot'
 import { wireApp, type WiredApp } from './wire'
 import { closeOverlayWindow, openSettingsWindow, overlayState } from './windows'
 
@@ -44,12 +45,14 @@ const bootstrap = (): void => {
 
     const store = createPresetStore(app.getPath('userData'))
     const history = createHistory(app.getPath('userData'))
+    const snapshot = createSnapshotStore(app.getPath('userData'))
     const service = createTimerService()
 
     const wired = wireApp({
       service,
       store,
       history,
+      snapshot,
       loginItem: createLoginItem(app),
       requests: electronRequestSink(),
       appInfo: electronAppInfo,

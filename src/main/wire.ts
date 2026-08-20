@@ -14,7 +14,10 @@ import { createMenubar, type Menubar } from './menubar'
 import type { MenubarSurface } from './menubar/surface'
 import { startPresetById } from './presets/start'
 import type { PresetStore } from './presets/store'
+import type { TimerState } from './timer/machine'
+import { persistSnapshot } from './timer/persist'
 import type { TimerService } from './timer/service'
+import type { SnapshotStore } from './timer/snapshot'
 
 /** A window, as much of one as the broadcaster needs to keep it fed. */
 export type WindowHandle = {
@@ -31,6 +34,9 @@ export type AppPorts = {
   readonly service: TimerService
   readonly store: PresetStore
   readonly history: History
+  readonly snapshot: SnapshotStore & {
+    readonly load: () => TimerState | null
+  }
   readonly loginItem: LoginItem
   readonly requests: RequestSink
   readonly appInfo: () => AppInfo
@@ -89,6 +95,13 @@ export const wireApp = (ports: AppPorts): WiredApp => {
     createAlertPresenter(ports.alerts),
   )
   const unwireHistory = recordHistory(ports.service, ports.history.append)
+  const unwireSnapshot = persistSnapshot(ports.service, ports.snapshot)
+
+  // Loaded after the listeners above are wired, so a run that finished or
+  // advanced while the app was closed still reaches history and the alert
+  // surface — the same as a boundary the poll drains after waking from sleep.
+  const saved = ports.snapshot.load()
+  if (saved) ports.service.resume(saved)
 
   const menubar = createMenubar(
     ports.menubar,
@@ -110,6 +123,7 @@ export const wireApp = (ports: AppPorts): WiredApp => {
     dispose: () => {
       unwireAlerts()
       unwireHistory()
+      unwireSnapshot()
       menubar.dispose()
       broadcaster.dispose()
       ports.service.dispose()

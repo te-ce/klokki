@@ -221,6 +221,84 @@ describe('createTimerService', () => {
     service.dispose()
   })
 
+  it('resumes a saved state still in progress, keeping its poll running', () => {
+    const service = createTimerService(clock)
+    clock.advance(10 * MS_PER_MINUTE)
+
+    service.resume({
+      status: 'running',
+      preset: pomodoro,
+      phaseIndex: 0,
+      phaseStartedAt: T0,
+      phaseEndsAt: T0 + 25 * MS_PER_MINUTE,
+      snoozedMs: 0,
+    })
+
+    expect(service.getView().phaseLabel).toBe('Focus')
+    expect(service.getView().countdown).toBe('15:00')
+    expect(vi.getTimerCount()).toBe(1)
+    service.dispose()
+  })
+
+  it('drains a phase that finished while the app was closed, and reports it', () => {
+    const service = createTimerService(clock)
+    const updates: TimerUpdate[] = []
+    service.subscribe((update) => updates.push(update))
+    clock.advance(26 * MS_PER_MINUTE)
+
+    service.resume({
+      status: 'running',
+      preset: pomodoro,
+      phaseIndex: 0,
+      phaseStartedAt: T0,
+      phaseEndsAt: T0 + 25 * MS_PER_MINUTE,
+      snoozedMs: 0,
+    })
+
+    expect(service.getView().phaseLabel).toBe('Break')
+    expect(updates.at(-1)?.transitions).toEqual([
+      expect.objectContaining({ cause: 'elapsed', next: pomodoro.phases[1] }),
+    ])
+    service.dispose()
+  })
+
+  it('resuming a state that has fully finished ends up idle, and stops polling', () => {
+    const service = createTimerService(clock)
+    clock.advance(2 * MS_PER_MINUTE)
+    const once = {
+      id: 'once',
+      name: 'One shot',
+      loop: false,
+      phases: [{ label: 'Only', minutes: 1, notify: true }],
+    }
+
+    service.resume({
+      status: 'running',
+      preset: once,
+      phaseIndex: 0,
+      phaseStartedAt: T0,
+      phaseEndsAt: T0 + MS_PER_MINUTE,
+      snoozedMs: 0,
+    })
+
+    expect(service.getView().running).toBe(false)
+    expect(vi.getTimerCount()).toBe(0)
+    service.dispose()
+  })
+
+  it('exposes the raw state for anything that needs more than the view', () => {
+    const service = createTimerService(clock)
+
+    expect(service.getState()).toEqual({ status: 'idle' })
+
+    service.startPreset(pomodoro)
+    expect(service.getState()).toMatchObject({
+      status: 'running',
+      phaseIndex: 0,
+    })
+    service.dispose()
+  })
+
   it('drops listeners on unsubscribe', () => {
     const service = createTimerService(clock)
     const listener = vi.fn()
