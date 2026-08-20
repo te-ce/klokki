@@ -44,6 +44,7 @@ describe('createTimerService', () => {
       running: false,
       presetName: null,
       phaseLabel: null,
+      nextPhaseLabel: null,
       remainingMs: 0,
       countdown: '00:00',
     })
@@ -147,6 +148,54 @@ describe('createTimerService', () => {
     expect(vi.getTimerCount()).toBe(1)
 
     service.stop()
+
+    expect(service.getView().running).toBe(false)
+    expect(vi.getTimerCount()).toBe(0)
+    service.dispose()
+  })
+
+  it('names the phase that starts next, so a view can offer to skip to it', () => {
+    const service = createTimerService(clock)
+
+    expect(service.getView().nextPhaseLabel).toBeNull()
+    service.startPreset(pomodoro)
+    expect(service.getView().nextPhaseLabel).toBe('Break')
+
+    elapse(25 * MS_PER_MINUTE)
+    expect(service.getView().phaseLabel).toBe('Break')
+    expect(service.getView().nextPhaseLabel).toBe('Focus')
+    service.dispose()
+  })
+
+  it('skips to the next phase on request, and announces the boundary', () => {
+    const service = createTimerService(clock)
+    const updates: TimerUpdate[] = []
+    service.startPreset(pomodoro)
+    service.subscribe((update) => updates.push(update))
+
+    elapse(10 * MS_PER_MINUTE)
+    expect(service.skip()).toBe(true)
+
+    expect(service.getView().phaseLabel).toBe('Break')
+    expect(service.getView().countdown).toBe('05:00')
+    expect(updates.at(-1)?.transitions).toEqual([
+      expect.objectContaining({ cause: 'skipped' }),
+    ])
+    service.dispose()
+  })
+
+  it('has nothing to skip while idle, and stops polling when a skip ends the run', () => {
+    const service = createTimerService(clock)
+
+    expect(service.skip()).toBe(false)
+
+    service.startPreset({
+      id: 'once',
+      name: 'One shot',
+      loop: false,
+      phases: [{ label: 'Only', minutes: 10, notify: true }],
+    })
+    expect(service.skip()).toBe(true)
 
     expect(service.getView().running).toBe(false)
     expect(vi.getTimerCount()).toBe(0)

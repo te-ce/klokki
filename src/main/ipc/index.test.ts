@@ -15,6 +15,7 @@ const IDLE: TimerView = {
   running: false,
   presetName: null,
   phaseLabel: null,
+  nextPhaseLabel: null,
   remainingMs: 0,
   countdown: '00:00',
 }
@@ -43,6 +44,7 @@ const wire = (overrides: Partial<IpcDeps> = {}) => {
     startPreset: vi.fn(),
     stop: vi.fn(),
     snooze: vi.fn(() => true),
+    skip: vi.fn(() => true),
     getView: vi.fn(() => IDLE),
     subscribe: vi.fn(() => () => {}),
     dispose: vi.fn(),
@@ -192,6 +194,13 @@ describe('what the handlers do', () => {
     app.invoke(IPC.stopTimer)
 
     expect(app.service.stop).toHaveBeenCalledOnce()
+  })
+
+  it('skips to the next phase, and says whether anything moved', () => {
+    const app = wire()
+
+    expect(app.invoke(IPC.skipPhase)).toBe(true)
+    expect(app.service.skip).toHaveBeenCalledOnce()
   })
 
   it('deletes a preset by id', () => {

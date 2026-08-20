@@ -6,7 +6,16 @@ import {
   type Preset,
 } from '../../shared/preset'
 import { SEED_PRESETS } from '../../shared/presets'
-import { IDLE, currentPhase, remainingMs, snooze, start, tick } from './machine'
+import {
+  IDLE,
+  currentPhase,
+  nextPhase,
+  remainingMs,
+  skip,
+  snooze,
+  start,
+  tick,
+} from './machine'
 
 const T0 = 1_700_000_000_000
 const minutes = (count: number): number => count * MS_PER_MINUTE
@@ -64,6 +73,7 @@ describe('tick', () => {
       {
         completed: pomodoro.phases[0],
         next: pomodoro.phases[1],
+        cause: 'elapsed',
         presetId: pomodoro.id,
         startedAt: T0,
         at: T0 + minutes(25),
@@ -88,6 +98,7 @@ describe('tick', () => {
       {
         completed: once.phases[0],
         next: null,
+        cause: 'elapsed',
         presetId: once.id,
         startedAt: T0,
         at: T0 + minutes(10),
@@ -211,6 +222,7 @@ describe('snooze', () => {
       {
         completed: sitStand.phases[0],
         next: sitStand.phases[1],
+        cause: 'elapsed',
         presetId: sitStand.id,
         // The snoozed stretch started at the boundary it deferred, so its length
         // is the snooze — which is what the history log records as its duration.
@@ -390,6 +402,95 @@ describe('snooze properties', () => {
           )
         },
       ),
+    )
+  })
+})
+
+describe('nextPhase', () => {
+  it('names what starts when the current phase ends', () => {
+    expect(nextPhase(start(pomodoro, T0))?.label).toBe('Break')
+  })
+
+  it('wraps to the first phase of a looping preset', () => {
+    const onBreak = tick(start(pomodoro, T0), T0 + minutes(25)).state
+    expect(nextPhase(onBreak)?.label).toBe('Focus')
+  })
+
+  it('has nothing to name on the last phase of a preset that does not loop', () => {
+    expect(nextPhase(start(once, T0))).toBeNull()
+    expect(nextPhase(IDLE)).toBeNull()
+  })
+})
+
+describe('skip', () => {
+  it('ends the current phase now and starts the next one in full', () => {
+    const clicked = T0 + minutes(10)
+    const result = skip(start(pomodoro, T0), clicked)
+
+    expect(result.transitions).toEqual([
+      {
+        completed: pomodoro.phases[0],
+        next: pomodoro.phases[1],
+        cause: 'skipped',
+        presetId: pomodoro.id,
+        // Ten minutes of Focus, not the twenty-five it was configured for:
+        // this is what the history log records as the time really spent.
+        startedAt: T0,
+        at: clicked,
+      },
+    ])
+    expect(currentPhase(result.state)?.label).toBe('Break')
+    // The break is not shortened by the skip — its length applies when it starts.
+    expect(remainingMs(result.state, clicked)).toBe(minutes(5))
+  })
+
+  it('drains a boundary the poll had not reported yet, then skips the phase the user saw', () => {
+    // A second past the Focus boundary, before the poll fired: the phase the
+    // user is looking at is Break, and that is the one the skip must end.
+    const at = T0 + minutes(25) + 1_000
+    const result = skip(start(pomodoro, T0), at)
+
+    expect(result.transitions.map((transition) => transition.cause)).toEqual([
+      'elapsed',
+      'skipped',
+    ])
+    expect(result.transitions[0]?.completed.label).toBe('Focus')
+    expect(result.transitions[1]?.completed.label).toBe('Break')
+    expect(currentPhase(result.state)?.label).toBe('Focus')
+  })
+
+  it('ends the run when the last phase of a non-looping preset is skipped', () => {
+    const result = skip(start(once, T0), T0 + minutes(1))
+
+    expect(result.state.status).toBe('idle')
+    expect(result.transitions).toEqual([
+      {
+        completed: once.phases[0],
+        next: null,
+        cause: 'skipped',
+        presetId: once.id,
+        startedAt: T0,
+        at: T0 + minutes(1),
+      },
+    ])
+  })
+
+  it('has nothing to skip while idle', () => {
+    expect(skip(IDLE, T0)).toEqual({ state: IDLE, transitions: [] })
+  })
+
+  it('leaves the sequence undrifted: every phase after a skip keeps its length', () => {
+    fc.assert(
+      fc.property(fc.integer({ min: 1, max: 20 }).map(minutes), (early) => {
+        const skipped = skip(start(sitStand, T0), early)
+        // Standing starts when the user asked for it and runs its full 15,
+        // so the boundary after the skip is 15 minutes from the click.
+        const next = tick(skipped.state, early + minutes(15))
+
+        expect(next.transitions).toHaveLength(1)
+        expect(next.transitions[0]?.completed.label).toBe('Standing')
+        expect(currentPhase(next.state)?.label).toBe('Sitting')
+      }),
     )
   })
 })

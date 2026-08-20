@@ -1,5 +1,10 @@
 import { useState } from 'react'
-import { validatePreset, type Phase, type Preset } from '../../shared/preset'
+import {
+  samePreset,
+  validatePreset,
+  type Phase,
+  type Preset,
+} from '../../shared/preset'
 import { usePresets } from './usePresets'
 
 const NEW_PHASE: Phase = { label: '', minutes: 5, notify: true }
@@ -124,7 +129,19 @@ const PhaseRow = ({
 export const PresetsSection = () => {
   const presets = usePresets()
   const [draft, setDraft] = useState<Preset | null>(null)
+  // What the draft looked like when it was opened. Save is only worth offering
+  // while the two differ, and a draft typed back into its original shape is not
+  // a pending edit — so this is the baseline, not a boolean the edits set.
+  const [opened, setOpened] = useState<Preset | null>(null)
   const [problems, setProblems] = useState<readonly string[]>([])
+
+  const dirty = draft !== null && opened !== null && !samePreset(draft, opened)
+
+  const edit = (preset: Preset | null): void => {
+    setProblems([])
+    setDraft(preset)
+    setOpened(preset)
+  }
 
   const submit = async (): Promise<void> => {
     if (!draft) return
@@ -142,14 +159,16 @@ export const PresetsSection = () => {
       return
     }
 
+    // The draft is what is now on disk, so there is nothing left to save until
+    // the user types again.
+    setOpened(draft)
     setProblems([])
   }
 
   const remove = async (): Promise<void> => {
     if (!draft) return
     await window.klokki.deletePreset(draft.id)
-    setDraft(null)
-    setProblems([])
+    edit(null)
   }
 
   const editPhases = (phases: readonly Phase[]): void => {
@@ -163,10 +182,7 @@ export const PresetsSection = () => {
         <button
           type="button"
           className="ml-auto rounded bg-neutral-700 px-3 py-1 text-sm"
-          onClick={() => {
-            setProblems([])
-            setDraft(blankPreset())
-          }}
+          onClick={() => edit(blankPreset())}
         >
           New preset
         </button>
@@ -179,10 +195,7 @@ export const PresetsSection = () => {
               type="button"
               aria-label={`Edit ${preset.name}`}
               className="w-full rounded px-2 py-1 text-left text-sm hover:bg-neutral-800"
-              onClick={() => {
-                setProblems([])
-                setDraft(preset)
-              }}
+              onClick={() => edit(preset)}
             >
               {preset.name}
             </button>
@@ -264,7 +277,8 @@ export const PresetsSection = () => {
           <div className="flex gap-2">
             <button
               type="submit"
-              className="rounded bg-neutral-200 px-3 py-1 text-sm text-neutral-900"
+              disabled={!dirty}
+              className="rounded bg-neutral-200 px-3 py-1 text-sm text-neutral-900 disabled:opacity-40"
             >
               Save
             </button>

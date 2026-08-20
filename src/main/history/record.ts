@@ -46,7 +46,15 @@ export const recordHistory = (
         presetId: transition.presetId,
         phaseLabel: transition.completed.label,
         durationMs,
-        outcome: wasSnoozed ? 'snoozed' : 'completed',
+        // A skipped stretch is recorded as skipped even when it was snoozed
+        // first: the last thing that happened to it is that the user cut it
+        // short, and the minutes it granted are the duration either way.
+        outcome:
+          transition.cause === 'skipped'
+            ? 'skipped'
+            : wasSnoozed
+              ? 'snoozed'
+              : 'completed',
       })
     }
   })

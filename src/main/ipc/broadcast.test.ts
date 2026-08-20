@@ -12,6 +12,7 @@ const view = (countdown: string): TimerView => ({
   running: true,
   presetName: 'Pomodoro',
   phaseLabel: 'Focus',
+  nextPhaseLabel: 'Break',
   remainingMs: 1_000,
   countdown,
 })

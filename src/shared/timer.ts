@@ -15,6 +15,15 @@ export type TimerView = {
   readonly running: boolean
   readonly presetName: string | null
   readonly phaseLabel: string | null
+  /**
+   * What starts when this phase ends, or null when nothing does — the preset is
+   * on its last phase and does not loop.
+   *
+   * Pushed rather than looked up by a view, because naming the phase is what
+   * makes skipping to it answerable ("Skip to Standing") in both the tray menu
+   * and the settings window, and neither holds the phase list.
+   */
+  readonly nextPhaseLabel: string | null
   readonly remainingMs: number
   readonly countdown: string
 }

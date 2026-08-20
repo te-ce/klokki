@@ -9,6 +9,13 @@ exports[`what the menubar says > matches its snapshot while running 1`] = `
     },
     {
       "action": {
+        "kind": "skip",
+      },
+      "kind": "command",
+      "label": "Skip to Break",
+    },
+    {
+      "action": {
         "kind": "stop",
       },
       "kind": "command",
@@ -51,7 +58,7 @@ exports[`what the menubar says > matches its snapshot while running 1`] = `
       "label": "Quit Klokki",
     },
   ],
-  "title": " 24:59",
+  "title": " Focus 24:59",
   "tooltip": "Klokki — Focus",
 }
 `;

@@ -117,6 +117,60 @@ describe('recordHistory', () => {
     service.dispose()
   })
 
+  it('records a skipped stretch as skipped, for the minutes it really lasted', () => {
+    const service = createTimerService(clock)
+    const append = vi.fn()
+    recordHistory(service, append)
+
+    service.startPreset(sitStand)
+    elapse(12 * MS_PER_MINUTE)
+    service.skip()
+
+    expect(append).toHaveBeenCalledExactlyOnceWith({
+      endedAt: T0 + 12 * MS_PER_MINUTE,
+      presetId: 'sit-stand',
+      phaseLabel: 'Sitting',
+      // Twelve minutes of sitting, not the thirty it was configured for.
+      durationMs: 12 * MS_PER_MINUTE,
+      outcome: 'skipped',
+    })
+    service.dispose()
+  })
+
+  it('records a snoozed stretch that was then skipped as skipped', () => {
+    const service = createTimerService(clock)
+    const append = vi.fn()
+    recordHistory(service, append)
+
+    service.startPreset(sitStand)
+    elapse(30 * MS_PER_MINUTE)
+    elapse(2_000)
+    service.snooze()
+    elapse(60_000)
+    service.skip()
+
+    expect(append.mock.calls.map(([event]) => event.outcome)).toEqual([
+      'completed',
+      // The last thing that happened to the deferred stretch is that the user
+      // cut it short; the minutes it granted are its duration either way.
+      'skipped',
+    ])
+    service.dispose()
+  })
+
+  it('records nothing for a skip taken the instant a phase started', () => {
+    const service = createTimerService(clock)
+    const append = vi.fn()
+    recordHistory(service, append)
+
+    service.startPreset(sitStand)
+    service.skip()
+
+    // A zero-length stretch is not something that happened to the user.
+    expect(append).not.toHaveBeenCalled()
+    service.dispose()
+  })
+
   it('stops recording once unsubscribed', () => {
     const service = createTimerService(clock)
     const append = vi.fn()

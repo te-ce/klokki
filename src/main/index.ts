@@ -30,6 +30,7 @@ const exposeTestSeam = (
       view: () => service.getView(),
       startPreset: start,
       stop: () => service.stop(),
+      skip: () => service.skip(),
       subscriberCount: () => wired.broadcaster.targetCount(),
       overlay: () => overlayState(),
     },

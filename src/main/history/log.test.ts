@@ -32,6 +32,21 @@ describe('createHistoryLog', () => {
     ])
   })
 
+  it('reads back every outcome a phase can end with', () => {
+    const path = dir()
+    const log = createHistoryLog(path)
+
+    log.append(event({ outcome: 'completed' }))
+    log.append(event({ outcome: 'snoozed' }))
+    log.append(event({ outcome: 'skipped' }))
+
+    expect(log.readRecent().map((entry) => entry.outcome)).toEqual([
+      'completed',
+      'snoozed',
+      'skipped',
+    ])
+  })
+
   it('never rewrites what is already on disk', () => {
     const path = dir()
     const first = createHistoryLog(path)

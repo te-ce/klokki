@@ -150,3 +150,31 @@ it('offers no stop button when nothing is running', async () => {
 
   expect(screen.queryByRole('button', { name: 'Stop' })).not.toBeInTheDocument()
 })
+
+it('offers to skip to the phase the view names, and asks main to do it', async () => {
+  api = mockApi(RUNNING)
+  render(<TimerPanel />)
+
+  fireEvent.click(await screen.findByRole('button', { name: 'Skip to Break' }))
+
+  expect(api.skipPhase).toHaveBeenCalledOnce()
+})
+
+it('names the skip by the end when nothing follows the phase', async () => {
+  api = mockApi({ ...RUNNING, nextPhaseLabel: null })
+  render(<TimerPanel />)
+
+  expect(
+    await screen.findByRole('button', { name: 'Skip to the end' }),
+  ).toBeInTheDocument()
+})
+
+it('offers nothing to skip while idle', async () => {
+  api = mockApi(IDLE)
+  render(<TimerPanel />)
+  await screen.findByText('Nothing running.')
+
+  expect(
+    screen.queryByRole('button', { name: /^Skip/ }),
+  ).not.toBeInTheDocument()
+})

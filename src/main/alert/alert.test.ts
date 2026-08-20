@@ -13,7 +13,14 @@ const transition = (
   completed: Phase,
   next: Phase | null,
   at = 1_700_000_000_000,
-): Transition => ({ completed, next, presetId: 'test', startedAt: at - 1, at })
+): Transition => ({
+  completed,
+  next,
+  cause: 'elapsed',
+  presetId: 'test',
+  startedAt: at - 1,
+  at,
+})
 
 describe('alertFor', () => {
   it('has nothing to say when no phase ended', () => {
@@ -44,6 +51,19 @@ describe('alertFor', () => {
         transition(phase('Focus'), phase('Break')),
       ]),
     ).toEqual({ completedLabel: 'Focus', nextLabel: 'Break' })
+  })
+
+  // The user clicked Skip: they know the phase ended, and an overlay to dismiss
+  // straight afterwards is an obstacle rather than a nudge.
+  it('stays quiet for a boundary the user asked for', () => {
+    expect(
+      alertFor([
+        {
+          ...transition(phase('Sitting'), phase('Standing')),
+          cause: 'skipped',
+        },
+      ]),
+    ).toBeNull()
   })
 
   it('has no next phase to name when the preset ran out', () => {

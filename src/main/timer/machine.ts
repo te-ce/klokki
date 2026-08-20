@@ -26,10 +26,22 @@ export type TimerState =
 
 export const IDLE: TimerState = { status: 'idle' }
 
+/**
+ * Why a phase ended: because its time ran out, or because the user asked for the
+ * next one early.
+ *
+ * The distinction is not cosmetic. A skip must not raise the transition alert —
+ * the user just chose the boundary, and an overlay they have to dismiss right
+ * after clicking Skip is noise — and history records it as its own outcome,
+ * because the stretch is shorter than the phase was configured to be.
+ */
+export type TransitionCause = 'elapsed' | 'skipped'
+
 /** `next: null` means the preset ran out of phases and the timer went idle. */
 export type Transition = {
   readonly completed: Phase
   readonly next: Phase | null
+  readonly cause: TransitionCause
   /** Which preset the completed phase belonged to — what history records it under. */
   readonly presetId: string
   /**
@@ -90,6 +102,13 @@ const nextIndex = (preset: Preset, index: number): number | null => {
   return preset.loop ? 0 : null
 }
 
+/** What starts when the current phase ends, or null when nothing will. */
+export const nextPhase = (state: TimerState): Phase | null => {
+  if (state.status !== 'running' || !currentPhase(state)) return null
+  const index = nextIndex(state.preset, state.phaseIndex)
+  return index === null ? null : (state.preset.phases[index] ?? null)
+}
+
 /** Where the phase before `index` lives — the one whose end started `index`. */
 const previousIndex = (preset: Preset, index: number): number | null => {
   if (index > 0) return index - 1
@@ -123,6 +142,7 @@ export const tick = (state: TimerState, now: number): TickResult => {
     transitions.push({
       completed: phase,
       next: upcoming,
+      cause: 'elapsed',
       presetId: current.preset.id,
       startedAt: current.phaseStartedAt,
       at: endsAt,
@@ -136,6 +156,54 @@ export const tick = (state: TimerState, now: number): TickResult => {
       phaseEndsAt: endsAt + phaseDurationMs(upcoming),
       snoozedMs: 0,
     }
+  }
+}
+
+/**
+ * Ends the current phase now and starts the next one, because the user asked to
+ * move on early — standing up before the sitting phase is out.
+ *
+ * Whatever elapsed on its own is drained first, so a skip cannot swallow a
+ * boundary the poll had not yet reported: the phase that ends early is the one
+ * the user was actually looking at, and the stretch recorded for it is the time
+ * that really passed. The phase that follows gets its full configured length,
+ * starting now — the same rule a snoozed boundary follows.
+ *
+ * Skipping the last phase of a preset that does not loop ends the run, exactly
+ * as letting it elapse would.
+ */
+export const skip = (state: TimerState, now: number): TickResult => {
+  const drained = tick(state, now)
+  const current = drained.state
+  const phase = currentPhase(current)
+  if (current.status !== 'running' || !phase) return drained
+
+  const index = nextIndex(current.preset, current.phaseIndex)
+  const upcoming =
+    index === null ? null : (current.preset.phases[index] ?? null)
+  const transitions = [
+    ...drained.transitions,
+    {
+      completed: phase,
+      next: upcoming,
+      cause: 'skipped' as const,
+      presetId: current.preset.id,
+      startedAt: current.phaseStartedAt,
+      at: now,
+    },
+  ]
+
+  if (index === null || !upcoming) return { state: IDLE, transitions }
+
+  return {
+    state: {
+      ...current,
+      phaseIndex: index,
+      phaseStartedAt: now,
+      phaseEndsAt: now + phaseDurationMs(upcoming),
+      snoozedMs: 0,
+    },
+    transitions,
   }
 }
 

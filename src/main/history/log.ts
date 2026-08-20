@@ -21,7 +21,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
 const isOutcome = (value: unknown): value is PhaseOutcome =>
-  value === 'completed' || value === 'snoozed'
+  value === 'completed' || value === 'snoozed' || value === 'skipped'
 
 /**
  * Every line is untrusted: the last one may be half-written (a process killed

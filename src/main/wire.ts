@@ -95,6 +95,9 @@ export const wireApp = (ports: AppPorts): WiredApp => {
     { timer: ports.service, presets: ports.store },
     {
       stop: () => ports.service.stop(),
+      skip: () => {
+        ports.service.skip()
+      },
       start: (id) => startPresetById(ports.service, ports.store, id),
       openSettings: ports.openSettings,
       quit: ports.quit,

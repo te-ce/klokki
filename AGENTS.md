@@ -92,6 +92,25 @@ waits for the seam to appear, because `electron.launch()` resolves before
   sharing a label both write without changing it. `usePresets` reads once and then
   subscribes, the same shape as the timer view, so a window is never blank while
   it waits for the first push.
+- **A skip is a boundary the user asked for.** `skip` (tray menu and settings
+  window, via `IPC.skipPhase`) ends the phase now and starts the next one at its
+  full configured length — for standing up before the sitting phase is out. It
+  raises no notification and no overlay, because the user just chose it, and it
+  is logged as its own `skipped` outcome for the minutes that really passed:
+  `Transition.cause` is what tells `alertFor` to stay quiet and `recordHistory`
+  which outcome to write. Elapsed boundaries are drained first, so a skip taken a
+  second after a boundary the poll had not reported yet ends the phase the user
+  was actually looking at rather than swallowing two.
+- **The menubar title names the phase, not just the number.** "29:14" does not
+  say whether to sit or stand, which is the one thing a glance at the menubar is
+  for. Each phase already carries a label — that label is the tray text, so
+  naming a phase in the editor is how the user names what the menubar says.
+- **Save is offered only when there is something to save.** The preset editor
+  keeps the preset it opened alongside the draft and compares them
+  (`samePreset`); a draft typed back into its original shape is not a pending
+  edit, and a successful save makes the draft the new baseline. Validation is not
+  part of that answer — an invalid edit still offers Save, because the reasons it
+  cannot be saved are what the user needs to see.
 - **A snooze answers whether it happened.** `service.snooze()` and
   `snoozeAlert()` return a boolean: the machine declines a boundary whose deferred
   end has already gone by, and that is a different event from a snooze that
@@ -171,4 +190,5 @@ before picking something up.
 `app.getPath('userData')` = `~/Library/Application Support/Klokki/`
 
 - `presets.json` — carries `schemaVersion`
-- `history.jsonl` — one completed (or snoozed) phase per line
+- `history.jsonl` — one ended stretch of phase per line, `completed`, `snoozed`
+  or `skipped`

@@ -18,6 +18,26 @@ export type Preset = {
 
 export const MS_PER_MINUTE = 60_000
 
+/**
+ * Whether two presets are the same preset, field for field.
+ *
+ * Lives here rather than in the editor because it is what "there is something to
+ * save" means: the form compares its draft against the preset it opened, and a
+ * draft that has been typed back into its original shape is not a pending edit.
+ * Compared field by field rather than by stringifying: the draft is rebuilt by
+ * spreading, and a preset read back from presets.json carries whatever key order
+ * the file had, so a textual compare would call two equal presets different.
+ */
+const samePhase = (a: Phase, b: Phase): boolean =>
+  a.label === b.label && a.minutes === b.minutes && a.notify === b.notify
+
+export const samePreset = (a: Preset, b: Preset): boolean =>
+  a.id === b.id &&
+  a.name === b.name &&
+  a.loop === b.loop &&
+  a.phases.length === b.phases.length &&
+  a.phases.every((phase, index) => samePhase(phase, b.phases[index]!))
+
 /** What the main process answers when a renderer tries to save a preset. */
 export type SaveResult =
   | { readonly ok: true }

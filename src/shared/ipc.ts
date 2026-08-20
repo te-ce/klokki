@@ -22,6 +22,7 @@ export const IPC = {
   getLaunchAtLogin: 'klokki:get-launch-at-login',
   setLaunchAtLogin: 'klokki:set-launch-at-login',
   stopTimer: 'klokki:stop-timer',
+  skipPhase: 'klokki:skip-phase',
   dismissAlert: 'klokki:dismiss-alert',
   snoozeAlert: 'klokki:snooze-alert',
 } as const
@@ -64,6 +65,12 @@ export interface KlokkiApi {
   getStats(): Promise<HistoryStats>
   startPreset(id: string): Promise<void>
   stopTimer(): Promise<void>
+  /**
+   * Ends the running phase now and starts the next one — for standing up before
+   * the sitting phase is out. Raises no transition alert: the user chose this
+   * boundary. Resolves to whether anything moved; nothing does while idle.
+   */
+  skipPhase(): Promise<boolean>
   /** Closes the transition overlay. The only way out of it — it never times out. */
   dismissAlert(): Promise<void>
   /**

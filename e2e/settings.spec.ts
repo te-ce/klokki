@@ -51,7 +51,9 @@ test('starting and stopping from the window moves the menubar', async () => {
   const page = await openSettings(app)
 
   await page.getByRole('button', { name: 'Start Pomodoro' }).click()
-  await expect.poll(() => trayTitle(app), { timeout: 5_000 }).toMatch(/2[45]:/)
+  await expect
+    .poll(() => trayTitle(app), { timeout: 5_000 })
+    .toMatch(/Focus 2[45]:/)
 
   await page.getByRole('button', { name: 'Stop' }).click()
   await expect.poll(() => trayTitle(app), { timeout: 5_000 }).toBe('')

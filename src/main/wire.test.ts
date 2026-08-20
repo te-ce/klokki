@@ -209,6 +209,50 @@ describe('a phase boundary, all the way out', () => {
     expect(today.minutesByLabel).toEqual([{ label: 'Focus', minutes: 30 }])
   })
 
+  it('logs a skip and moves the tray on, without raising an alert', () => {
+    const wired = build()
+    const window = wired.openWindow()
+    wired.invoke(IPC.startPreset, 'pomodoro')
+    elapse(10 * MINUTE)
+
+    expect(wired.invoke(IPC.skipPhase)).toBe(true)
+
+    // The user asked for this boundary, so nothing interrupts them for it.
+    expect(wired.alerts.notify).not.toHaveBeenCalled()
+    expect(wired.alerts.showOverlay).not.toHaveBeenCalled()
+
+    // The ten minutes really spent are in the log, and the window heard about it.
+    const today = wired.history.stats().today
+    expect(today.completed).toBe(0)
+    expect(today.minutesByLabel).toEqual([{ label: 'Focus', minutes: 10 }])
+    expect(window.on(PUSH.historyChanged)).toHaveLength(1)
+
+    // And the break has started, at its full length.
+    expect(wired.menubar.title()).toBe(' Break 05:00')
+  })
+
+  it('skips from the tray menu, the same path as the window', () => {
+    const wired = build()
+    wired.menubar.clickMenuItem('Start Pomodoro')
+    elapse(MINUTE)
+
+    expect(wired.menubar.clickMenuItem('Skip to Break')).toBe(true)
+
+    expect(wired.menubar.title()).toBe(' Break 05:00')
+  })
+
+  it('ends the run when the last phase of a non-looping preset is skipped', () => {
+    const wired = build()
+    wired.invoke(IPC.startPreset, 'pomodoro')
+    elapse(25 * MINUTE)
+    elapse(MINUTE)
+
+    expect(wired.invoke(IPC.skipPhase)).toBe(true)
+
+    expect(wired.menubar.title()).toBe('')
+    expect(wired.invoke(IPC.skipPhase)).toBe(false)
+  })
+
   it('declines a snooze whose new end has already gone by, and says so', () => {
     const wired = build()
     wired.invoke(IPC.startPreset, 'pomodoro')
@@ -227,7 +271,7 @@ describe('the menubar, wired', () => {
 
     expect(wired.menubar.clickMenuItem('Start Pomodoro')).toBe(true)
 
-    expect(wired.menubar.title()).toBe(' 25:00')
+    expect(wired.menubar.title()).toBe(' Focus 25:00')
     expect(wired.menubar.menuLabels()).toContain('Stop')
   })
 

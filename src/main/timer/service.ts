@@ -5,7 +5,9 @@ import { formatRemaining } from './format'
 import {
   IDLE,
   currentPhase,
+  nextPhase,
   remainingMs,
+  skip,
   snooze,
   start,
   tick,
@@ -31,6 +33,11 @@ export type TimerService = {
    * may be no boundary to defer, or the deferred end may already have gone by.
    */
   readonly snooze: () => boolean
+  /**
+   * Ends the current phase now and starts the next. Answers whether anything
+   * moved: there is nothing to skip while the timer is idle.
+   */
+  readonly skip: () => boolean
   readonly getView: () => TimerView
   readonly subscribe: (listener: (update: TimerUpdate) => void) => () => void
   readonly dispose: () => void
@@ -44,6 +51,7 @@ const toView = (state: TimerState, now: number): TimerView => {
     running: state.status === 'running',
     presetName: state.status === 'running' ? state.preset.name : null,
     phaseLabel: phase?.label ?? null,
+    nextPhaseLabel: nextPhase(state)?.label ?? null,
     remainingMs: remaining,
     countdown: formatRemaining(remaining),
   }
@@ -99,6 +107,16 @@ export const createTimerService = (
       if (result.snoozed === null) return false
       state = result.state
       emit([], result.snoozed)
+      return true
+    },
+    skip: () => {
+      if (state.status !== 'running') return false
+      const result = skip(state, clock.now())
+      state = result.state
+      // The run can end on a skip — the last phase of a preset that does not
+      // loop — and a poll with nothing left to advance is a leak.
+      if (state.status === 'idle') stopPolling()
+      emit(result.transitions)
       return true
     },
     stop: () => {

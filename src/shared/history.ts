@@ -4,8 +4,13 @@
  * the other crosses IPC.
  */
 
-/** Whether the stretch ran to its configured end, or was time the user snoozed. */
-export type PhaseOutcome = 'completed' | 'snoozed'
+/**
+ * How the stretch ended: it ran to its configured end, it was time the user
+ * snoozed, or the user skipped ahead before it was out. All three are minutes
+ * really spent in the phase; only `completed` is a boundary the timer reached on
+ * its own.
+ */
+export type PhaseOutcome = 'completed' | 'snoozed' | 'skipped'
 
 export type HistoryEvent = {
   readonly endedAt: number

@@ -11,6 +11,7 @@ export const IDLE_VIEW: TimerView = {
   running: false,
   presetName: null,
   phaseLabel: null,
+  nextPhaseLabel: null,
   remainingMs: 0,
   countdown: '00:00',
 }
@@ -19,6 +20,7 @@ export const runningView = (overrides: Partial<TimerView> = {}): TimerView => ({
   running: true,
   presetName: 'Pomodoro',
   phaseLabel: 'Focus',
+  nextPhaseLabel: 'Break',
   remainingMs: 1_499_000,
   countdown: '25:00',
   ...overrides,
@@ -76,6 +78,7 @@ export const fakeKlokki = (overrides: Partial<KlokkiApi> = {}): FakeKlokki => {
     getStats: () => Promise.resolve(emptyStats),
     startPreset: () => Promise.resolve(),
     stopTimer: () => Promise.resolve(),
+    skipPhase: () => Promise.resolve(true),
     dismissAlert: () => Promise.resolve(),
     snoozeAlert: () => Promise.resolve(true),
     savePreset: () => Promise.resolve({ ok: true }),

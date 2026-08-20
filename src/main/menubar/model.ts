@@ -1,4 +1,4 @@
-import { startLabel } from '../../shared/labels'
+import { skipLabel, startLabel } from '../../shared/labels'
 import type { Preset } from '../../shared/preset'
 import type { TimerView } from '../../shared/timer'
 
@@ -12,6 +12,7 @@ import type { TimerView } from '../../shared/timer'
  */
 export type MenubarAction =
   | { readonly kind: 'stop' }
+  | { readonly kind: 'skip' }
   | { readonly kind: 'start'; readonly presetId: string }
   | { readonly kind: 'settings' }
   | { readonly kind: 'quit' }
@@ -34,10 +35,24 @@ export type MenubarModel = {
 }
 
 /**
+ * The menubar text: what the user is meant to be doing, then how long is left.
+ *
+ * The phase comes first because it is the part read at a glance, and it is
+ * dropped rather than shown as "null" if a running view somehow has no phase —
+ * a number with no word beside it is still useful.
+ */
+const trayTitle = (view: TimerView): string =>
+  view.phaseLabel === null
+    ? ` ${view.countdown}`
+    : ` ${view.phaseLabel} ${view.countdown}`
+
+/**
  * Everything the menubar shows, for one moment of one preset list.
  *
- * The menubar is the whole UI: the title carries the countdown as text, because
- * a filling arc is illegible at 22px and a number is not. Starting is by preset
+ * The menubar is the whole UI: the title carries the phase and the countdown as
+ * text, because a filling arc is illegible at 22px and a number is not, and
+ * "29:14" alone does not say whether the user should be sitting or standing —
+ * which is the one thing a glance at the menubar is for. Starting is by preset
  * id, not by preset object, so the menu and the settings window take the same
  * path into the timer — and so an item clicked after the preset was edited runs
  * the saved version.
@@ -46,12 +61,17 @@ export const menubarModel = (
   view: TimerView,
   presets: readonly Preset[],
 ): MenubarModel => ({
-  title: view.running ? ` ${view.countdown}` : '',
+  title: view.running ? trayTitle(view) : '',
   tooltip: view.running ? `Klokki — ${view.phaseLabel}` : 'Klokki',
   items: [
     ...(view.running
       ? ([
           { kind: 'label', label: `${view.presetName} — ${view.phaseLabel}` },
+          {
+            kind: 'command',
+            label: skipLabel(view.nextPhaseLabel),
+            action: { kind: 'skip' },
+          },
           { kind: 'command', label: 'Stop', action: { kind: 'stop' } },
           { kind: 'separator' },
         ] as const)

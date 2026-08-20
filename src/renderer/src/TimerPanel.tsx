@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { startLabel } from '../../shared/labels'
+import { skipLabel, startLabel } from '../../shared/labels'
 import type { TimerView } from '../../shared/timer'
 import { usePresets } from './usePresets'
 
@@ -46,13 +46,25 @@ export const TimerPanel = () => {
           >
             {view.countdown}
           </p>
-          <button
-            type="button"
-            className="mt-4 self-start rounded bg-neutral-700 px-3 py-1 text-sm"
-            onClick={() => void window.klokki.stopTimer()}
-          >
-            Stop
-          </button>
+          <div className="mt-4 flex gap-2">
+            {/* Named by what it starts, the same wording the tray uses. The
+                view carries the next phase's label because the renderer holds
+                no phase list to look it up in. */}
+            <button
+              type="button"
+              className="rounded bg-neutral-700 px-3 py-1 text-sm"
+              onClick={() => void window.klokki.skipPhase()}
+            >
+              {skipLabel(view.nextPhaseLabel)}
+            </button>
+            <button
+              type="button"
+              className="rounded bg-neutral-700 px-3 py-1 text-sm"
+              onClick={() => void window.klokki.stopTimer()}
+            >
+              Stop
+            </button>
+          </div>
         </div>
       ) : (
         <p className="text-neutral-400">Nothing running.</p>

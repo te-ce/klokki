@@ -48,9 +48,10 @@ const daysEndingOn = (today: string, count: number): readonly string[] => {
 const minutes = (ms: number): number => Math.round(ms / MS_PER_MINUTE)
 
 /**
- * One day's totals. Snoozed stretches count towards the minutes — they are time
- * the user really spent in that phase — but not towards the completed count,
- * which is the number of boundaries actually reached.
+ * One day's totals. Snoozed and skipped stretches count towards the minutes —
+ * they are time the user really spent in that phase — but not towards the
+ * completed count, which is the number of boundaries the timer reached on its
+ * own.
  */
 const summariseDay = (
   date: string,

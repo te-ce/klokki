@@ -351,11 +351,84 @@ describe('a preset that cannot run', () => {
     })
     render(<PresetsSection />)
     await edit('Pomodoro')
+    // Save is only offered for a draft that differs from what was opened, so
+    // the form has to have been touched before the main process can refuse it.
+    fireEvent.change(screen.getByLabelText('Preset name'), {
+      target: { value: 'Deep work' },
+    })
 
     save()
 
     expect(
       await screen.findByText('A preset needs a name.'),
     ).toBeInTheDocument()
+  })
+})
+
+describe('when Save is worth offering', () => {
+  const saveButton = () => screen.getByRole('button', { name: 'Save' })
+
+  it('is inactive for a preset that has only been opened', async () => {
+    render(<PresetsSection />)
+    await edit('Pomodoro')
+
+    expect(saveButton()).toBeDisabled()
+  })
+
+  it('is inactive for a new preset until something is typed into it', async () => {
+    render(<PresetsSection />)
+    fireEvent.click(await screen.findByRole('button', { name: 'New preset' }))
+
+    expect(saveButton()).toBeDisabled()
+
+    fireEvent.change(screen.getByLabelText('Preset name'), {
+      target: { value: 'Tea' },
+    })
+
+    expect(saveButton()).toBeEnabled()
+  })
+
+  it('wakes up for an edit to the name, a phase, or the repeat flag', async () => {
+    render(<PresetsSection />)
+
+    await edit('Pomodoro')
+    fireEvent.change(screen.getByLabelText('Phase 1 minutes'), {
+      target: { value: '30' },
+    })
+    expect(saveButton()).toBeEnabled()
+
+    await edit('Pomodoro')
+    fireEvent.click(screen.getByLabelText('Repeat when the last phase ends'))
+    expect(saveButton()).toBeEnabled()
+
+    await edit('Pomodoro')
+    fireEvent.click(screen.getByLabelText('Move phase 2 up'))
+    expect(saveButton()).toBeEnabled()
+  })
+
+  it('goes quiet again when the draft is typed back to what was opened', async () => {
+    render(<PresetsSection />)
+    await edit('Pomodoro')
+    const name = screen.getByLabelText('Preset name')
+
+    fireEvent.change(name, { target: { value: 'Pomodor' } })
+    expect(saveButton()).toBeEnabled()
+
+    fireEvent.change(name, { target: { value: 'Pomodoro' } })
+    expect(saveButton()).toBeDisabled()
+  })
+
+  it('goes quiet again once the draft is on disk', async () => {
+    const api = mockApi()
+    render(<PresetsSection />)
+    await edit('Pomodoro')
+    fireEvent.change(screen.getByLabelText('Preset name'), {
+      target: { value: 'Deep work' },
+    })
+
+    save()
+    await waitFor(() => expect(api.savePreset).toHaveBeenCalled())
+
+    expect(saveButton()).toBeDisabled()
   })
 })

@@ -15,6 +15,7 @@ const IDLE: TimerView = {
   running: false,
   presetName: null,
   phaseLabel: null,
+  nextPhaseLabel: null,
   remainingMs: 0,
   countdown: '00:00',
 }
@@ -23,6 +24,7 @@ const running = (countdown: string, phaseLabel = 'Focus'): TimerView => ({
   running: true,
   presetName: 'Pomodoro',
   phaseLabel,
+  nextPhaseLabel: 'Break',
   remainingMs: 60_000,
   countdown,
 })
@@ -107,6 +109,7 @@ const fakeSources = (
 const fakeActions = () => ({
   stop: vi.fn(),
   start: vi.fn(),
+  skip: vi.fn(),
   openSettings: vi.fn(),
   quit: vi.fn(),
 })
@@ -118,7 +121,7 @@ describe('the menubar', () => {
 
     createMenubar(surface, sources, fakeActions())
 
-    expect(surface.title()).toBe(' 24:59')
+    expect(surface.title()).toBe(' Focus 24:59')
     expect(surface.menuLabels()).toContain('Stop')
   })
 
@@ -129,7 +132,7 @@ describe('the menubar', () => {
 
     pushView(running('24:58'))
 
-    expect(surface.title()).toBe(' 24:58')
+    expect(surface.title()).toBe(' Focus 24:58')
   })
 
   it('does not rebuild the menu every second, which would close it mid-click', () => {
@@ -190,6 +193,25 @@ describe('the menubar', () => {
     expect(actions.stop).toHaveBeenCalledOnce()
     expect(actions.openSettings).toHaveBeenCalledOnce()
     expect(actions.quit).toHaveBeenCalledOnce()
+  })
+
+  it('skips to the next phase, named by what it starts', () => {
+    const surface = fakeSurface()
+    const { sources } = fakeSources(running('24:59'))
+    const actions = fakeActions()
+    createMenubar(surface, sources, actions)
+
+    expect(surface.clickMenuItem('Skip to Break')).toBe(true)
+
+    expect(actions.skip).toHaveBeenCalledOnce()
+  })
+
+  it('offers nothing to skip while idle', () => {
+    const surface = fakeSurface()
+    const { sources } = fakeSources(IDLE)
+    createMenubar(surface, sources, fakeActions())
+
+    expect(surface.menuLabels()).not.toContain('Skip to Break')
   })
 
   it('cannot be clicked into the running header', () => {

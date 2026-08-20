@@ -65,6 +65,25 @@ describe('summarise', () => {
     ])
   })
 
+  it('counts skipped time in the minutes but not in the completed count', () => {
+    const stats = summarise(
+      [
+        at(Date.UTC(2026, 7, 20, 7, 0), {
+          durationMs: 12 * MINUTE,
+          outcome: 'skipped',
+        }),
+      ],
+      NOW,
+      ZONE,
+    )
+
+    // Twelve minutes really spent sitting, but no boundary the timer reached.
+    expect(stats.today.completed).toBe(0)
+    expect(stats.today.minutesByLabel).toEqual([
+      { label: 'Sitting', minutes: 12 },
+    ])
+  })
+
   it('puts an event on the local day it ended, not the UTC one', () => {
     // 00:30 on the 20th in Berlin is still the 19th in UTC.
     const stats = summarise([at(Date.UTC(2026, 7, 19, 22, 30))], NOW, ZONE)

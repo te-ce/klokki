@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { validatePreset, type Preset } from './preset'
+import { samePreset, validatePreset, type Preset } from './preset'
 
 const valid: Preset = {
   id: 'stretch',
@@ -73,5 +73,43 @@ describe('several problems at once', () => {
       'Phase 1 needs a label.',
       'Phase 1 needs to be longer than zero minutes.',
     ])
+  })
+})
+
+describe('whether a draft differs from what was opened', () => {
+  it('is the same preset when nothing was typed', () => {
+    expect(samePreset(valid, { ...valid })).toBe(true)
+    // Key order comes from presets.json, and must not make two equals differ.
+    expect(
+      samePreset(valid, {
+        loop: false,
+        phases: valid.phases,
+        name: 'Stretch',
+        id: 'stretch',
+      }),
+    ).toBe(true)
+  })
+
+  it('notices a rename, a reordering, and every field of a phase', () => {
+    expect(samePreset(valid, { ...valid, name: 'Stretching' })).toBe(false)
+    expect(samePreset(valid, { ...valid, loop: true })).toBe(false)
+    expect(
+      samePreset(valid, {
+        ...valid,
+        phases: [{ label: 'Move', minutes: 3, notify: true }],
+      }),
+    ).toBe(false)
+    expect(
+      samePreset(valid, {
+        ...valid,
+        phases: [{ label: 'Move', minutes: 2, notify: false }],
+      }),
+    ).toBe(false)
+    expect(
+      samePreset(valid, {
+        ...valid,
+        phases: [...valid.phases, { label: 'Rest', minutes: 1, notify: true }],
+      }),
+    ).toBe(false)
   })
 })

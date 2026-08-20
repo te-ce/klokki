@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
+  clickMenuItem,
   close,
   isRunning,
   launch,
@@ -26,12 +27,14 @@ test('@smoke shows a live countdown in the menubar once a preset starts', async 
   const app = await launch()
 
   await startPreset(app, 'pomodoro')
-  expect(await trayTitle(app)).toMatch(/^\s*25:00$/)
+  // The phase is in the title, not only the number: a glance at the menubar has
+  // to say whether the user should be sitting or standing.
+  expect(await trayTitle(app)).toMatch(/^\s*Focus 25:00$/)
 
   // The poll interval is 1s; the title must move on its own, with no window open.
   await expect
     .poll(() => trayTitle(app), { timeout: 5_000 })
-    .toMatch(/^\s*24:5\d$/)
+    .toMatch(/^\s*Focus 24:5\d$/)
 
   expect(await phaseLabel(app)).toBe('Focus')
 
@@ -85,12 +88,27 @@ test('runs a preset added by hand-editing presets.json', async () => {
 
   await startPreset(app, 'tea')
 
-  expect(await trayTitle(app)).toMatch(/^\s*03:00$/)
+  expect(await trayTitle(app)).toMatch(/^\s*Steep 03:00$/)
   expect(await phaseLabel(app)).toBe('Steep')
 
   // The seeds are gone: the file, not the constant, is the source of presets.
   await startPreset(app, 'pomodoro')
   expect(await phaseLabel(app)).toBe('Steep')
+
+  await close(app)
+})
+
+test('@smoke skips to the next phase from the tray menu', async () => {
+  const app = await launch()
+
+  await startPreset(app, 'sit-stand')
+  expect(await phaseLabel(app)).toBe('Sitting')
+
+  expect(await clickMenuItem(app, 'Skip to Standing')).toBe(true)
+
+  expect(await phaseLabel(app)).toBe('Standing')
+  // Standing runs its full fifteen minutes, starting now.
+  expect(await trayTitle(app)).toMatch(/^\s*Standing 15:00$/)
 
   await close(app)
 })

@@ -20,6 +20,7 @@ export type MenubarSources = {
 /** What the menubar can ask the app to do. Starting is by id, as everywhere. */
 export type MenubarActions = {
   readonly stop: () => void
+  readonly skip: () => void
   readonly start: (presetId: string) => void
   readonly openSettings: () => void
   readonly quit: () => void
@@ -53,6 +54,8 @@ export const createMenubar = (
     switch (action.kind) {
       case 'stop':
         return actions.stop()
+      case 'skip':
+        return actions.skip()
       case 'start':
         return actions.start(action.presetId)
       case 'settings':

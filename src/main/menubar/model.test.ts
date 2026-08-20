@@ -21,6 +21,7 @@ const IDLE: TimerView = {
   running: false,
   presetName: null,
   phaseLabel: null,
+  nextPhaseLabel: null,
   remainingMs: 0,
   countdown: '00:00',
 }
@@ -29,6 +30,7 @@ const running = (countdown: string, phaseLabel = 'Focus'): TimerView => ({
   running: true,
   presetName: 'Pomodoro',
   phaseLabel,
+  nextPhaseLabel: 'Break',
   remainingMs: 60_000,
   countdown,
 })
@@ -44,8 +46,10 @@ describe('what the menubar says', () => {
     expect(menubarModel(IDLE, [pomodoro]).tooltip).toBe('Klokki')
   })
 
-  it('carries the countdown as the title, because an arc is illegible at 22px', () => {
-    expect(menubarModel(running('24:59'), [pomodoro]).title).toBe(' 24:59')
+  it('carries the phase and the countdown as the title, because an arc is illegible at 22px', () => {
+    expect(menubarModel(running('24:59'), [pomodoro]).title).toBe(
+      ' Focus 24:59',
+    )
     expect(menubarModel(running('24:59'), [pomodoro]).tooltip).toBe(
       'Klokki — Focus',
     )
@@ -64,6 +68,7 @@ describe('what the menubar says', () => {
   it('names the running phase and offers Stop while running', () => {
     expect(labels(running('24:59'), [pomodoro])).toEqual([
       'Pomodoro — Focus',
+      'Skip to Break',
       'Stop',
       '—',
       'Restart Pomodoro',
@@ -71,6 +76,13 @@ describe('what the menubar says', () => {
       'Settings…',
       'Quit Klokki',
     ])
+  })
+
+  it('names the skip by the phase it starts, and by the end when nothing follows', () => {
+    expect(labels(running('24:59'), [pomodoro])).toContain('Skip to Break')
+    expect(
+      labels({ ...running('00:30'), nextPhaseLabel: null }, [pomodoro]),
+    ).toContain('Skip to the end')
   })
 
   it('still opens settings and quits with no presets at all', () => {
