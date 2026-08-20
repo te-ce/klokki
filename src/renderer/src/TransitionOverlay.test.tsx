@@ -3,7 +3,10 @@ import { describe, expect, it, vi } from 'vitest'
 import { TransitionOverlay } from './TransitionOverlay'
 
 const mockApi = () => {
-  const api = { dismissAlert: vi.fn(() => Promise.resolve()) }
+  const api = {
+    dismissAlert: vi.fn(() => Promise.resolve()),
+    snoozeAlert: vi.fn(() => Promise.resolve()),
+  }
   window.klokki = api as never
   return api
 }
@@ -43,5 +46,28 @@ describe('TransitionOverlay', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
 
     expect(api.dismissAlert).toHaveBeenCalledOnce()
+  })
+
+  it('offers five more minutes of what the user was doing', () => {
+    const api = mockApi()
+    render(
+      <TransitionOverlay
+        alert={{ completedLabel: 'Focus', nextLabel: 'Break' }}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Snooze 5 minutes' }))
+
+    expect(api.snoozeAlert).toHaveBeenCalledOnce()
+    expect(api.dismissAlert).not.toHaveBeenCalled()
+  })
+
+  it('offers no snooze when there is no phase left to push back', () => {
+    mockApi()
+    render(
+      <TransitionOverlay alert={{ completedLabel: 'Only', nextLabel: null }} />,
+    )
+
+    expect(screen.queryByRole('button', { name: /Snooze/ })).toBeNull()
   })
 })

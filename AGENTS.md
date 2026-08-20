@@ -71,6 +71,15 @@ waits for the seam to appear, because `electron.launch()` resolves before
 - **Transitions are intrusive.** Native notification _plus_ a borderless
   always-on-top overlay that must be dismissed or snoozed. A notification alone
   is missed in Do Not Disturb and fullscreen — the exact moments it matters.
+- **Snooze defers a boundary; it never skips a phase.** The user answers the
+  overlay seconds after the boundary, by which time the machine has already
+  started the next phase, so `snooze` steps _back_ and re-ends the phase that
+  finished five minutes after the boundary — not five minutes after the click,
+  which would let click latency drift the rest of the sequence. The phase that
+  follows keeps its full length, because its length is applied when it finally
+  starts. A snooze whose new end is already in the past is declined, and a second
+  click on one overlay extends the current snooze instead of stepping back twice:
+  a snooze must only ever move time forwards.
 - **History is local and append-only** (`history.jsonl`). Append-only survives a
   kill mid-write; stats read the tail. Stats cover today + 7 days, which is why
   no query engine is needed.

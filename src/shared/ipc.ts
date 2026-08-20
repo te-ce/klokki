@@ -20,6 +20,7 @@ export const IPC = {
   setLaunchAtLogin: 'klokki:set-launch-at-login',
   stopTimer: 'klokki:stop-timer',
   dismissAlert: 'klokki:dismiss-alert',
+  snoozeAlert: 'klokki:snooze-alert',
   /** Main → renderer: a fresh view, once a second while the timer runs. */
   timerView: 'klokki:timer-view',
 } as const
@@ -41,6 +42,12 @@ export interface KlokkiApi {
   stopTimer(): Promise<void>
   /** Closes the transition overlay. The only way out of it — it never times out. */
   dismissAlert(): Promise<void>
+  /**
+   * Defers the boundary the overlay is showing and closes it. The length of the
+   * snooze is the main process's to decide (`SNOOZE_MS`): a renderer must not be
+   * able to name an amount of time the timer then honours.
+   */
+  snoozeAlert(): Promise<void>
   /**
    * Upsert by id. The main process validates again — it owns presets.json — so a
    * rejected preset comes back with the reasons instead of throwing.

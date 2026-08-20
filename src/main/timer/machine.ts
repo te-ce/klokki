@@ -11,7 +11,17 @@ export type TimerState =
       readonly status: 'running'
       readonly preset: Preset
       readonly phaseIndex: number
+      /**
+       * The current stretch of the current phase: its start, and when it ends.
+       *
+       * The end is stored rather than derived from the phase's length because a
+       * snooze moves it (see `snooze`), and a phase whose configured length no
+       * longer matches its end is the whole point of snoozing.
+       */
       readonly phaseStartedAt: number
+      readonly phaseEndsAt: number
+      /** How much of this stretch was granted by snoozing; 0 for a normal one. */
+      readonly snoozedMs: number
     }
 
 export const IDLE: TimerState = { status: 'idle' }
@@ -28,10 +38,31 @@ export type TickResult = {
   readonly transitions: readonly Transition[]
 }
 
+/** A boundary the user pushed back rather than let pass. */
+export type Snooze = {
+  readonly phase: Phase
+  /** The boundary that was deferred, not the moment the button was clicked. */
+  readonly at: number
+  readonly extendedByMs: number
+}
+
+export type SnoozeResult = {
+  readonly state: TimerState
+  /** null when there was nothing to defer, in which case the state is unchanged. */
+  readonly snoozed: Snooze | null
+}
+
 export const start = (preset: Preset, now: number): TimerState => {
   if (!isRunnable(preset))
     throw new Error(`Preset "${preset.id}" has no runnable phases`)
-  return { status: 'running', preset, phaseIndex: 0, phaseStartedAt: now }
+  return {
+    status: 'running',
+    preset,
+    phaseIndex: 0,
+    phaseStartedAt: now,
+    phaseEndsAt: now + phaseDurationMs(preset.phases[0]!),
+    snoozedMs: 0,
+  }
 }
 
 export const currentPhase = (state: TimerState): Phase | null =>
@@ -40,9 +71,8 @@ export const currentPhase = (state: TimerState): Phase | null =>
     : null
 
 export const remainingMs = (state: TimerState, now: number): number => {
-  const phase = currentPhase(state)
-  if (state.status !== 'running' || !phase) return 0
-  return Math.max(0, state.phaseStartedAt + phaseDurationMs(phase) - now)
+  if (state.status !== 'running' || !currentPhase(state)) return 0
+  return Math.max(0, state.phaseEndsAt - now)
 }
 
 /** Where the phase after `index` lives, or null if the preset is over. */
@@ -50,6 +80,12 @@ const nextIndex = (preset: Preset, index: number): number | null => {
   const candidate = index + 1
   if (candidate < preset.phases.length) return candidate
   return preset.loop ? 0 : null
+}
+
+/** Where the phase before `index` lives — the one whose end started `index`. */
+const previousIndex = (preset: Preset, index: number): number | null => {
+  if (index > 0) return index - 1
+  return preset.loop ? preset.phases.length - 1 : null
 }
 
 /**
@@ -70,7 +106,7 @@ export const tick = (state: TimerState, now: number): TickResult => {
     if (current.status !== 'running' || !phase)
       return { state: IDLE, transitions }
 
-    const endsAt = current.phaseStartedAt + phaseDurationMs(phase)
+    const endsAt = current.phaseEndsAt
     if (now < endsAt) return { state: current, transitions }
 
     const index = nextIndex(current.preset, current.phaseIndex)
@@ -79,6 +115,66 @@ export const tick = (state: TimerState, now: number): TickResult => {
     transitions.push({ completed: phase, next: upcoming, at: endsAt })
 
     if (index === null || !upcoming) return { state: IDLE, transitions }
-    current = { ...current, phaseIndex: index, phaseStartedAt: endsAt }
+    current = {
+      ...current,
+      phaseIndex: index,
+      phaseStartedAt: endsAt,
+      phaseEndsAt: endsAt + phaseDurationMs(upcoming),
+      snoozedMs: 0,
+    }
+  }
+}
+
+/**
+ * Defers the boundary the user was just told about, by `extraMs`.
+ *
+ * By the time the overlay is answered the machine has already moved on, so a
+ * snooze goes *back* to the phase that ended and re-ends it `extraMs` after the
+ * boundary — not `extraMs` after the click, which would let click latency drift
+ * the rest of the sequence. The phase that follows keeps its full length,
+ * because its length is applied when it finally starts.
+ *
+ * Snoozing an already-snoozed stretch extends that stretch instead of stepping
+ * back a second phase: two clicks on one overlay must not rewind the timer.
+ *
+ * Nothing happens when the deferred boundary would land in the past — a snooze
+ * only ever moves time forwards.
+ */
+export const snooze = (
+  state: TimerState,
+  now: number,
+  extraMs: number,
+): SnoozeResult => {
+  if (state.status !== 'running') return { state, snoozed: null }
+
+  if (state.snoozedMs > 0) {
+    const phase = currentPhase(state)
+    const endsAt = state.phaseEndsAt + extraMs
+    if (!phase || endsAt <= now) return { state, snoozed: null }
+    return {
+      state: {
+        ...state,
+        phaseEndsAt: endsAt,
+        snoozedMs: state.snoozedMs + extraMs,
+      },
+      snoozed: { phase, at: state.phaseStartedAt, extendedByMs: extraMs },
+    }
+  }
+
+  const index = previousIndex(state.preset, state.phaseIndex)
+  const phase = index === null ? null : state.preset.phases[index]
+  const boundaryAt = state.phaseStartedAt
+  if (index === null || !phase || boundaryAt + extraMs <= now)
+    return { state, snoozed: null }
+
+  return {
+    state: {
+      ...state,
+      phaseIndex: index,
+      phaseStartedAt: boundaryAt,
+      phaseEndsAt: boundaryAt + extraMs,
+      snoozedMs: extraMs,
+    },
+    snoozed: { phase, at: boundaryAt, extendedByMs: extraMs },
   }
 }

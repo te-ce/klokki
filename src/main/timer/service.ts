@@ -1,13 +1,15 @@
 import type { Preset } from '../../shared/preset'
-import type { TimerView } from '../../shared/timer'
+import { SNOOZE_MS, type TimerView } from '../../shared/timer'
 import { systemClock, type Clock } from './clock'
 import { formatRemaining } from './format'
 import {
   IDLE,
   currentPhase,
   remainingMs,
+  snooze,
   start,
   tick,
+  type Snooze,
   type TimerState,
   type Transition,
 } from './machine'
@@ -17,11 +19,15 @@ const POLL_INTERVAL_MS = 1_000
 export type TimerUpdate = {
   readonly view: TimerView
   readonly transitions: readonly Transition[]
+  /** Set only on the update caused by the user snoozing a boundary. */
+  readonly snoozed: Snooze | null
 }
 
 export type TimerService = {
   readonly startPreset: (preset: Preset) => void
   readonly stop: () => void
+  /** Defers the boundary the overlay is showing; a no-op if there is none. */
+  readonly snooze: () => void
   readonly getView: () => TimerView
   readonly subscribe: (listener: (update: TimerUpdate) => void) => () => void
   readonly dispose: () => void
@@ -52,10 +58,14 @@ export const createTimerService = (
   let poll: ReturnType<typeof setInterval> | null = null
   const listeners = new Set<(update: TimerUpdate) => void>()
 
-  const emit = (transitions: readonly Transition[]): void => {
+  const emit = (
+    transitions: readonly Transition[],
+    snoozed: Snooze | null = null,
+  ): void => {
     const update: TimerUpdate = {
       view: toView(state, clock.now()),
       transitions,
+      snoozed,
     }
     for (const listener of listeners) listener(update)
   }
@@ -79,6 +89,13 @@ export const createTimerService = (
       stopPolling()
       poll = setInterval(advance, POLL_INTERVAL_MS)
       emit([])
+    },
+    snooze: () => {
+      const result = snooze(state, clock.now(), SNOOZE_MS)
+      // Nothing changed when the boundary is gone, so nothing is announced.
+      if (result.snoozed === null) return
+      state = result.state
+      emit([], result.snoozed)
     },
     stop: () => {
       state = IDLE

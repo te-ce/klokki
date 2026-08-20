@@ -26,6 +26,10 @@ export const registerIpc = (
   )
   ipcMain.handle(IPC.stopTimer, () => service.stop())
   ipcMain.handle(IPC.dismissAlert, () => closeOverlayWindow())
+  ipcMain.handle(IPC.snoozeAlert, () => {
+    service.snooze()
+    closeOverlayWindow()
+  })
   ipcMain.handle(IPC.savePreset, (_event, preset: Preset) => store.save(preset))
   ipcMain.handle(IPC.deletePreset, (_event, id: string) => store.remove(id))
   ipcMain.handle(IPC.getLaunchAtLogin, () => loginItem.isEnabled())

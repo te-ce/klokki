@@ -6,6 +6,8 @@ import {
   dockVisible,
   launch,
   overlay,
+  phaseLabel,
+  remaining,
   startPreset,
   type KlokkiApp,
 } from './harness'
@@ -93,6 +95,21 @@ test('a phase with notify unset ends without an overlay', async () => {
   await new Promise((resolve) => setTimeout(resolve, 4_000))
 
   expect(await overlay(app)).toBeNull()
+
+  await close(app)
+})
+
+test('snoozing buys five more minutes of the phase that just ended', async () => {
+  const app = await launch(seedBlink(true))
+
+  const page = await overlayPage(app)
+  await page.getByRole('button', { name: 'Snooze 5 minutes' }).click()
+  await expect.poll(() => overlay(app), { timeout: 5_000 }).toBeNull()
+
+  // Back in Tick, with the snooze on the menubar countdown — Tock has not
+  // started, and when it does it will still be its full five minutes.
+  expect(await phaseLabel(app)).toBe('Tick')
+  expect(await remaining(app)).toBeGreaterThan(4 * 60_000)
 
   await close(app)
 })

@@ -17,7 +17,12 @@ type TestSeam = {
   trayTitle: () => string
   clickMenuItem: (label: string) => boolean
   menuLabels: () => string[]
-  view: () => { running: boolean; phaseLabel: string | null; countdown: string }
+  view: () => {
+    running: boolean
+    phaseLabel: string | null
+    countdown: string
+    remainingMs: number
+  }
   startPreset: (id: string) => void
   stop: () => void
   subscriberCount: () => number
@@ -79,6 +84,11 @@ export const trayTitle = (app: ElectronApplication): Promise<string> =>
 export const phaseLabel = (app: ElectronApplication): Promise<string | null> =>
   app.evaluate(
     () => (globalThis as unknown as SeamHost).__klokkiTest.view().phaseLabel,
+  )
+
+export const remaining = (app: ElectronApplication): Promise<number> =>
+  app.evaluate(
+    () => (globalThis as unknown as SeamHost).__klokkiTest.view().remainingMs,
   )
 
 export const isRunning = (app: ElectronApplication): Promise<boolean> =>

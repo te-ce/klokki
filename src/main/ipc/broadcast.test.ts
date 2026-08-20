@@ -21,7 +21,7 @@ const fakeSource = () => {
     },
     push: (countdown: string) => {
       for (const listener of listeners)
-        listener({ view: view(countdown), transitions: [] })
+        listener({ view: view(countdown), transitions: [], snoozed: null })
     },
     listenerCount: () => listeners.size,
   }

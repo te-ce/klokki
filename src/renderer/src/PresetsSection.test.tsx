@@ -34,6 +34,7 @@ const mockApi = (presets: readonly Preset[] = [pomodoro]) => {
     setLaunchAtLogin: vi.fn().mockResolvedValue(false),
     onTimerView: vi.fn(() => vi.fn()),
     dismissAlert: vi.fn(() => Promise.resolve()),
+    snoozeAlert: vi.fn(() => Promise.resolve()),
   }
   window.klokki = api
   return api

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MS_PER_MINUTE } from '../../shared/preset'
 import { SEED_PRESETS } from '../../shared/presets'
 import type { Clock } from './clock'
+import { SNOOZE_MS } from '../../shared/timer'
 import { createTimerService, type TimerUpdate } from './service'
 
 const T0 = 1_700_000_000_000
@@ -74,6 +75,53 @@ describe('createTimerService', () => {
     expect(withTransitions).toHaveLength(1)
     expect(withTransitions[0]?.transitions[0]?.next?.label).toBe('Break')
     expect(service.getView().phaseLabel).toBe('Break')
+    service.dispose()
+  })
+
+  it('puts the user back in the phase they snoozed, and says so once', () => {
+    const service = createTimerService(clock)
+    const updates: TimerUpdate[] = []
+    service.subscribe((update) => updates.push(update))
+
+    service.startPreset(pomodoro)
+    elapse(25 * MS_PER_MINUTE)
+    service.snooze()
+
+    expect(service.getView().phaseLabel).toBe('Focus')
+    expect(service.getView().countdown).toBe('05:00')
+
+    const snoozes = updates.filter((update) => update.snoozed !== null)
+    expect(snoozes).toHaveLength(1)
+    expect(snoozes[0]?.snoozed).toEqual({
+      phase: pomodoro.phases[0],
+      at: T0 + 25 * MS_PER_MINUTE,
+      extendedByMs: SNOOZE_MS,
+    })
+    service.dispose()
+  })
+
+  it('ignores a snooze with no boundary to defer', () => {
+    const service = createTimerService(clock)
+    const updates: TimerUpdate[] = []
+    service.subscribe((update) => updates.push(update))
+
+    service.snooze()
+
+    expect(updates).toEqual([])
+    expect(service.getView().running).toBe(false)
+    service.dispose()
+  })
+
+  it('keeps counting down after a snooze runs out', () => {
+    const service = createTimerService(clock)
+    service.startPreset(pomodoro)
+    elapse(25 * MS_PER_MINUTE)
+    service.snooze()
+
+    elapse(SNOOZE_MS)
+
+    expect(service.getView().phaseLabel).toBe('Break')
+    expect(service.getView().countdown).toBe('05:00')
     service.dispose()
   })
 

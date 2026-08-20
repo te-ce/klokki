@@ -10,6 +10,7 @@ const api: KlokkiApi = {
   startPreset: (id) => ipcRenderer.invoke(IPC.startPreset, id),
   stopTimer: () => ipcRenderer.invoke(IPC.stopTimer),
   dismissAlert: () => ipcRenderer.invoke(IPC.dismissAlert),
+  snoozeAlert: () => ipcRenderer.invoke(IPC.snoozeAlert),
   savePreset: (preset) => ipcRenderer.invoke(IPC.savePreset, preset),
   deletePreset: (id) => ipcRenderer.invoke(IPC.deletePreset, id),
   getLaunchAtLogin: () => ipcRenderer.invoke(IPC.getLaunchAtLogin),

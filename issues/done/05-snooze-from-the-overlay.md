@@ -19,16 +19,16 @@ sequence, and a snooze must never move time backwards.
 
 ## Acceptance criteria
 
-- [ ] The overlay offers Snooze 5 minutes alongside dismissal
-- [ ] Snoozing extends the just-ended phase by 5 minutes; the menubar countdown
+- [x] The overlay offers Snooze 5 minutes alongside dismissal
+- [x] Snoozing extends the just-ended phase by 5 minutes; the menubar countdown
       shows the extra time and the next phase starts 5 minutes later
-- [ ] The phase after the snoozed boundary keeps its full configured length
-- [ ] Snoozing several times in a row compounds correctly and never rewinds the
+- [x] The phase after the snoozed boundary keeps its full configured length
+- [x] Snoozing several times in a row compounds correctly and never rewinds the
       timer
-- [ ] Property tests cover the invariants: a snooze never decreases elapsed time,
+- [x] Property tests cover the invariants: a snooze never decreases elapsed time,
       and remaining time after a snooze never exceeds the phase duration plus the
       snooze
-- [ ] Snoozing is recorded as an outcome distinct from completing (consumed by
+- [x] Snoozing is recorded as an outcome distinct from completing (consumed by
       the history log)
 
 ## Blocked by
