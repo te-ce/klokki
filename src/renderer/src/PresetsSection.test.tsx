@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import type { Preset, SaveResult } from '../../shared/preset'
 import { PresetsSection } from './PresetsSection'
+import { fakeKlokki, type FakeKlokki } from './test-support/fake-klokki'
 
 const pomodoro: Preset = {
   id: 'pomodoro',
@@ -13,34 +14,27 @@ const pomodoro: Preset = {
   ],
 }
 
-/** The whole bridge the section is allowed to touch (see src/shared/ipc.ts). */
+/**
+ * The bridge, standing in for a main process that owns the list: a save or a
+ * delete lands in the store and comes back as a push, which is the only way this
+ * section learns what the list now is.
+ */
 const mockApi = (presets: readonly Preset[] = [pomodoro]) => {
   let current = presets
-  const api = {
-    getAppInfo: vi.fn().mockResolvedValue({ version: '0', electron: '43' }),
-    listPresets: vi.fn(() => Promise.resolve(current)),
-    getTimerView: vi.fn(),
-    startPreset: vi.fn().mockResolvedValue(undefined),
-    stopTimer: vi.fn().mockResolvedValue(undefined),
-    savePreset: vi.fn((preset: Preset): Promise<SaveResult> => {
+  let api: FakeKlokki
+  api = fakeKlokki({
+    listPresets: () => Promise.resolve(current),
+    savePreset: (preset: Preset): Promise<SaveResult> => {
       current = [...current.filter((p) => p.id !== preset.id), preset]
+      api.pushPresets(current)
       return Promise.resolve({ ok: true })
-    }),
-    deletePreset: vi.fn((id: string) => {
+    },
+    deletePreset: (id: string) => {
       current = current.filter((preset) => preset.id !== id)
+      api.pushPresets(current)
       return Promise.resolve(undefined)
-    }),
-    getStats: vi.fn().mockResolvedValue({
-      today: { date: '2026-08-20', completed: 0, minutesByLabel: [] },
-      days: [{ date: '2026-08-20', completed: 0, minutesByLabel: [] }],
-    }),
-    getLaunchAtLogin: vi.fn().mockResolvedValue(false),
-    setLaunchAtLogin: vi.fn().mockResolvedValue(false),
-    onTimerView: vi.fn(() => vi.fn()),
-    dismissAlert: vi.fn(() => Promise.resolve()),
-    snoozeAlert: vi.fn(() => Promise.resolve()),
-  }
-  window.klokki = api
+    },
+  })
   return api
 }
 
@@ -237,7 +231,20 @@ describe('creating and deleting whole presets', () => {
     expect(
       await screen.findByRole('button', { name: 'Edit Deep work' }),
     ).toBeInTheDocument()
-    expect(api.listPresets).toHaveBeenCalledTimes(2)
+    // The list arrives as a push from the owner, so the editor never asks twice.
+    expect(api.listPresets).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows a preset saved in another window while this one was open', async () => {
+    const api = mockApi()
+    render(<PresetsSection />)
+    await screen.findByRole('button', { name: 'Edit Pomodoro' })
+
+    api.pushPresets([pomodoro, { ...pomodoro, id: 'stretch', name: 'Stretch' }])
+
+    expect(
+      await screen.findByRole('button', { name: 'Edit Stretch' }),
+    ).toBeInTheDocument()
   })
 
   it('deletes a preset and drops it from the list', async () => {

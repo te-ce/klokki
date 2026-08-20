@@ -1,0 +1,57 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`what the menubar says > matches its snapshot while running 1`] = `
+{
+  "items": [
+    {
+      "kind": "label",
+      "label": "Pomodoro — Focus",
+    },
+    {
+      "action": {
+        "kind": "stop",
+      },
+      "kind": "command",
+      "label": "Stop",
+    },
+    {
+      "kind": "separator",
+    },
+    {
+      "action": {
+        "kind": "start",
+        "presetId": "pomodoro",
+      },
+      "kind": "command",
+      "label": "Restart Pomodoro",
+    },
+    {
+      "action": {
+        "kind": "start",
+        "presetId": "sit-stand",
+      },
+      "kind": "command",
+      "label": "Restart Sit / stand",
+    },
+    {
+      "kind": "separator",
+    },
+    {
+      "action": {
+        "kind": "settings",
+      },
+      "kind": "command",
+      "label": "Settings…",
+    },
+    {
+      "action": {
+        "kind": "quit",
+      },
+      "kind": "command",
+      "label": "Quit Klokki",
+    },
+  ],
+  "title": " 24:59",
+  "tooltip": "Klokki — Focus",
+}
+`;

@@ -1,19 +1,8 @@
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { alertRoute } from '../../shared/alert'
 import { Root } from './Root'
-
-const mockApi = () => {
-  window.klokki = {
-    getAppInfo: vi.fn(() => Promise.resolve({ version: '0', electron: '0' })),
-    getTimerView: vi.fn(() => Promise.resolve(null)),
-    getStats: vi.fn(() => Promise.resolve(null)),
-    listPresets: vi.fn(() => Promise.resolve([])),
-    getLaunchAtLogin: vi.fn(() => Promise.resolve(false)),
-    onTimerView: vi.fn(() => () => {}),
-    dismissAlert: vi.fn(() => Promise.resolve()),
-  } as never
-}
+import { fakeKlokki } from './test-support/fake-klokki'
 
 const at = (hash: string) => {
   window.location.hash = hash
@@ -21,7 +10,7 @@ const at = (hash: string) => {
 
 describe('Root', () => {
   it('is only the alert when the window was opened as an overlay', () => {
-    mockApi()
+    fakeKlokki()
     at(alertRoute({ completedLabel: 'Focus', nextLabel: 'Break' }))
 
     render(<Root />)
@@ -31,7 +20,7 @@ describe('Root', () => {
   })
 
   it('is the settings window otherwise', () => {
-    mockApi()
+    fakeKlokki()
     at('/settings')
 
     render(<Root />)

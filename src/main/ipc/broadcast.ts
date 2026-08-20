@@ -1,14 +1,32 @@
-import { IPC } from '../../shared/ipc'
+import { PUSH } from '../../shared/ipc'
+import type { Preset } from '../../shared/preset'
 import type { TimerUpdate } from '../timer/service'
 
 /** The slice of a window's webContents the broadcaster needs. */
 export type ViewTarget = {
   readonly isDestroyed: () => boolean
-  readonly send: (channel: string, view: unknown) => void
+  readonly send: (channel: string, payload?: unknown) => void
 }
 
-type ViewSource = {
-  readonly subscribe: (listener: (update: TimerUpdate) => void) => () => void
+/**
+ * Everything main pushes to whichever windows are open, in one place.
+ *
+ * One module owning all three subscriptions is what keeps them symmetrical: a
+ * fourth thing a window has to keep fresh is one source here, not a new
+ * subscription somewhere in the bootstrap and a new listener in a component.
+ */
+export type BroadcastSources = {
+  readonly timer: {
+    readonly subscribe: (listener: (update: TimerUpdate) => void) => () => void
+  }
+  readonly presets: {
+    readonly subscribe: (
+      listener: (presets: readonly Preset[]) => void,
+    ) => () => void
+  }
+  readonly history: {
+    readonly subscribe: (listener: () => void) => () => void
+  }
 }
 
 export type ViewBroadcaster = {
@@ -19,26 +37,34 @@ export type ViewBroadcaster = {
 }
 
 /**
- * Fans the timer's updates out to whichever windows are open.
+ * Fans main's updates out to whichever windows are open.
  *
- * One subscription to the timer serves every window, so opening and closing the
- * settings window cannot leave listeners behind on the service. A window that
- * has been destroyed without unregistering — a crash, a race with `closed` — is
+ * One subscription per source serves every window, so opening and closing the
+ * settings window cannot leave listeners behind on the timer. A window that has
+ * been destroyed without unregistering — a crash, a race with `closed` — is
  * dropped on the next update rather than being sent to, because `send()` on
  * destroyed webContents throws.
  */
-export const createViewBroadcaster = (source: ViewSource): ViewBroadcaster => {
+export const createViewBroadcaster = (
+  sources: BroadcastSources,
+): ViewBroadcaster => {
   const targets = new Set<ViewTarget>()
 
-  const unsubscribe = source.subscribe(({ view }) => {
+  const push = (channel: string, payload?: unknown): void => {
     for (const target of targets) {
       if (target.isDestroyed()) {
         targets.delete(target)
         continue
       }
-      target.send(IPC.timerView, view)
+      target.send(channel, payload)
     }
-  })
+  }
+
+  const unsubscribes = [
+    sources.timer.subscribe(({ view }) => push(PUSH.timerView, view)),
+    sources.presets.subscribe((presets) => push(PUSH.presets, presets)),
+    sources.history.subscribe(() => push(PUSH.historyChanged)),
+  ]
 
   return {
     register: (target) => {
@@ -49,7 +75,7 @@ export const createViewBroadcaster = (source: ViewSource): ViewBroadcaster => {
     },
     targetCount: () => targets.size,
     dispose: () => {
-      unsubscribe()
+      for (const unsubscribe of unsubscribes) unsubscribe()
       targets.clear()
     },
   }

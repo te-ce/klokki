@@ -1,0 +1,213 @@
+import { describe, expect, it, vi } from 'vitest'
+import { IPC, PUSH } from '../../shared/ipc'
+import type { Preset } from '../../shared/preset'
+import type { TimerView } from '../../shared/timer'
+import { registerIpc, type IpcDeps, type RequestSink } from './index'
+
+const pomodoro: Preset = {
+  id: 'pomodoro',
+  name: 'Pomodoro',
+  loop: true,
+  phases: [{ label: 'Focus', minutes: 25, notify: true }],
+}
+
+const IDLE: TimerView = {
+  running: false,
+  presetName: null,
+  phaseLabel: null,
+  remainingMs: 0,
+  countdown: '00:00',
+}
+
+/** Stands in for ipcMain: keeps the handlers so a test can call one. */
+const fakeSink = () => {
+  const handlers = new Map<string, (...args: readonly unknown[]) => unknown>()
+  return {
+    sink: {
+      handle: (channel, handler) => {
+        handlers.set(channel, handler)
+      },
+    } satisfies RequestSink,
+    channels: () => [...handlers.keys()],
+    invoke: (channel: string, ...args: readonly unknown[]) => {
+      const handler = handlers.get(channel)
+      if (!handler) throw new Error(`nothing answers "${channel}"`)
+      return handler(...args)
+    },
+  }
+}
+
+const wire = (overrides: Partial<IpcDeps> = {}) => {
+  const sink = fakeSink()
+  const service = {
+    startPreset: vi.fn(),
+    stop: vi.fn(),
+    snooze: vi.fn(() => true),
+    getView: vi.fn(() => IDLE),
+    subscribe: vi.fn(() => () => {}),
+    dispose: vi.fn(),
+  }
+  const store = {
+    list: vi.fn((): readonly Preset[] => [pomodoro]),
+    save: vi.fn(() => ({ ok: true }) as const),
+    remove: vi.fn(),
+    subscribe: vi.fn(() => () => {}),
+  }
+  const loginItem = {
+    isEnabled: vi.fn(() => false),
+    setEnabled: vi.fn(() => true),
+  }
+  const history = {
+    append: vi.fn(),
+    stats: vi.fn(() => ({
+      today: { date: '2026-08-20', completed: 0, minutesByLabel: [] },
+      days: [],
+    })),
+    subscribe: vi.fn(() => () => {}),
+  }
+  const overlay = { close: vi.fn() }
+  const deps: IpcDeps = {
+    requests: sink.sink,
+    service,
+    store,
+    loginItem,
+    history,
+    overlay,
+    appInfo: () => ({ version: '1.2.3', electron: '43.0.0' }),
+    ...overrides,
+  }
+
+  registerIpc(deps)
+  return { ...sink, service, store, loginItem, history, overlay }
+}
+
+describe('the request contract', () => {
+  it('answers on every channel the renderer can call', () => {
+    const app = wire()
+
+    expect(app.channels().sort()).toEqual(Object.values(IPC).sort())
+  })
+
+  it('never answers on a channel main is supposed to push', () => {
+    const app = wire()
+
+    for (const channel of Object.values(PUSH))
+      expect(app.channels()).not.toContain(channel)
+  })
+})
+
+describe('what the handlers do', () => {
+  it('reports the running app, not a build-time constant', () => {
+    expect(wire().invoke(IPC.getAppInfo)).toEqual({
+      version: '1.2.3',
+      electron: '43.0.0',
+    })
+  })
+
+  it('reads the preset list per call, so an edit is never answered stale', () => {
+    const app = wire()
+
+    app.invoke(IPC.listPresets)
+    app.invoke(IPC.listPresets)
+
+    expect(app.store.list).toHaveBeenCalledTimes(2)
+  })
+
+  it('starts a preset by id, from the list as it is now', () => {
+    const app = wire()
+
+    app.invoke(IPC.startPreset, 'pomodoro')
+
+    expect(app.service.startPreset).toHaveBeenCalledWith(pomodoro)
+  })
+
+  it('does nothing for an id that has been deleted under an open window', () => {
+    const app = wire()
+
+    app.invoke(IPC.startPreset, 'gone')
+
+    expect(app.service.startPreset).not.toHaveBeenCalled()
+  })
+
+  it('returns the reasons a preset was rejected rather than throwing', () => {
+    const app = wire()
+    app.store.save.mockReturnValue({
+      ok: false,
+      problems: ['A preset needs a name.'],
+    } as never)
+
+    expect(app.invoke(IPC.savePreset, pomodoro)).toEqual({
+      ok: false,
+      problems: ['A preset needs a name.'],
+    })
+  })
+
+  it('closes the overlay when the alert is dismissed', () => {
+    const app = wire()
+
+    app.invoke(IPC.dismissAlert)
+
+    expect(app.overlay.close).toHaveBeenCalledOnce()
+    expect(app.service.snooze).not.toHaveBeenCalled()
+  })
+
+  it('defers the boundary and closes the overlay on a snooze', () => {
+    const app = wire()
+
+    expect(app.invoke(IPC.snoozeAlert)).toBe(true)
+
+    expect(app.service.snooze).toHaveBeenCalledOnce()
+    expect(app.overlay.close).toHaveBeenCalledOnce()
+  })
+
+  it('says so when the snooze was declined, and closes the overlay anyway', () => {
+    const app = wire()
+    // The user answered the overlay more than five minutes after the boundary,
+    // so the deferred end has already gone by and the machine declines it.
+    app.service.snooze.mockReturnValue(false)
+
+    expect(app.invoke(IPC.snoozeAlert)).toBe(false)
+
+    expect(app.overlay.close).toHaveBeenCalledOnce()
+  })
+
+  it('reads the login item from the OS and reports what it says after a write', () => {
+    const app = wire()
+
+    expect(app.invoke(IPC.getLaunchAtLogin)).toBe(false)
+    expect(app.invoke(IPC.setLaunchAtLogin, true)).toBe(true)
+
+    expect(app.loginItem.setEnabled).toHaveBeenCalledWith(true)
+  })
+
+  it('answers a window that has just opened with the current view', () => {
+    const app = wire()
+
+    expect(app.invoke(IPC.getTimerView)).toEqual(IDLE)
+  })
+
+  it('stops the timer', () => {
+    const app = wire()
+
+    app.invoke(IPC.stopTimer)
+
+    expect(app.service.stop).toHaveBeenCalledOnce()
+  })
+
+  it('deletes a preset by id', () => {
+    const app = wire()
+
+    app.invoke(IPC.deletePreset, 'pomodoro')
+
+    expect(app.store.remove).toHaveBeenCalledWith('pomodoro')
+  })
+
+  it('summarises the log per call, never from a cache', () => {
+    const app = wire()
+
+    app.invoke(IPC.getStats)
+    app.invoke(IPC.getStats)
+
+    expect(app.history.stats).toHaveBeenCalledTimes(2)
+  })
+})

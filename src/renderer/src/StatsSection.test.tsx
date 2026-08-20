@@ -1,8 +1,8 @@
 import { render, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import type { HistoryStats } from '../../shared/history'
-import type { TimerView } from '../../shared/timer'
 import { StatsSection } from './StatsSection'
+import { fakeKlokki, runningView, TODAY } from './test-support/fake-klokki'
 
 const day = (date: string, completed = 0, minutesByLabel: unknown[] = []) => ({
   date,
@@ -12,12 +12,12 @@ const day = (date: string, completed = 0, minutesByLabel: unknown[] = []) => ({
 
 const stats = (overrides: Partial<HistoryStats> = {}): HistoryStats =>
   ({
-    today: day('2026-08-20', 3, [
+    today: day(TODAY, 3, [
       { label: 'Sitting', minutes: 90 },
       { label: 'Standing', minutes: 45 },
     ]),
     days: [
-      day('2026-08-20', 3, [
+      day(TODAY, 3, [
         { label: 'Sitting', minutes: 90 },
         { label: 'Standing', minutes: 45 },
       ]),
@@ -31,14 +31,8 @@ const stats = (overrides: Partial<HistoryStats> = {}): HistoryStats =>
     ...overrides,
   }) as HistoryStats
 
-const mockApi = (value: HistoryStats = stats()) => {
-  const api = {
-    getStats: vi.fn(() => Promise.resolve(value)),
-    onTimerView: vi.fn((_listener: (view: TimerView) => void) => vi.fn()),
-  }
-  window.klokki = api as never
-  return api
-}
+const mockApi = (value: HistoryStats = stats()) =>
+  fakeKlokki({ getStats: () => Promise.resolve(value) })
 
 describe('StatsSection', () => {
   it("shows today's completed phases and minutes per label", async () => {
@@ -72,30 +66,47 @@ describe('StatsSection', () => {
     expect(rows[1]).toHaveTextContent('Nothing recorded')
   })
 
-  it('re-reads the log when the running phase changes under it', async () => {
-    let push: (view: TimerView) => void = () => {}
+  it('re-reads the log when the main process says a line was written', async () => {
     const api = mockApi()
-    api.onTimerView = vi.fn((listener: (view: TimerView) => void) => {
-      push = listener
-      return vi.fn()
-    })
     render(<StatsSection />)
 
     await waitFor(() => expect(api.getStats).toHaveBeenCalledTimes(1))
 
-    const view = (phaseLabel: string): TimerView => ({
-      running: true,
-      presetName: 'Sit / stand',
-      phaseLabel,
-      remainingMs: 1_000,
-      countdown: '00:01',
-    })
-    push(view('Sitting'))
-    push(view('Sitting'))
+    api.pushHistoryChanged()
     await waitFor(() => expect(api.getStats).toHaveBeenCalledTimes(2))
+  })
 
-    // A boundary just passed, so there is a new phase in the log to show.
-    push(view('Standing'))
+  it('re-reads for a stretch that no phase label would have betrayed', async () => {
+    const api = mockApi()
+    render(<StatsSection />)
+    await waitFor(() => expect(api.getStats).toHaveBeenCalledTimes(1))
+
+    // A snooze, or two phases sharing a label: the log gained a line and the
+    // running phase reads exactly as it did before.
+    api.pushHistoryChanged()
+    api.pushHistoryChanged()
+
     await waitFor(() => expect(api.getStats).toHaveBeenCalledTimes(3))
+  })
+
+  it('does not re-read once a second while the timer runs', async () => {
+    const api = mockApi()
+    render(<StatsSection />)
+    await waitFor(() => expect(api.getStats).toHaveBeenCalledTimes(1))
+
+    api.pushTimerView(runningView({ countdown: '24:59' }))
+    api.pushTimerView(runningView({ countdown: '24:58' }))
+
+    expect(api.getStats).toHaveBeenCalledTimes(1)
+  })
+
+  it('leaves no listener behind when the window closes', async () => {
+    const api = mockApi()
+    const view = render(<StatsSection />)
+    await waitFor(() => expect(api.getStats).toHaveBeenCalled())
+
+    view.unmount()
+
+    expect(api.listenerCount()).toBe(0)
   })
 })

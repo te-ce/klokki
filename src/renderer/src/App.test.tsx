@@ -1,34 +1,10 @@
 import { render, screen } from '@testing-library/react'
-import { beforeEach, expect, it, vi } from 'vitest'
+import { beforeEach, expect, it } from 'vitest'
 import { App } from './App'
+import { fakeKlokki } from './test-support/fake-klokki'
 
 beforeEach(() => {
-  window.klokki = {
-    getAppInfo: vi
-      .fn()
-      .mockResolvedValue({ version: '0.0.0', electron: '43.0.0' }),
-    listPresets: vi.fn().mockResolvedValue([]),
-    getTimerView: vi.fn().mockResolvedValue({
-      running: false,
-      presetName: null,
-      phaseLabel: null,
-      remainingMs: 0,
-      countdown: '00:00',
-    }),
-    getStats: vi.fn().mockResolvedValue({
-      today: { date: '2026-08-20', completed: 0, minutesByLabel: [] },
-      days: [{ date: '2026-08-20', completed: 0, minutesByLabel: [] }],
-    }),
-    startPreset: vi.fn().mockResolvedValue(undefined),
-    stopTimer: vi.fn().mockResolvedValue(undefined),
-    savePreset: vi.fn().mockResolvedValue({ ok: true }),
-    deletePreset: vi.fn().mockResolvedValue(undefined),
-    getLaunchAtLogin: vi.fn().mockResolvedValue(false),
-    setLaunchAtLogin: vi.fn().mockResolvedValue(false),
-    onTimerView: vi.fn(() => vi.fn()),
-    dismissAlert: vi.fn(() => Promise.resolve()),
-    snoozeAlert: vi.fn(() => Promise.resolve()),
-  }
+  fakeKlokki()
 })
 
 it('renders the app info reported by the main process', async () => {

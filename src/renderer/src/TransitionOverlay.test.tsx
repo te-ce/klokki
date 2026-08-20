@@ -1,15 +1,9 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { TransitionOverlay } from './TransitionOverlay'
+import { fakeKlokki } from './test-support/fake-klokki'
 
-const mockApi = () => {
-  const api = {
-    dismissAlert: vi.fn(() => Promise.resolve()),
-    snoozeAlert: vi.fn(() => Promise.resolve()),
-  }
-  window.klokki = api as never
-  return api
-}
+const mockApi = () => fakeKlokki()
 
 describe('TransitionOverlay', () => {
   it('names the phase that ended and the one starting now', () => {

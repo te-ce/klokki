@@ -49,6 +49,37 @@ test('a new preset can be created and started from the menubar', async () => {
   await close(app)
 })
 
+// The window that made the edit is the one most likely to be showing a stale
+// list: the tray rebuilds from the store, but a view that read the list on mount
+// would still be offering yesterday's presets beside the editor that changed them.
+test('a preset created in the editor is offered by the panel above it', async () => {
+  const app = await launch()
+  const page = await openSettings(app)
+
+  await page.getByRole('button', { name: 'New preset' }).click()
+  await page.getByLabel('Preset name').fill('Stretch')
+  await page.getByLabel('Phase 1 label').fill('Move')
+  await page.getByLabel('Phase 1 minutes').fill('2')
+  await page.getByRole('button', { name: 'Save' }).click()
+
+  await expect(
+    page.getByRole('button', { name: 'Start Stretch' }),
+  ).toBeVisible()
+
+  await page.getByRole('button', { name: 'Edit Pomodoro' }).click()
+  await page.getByLabel('Preset name').fill('Deep work')
+  await page.getByRole('button', { name: 'Save' }).click()
+
+  await expect(
+    page.getByRole('button', { name: 'Start Deep work' }),
+  ).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: 'Start Pomodoro' }),
+  ).toBeHidden()
+
+  await close(app)
+})
+
 test('a deleted preset leaves the menubar', async () => {
   const app = await launch()
   const page = await openSettings(app)

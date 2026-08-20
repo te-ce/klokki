@@ -1,52 +1,36 @@
 import { BrowserWindow, app } from 'electron'
-import { presentAlert } from './alert/present'
-import { wireAlerts } from './alert/wire'
+import { electronAlertSurface } from './alert/surface'
 import { createHistory } from './history'
-import { recordHistory } from './history/record'
-import { createViewBroadcaster, type ViewBroadcaster } from './ipc/broadcast'
-import { registerIpc } from './ipc'
+import { electronAppInfo, electronRequestSink } from './ipc/sink'
 import { createLoginItem } from './login-item'
+import { electronMenubarSurface } from './menubar/surface'
 import { startPresetById } from './presets/start'
-import { createPresetStore, type PresetStore } from './presets/store'
-import { createTray, type TrayHandle } from './tray'
+import { createPresetStore } from './presets/store'
 import { createTimerService, type TimerService } from './timer/service'
-import { overlayState } from './windows'
-
-/**
- * Every window is a subscriber for as long as it exists, and stops being one the
- * moment it closes. Registering here rather than in windows.ts means a window
- * added later cannot forget to do it.
- */
-const pushUpdatesToWindows = (broadcaster: ViewBroadcaster): void => {
-  app.on('browser-window-created', (_event, window) => {
-    // Captured now: by the time 'closed' fires the window is destroyed, and
-    // reading `window.webContents` then throws "Object has been destroyed".
-    const { webContents } = window
-    broadcaster.register(webContents)
-    window.on('closed', () => broadcaster.unregister(webContents))
-  })
-}
+import { wireApp, type WiredApp } from './wire'
+import { closeOverlayWindow, openSettingsWindow, overlayState } from './windows'
 
 /**
  * Electron exposes no way to inspect the menubar from outside the app, so the
- * e2e suite gets an explicit seam instead of asserting on screenshots.
+ * e2e suite gets an explicit seam instead of asserting on screenshots. Every
+ * accessor here reads the real thing — the menubar's own title, the real menu
+ * template, the live overlay window.
  */
 const exposeTestSeam = (
-  tray: TrayHandle,
+  wired: WiredApp,
   service: TimerService,
-  store: PresetStore,
-  broadcaster: ViewBroadcaster,
+  start: (id: string) => void,
 ): void => {
   if (process.env['KLOKKI_E2E'] !== '1') return
   Object.assign(globalThis, {
     __klokkiTest: {
-      trayTitle: () => tray.tray.getTitle(),
-      clickMenuItem: (label: string) => tray.clickMenuItem(label),
-      menuLabels: () => tray.menuLabels(),
+      trayTitle: () => wired.menubar.title(),
+      clickMenuItem: (label: string) => wired.menubar.clickMenuItem(label),
+      menuLabels: () => wired.menubar.menuLabels(),
       view: () => service.getView(),
-      startPreset: (id: string) => startPresetById(service, store, id),
+      startPreset: start,
       stop: () => service.stop(),
-      subscriberCount: () => broadcaster.targetCount(),
+      subscriberCount: () => wired.broadcaster.targetCount(),
       overlay: () => overlayState(),
     },
   })
@@ -60,20 +44,38 @@ const bootstrap = (): void => {
     const store = createPresetStore(app.getPath('userData'))
     const history = createHistory(app.getPath('userData'))
     const service = createTimerService()
-    const broadcaster = createViewBroadcaster(service)
 
-    registerIpc(service, store, createLoginItem(app), history)
-    pushUpdatesToWindows(broadcaster)
-    wireAlerts(service, presentAlert)
-    recordHistory(service, history.append)
-
-    const tray = createTray(service, store)
-    exposeTestSeam(tray, service, store, broadcaster)
-
-    app.on('will-quit', () => {
-      broadcaster.dispose()
-      service.dispose()
+    const wired = wireApp({
+      service,
+      store,
+      history,
+      loginItem: createLoginItem(app),
+      requests: electronRequestSink(),
+      appInfo: electronAppInfo,
+      menubar: electronMenubarSurface(),
+      alerts: electronAlertSurface(),
+      overlay: { close: closeOverlayWindow },
+      windows: {
+        onOpened: (listener) => {
+          app.on('browser-window-created', (_event, window) => {
+            // Captured now: by the time 'closed' fires the window is destroyed,
+            // and reading `window.webContents` then throws "Object has been
+            // destroyed".
+            const { webContents } = window
+            listener({
+              target: webContents,
+              onClosed: (onClosed) => window.on('closed', onClosed),
+            })
+          })
+        },
+      },
+      openSettings: openSettingsWindow,
+      quit: () => app.quit(),
     })
+
+    exposeTestSeam(wired, service, (id) => startPresetById(service, store, id))
+
+    app.on('will-quit', () => wired.dispose())
   })
 
   // Closing the settings window must not quit a menubar app.

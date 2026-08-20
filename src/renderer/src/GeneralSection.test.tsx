@@ -1,20 +1,19 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import { GeneralSection } from './GeneralSection'
+import { fakeKlokki } from './test-support/fake-klokki'
 
 /** Stands in for the OS login item the main process reads. */
 const mockApi = (openAtLogin = false) => {
   let enabled = openAtLogin
-  const api = {
-    getLaunchAtLogin: vi.fn(() => Promise.resolve(enabled)),
-    setLaunchAtLogin: vi.fn((next: boolean) => {
+  return fakeKlokki({
+    getLaunchAtLogin: () => Promise.resolve(enabled),
+    setLaunchAtLogin: (next: boolean) => {
       enabled = next
       return Promise.resolve(enabled)
-    }),
-  }
-  window.klokki = api as never
-  return api
+    },
+  })
 }
 
 const toggle = () => screen.findByRole('checkbox', { name: 'Launch at login' })

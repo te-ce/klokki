@@ -26,8 +26,11 @@ export type TimerUpdate = {
 export type TimerService = {
   readonly startPreset: (preset: Preset) => void
   readonly stop: () => void
-  /** Defers the boundary the overlay is showing; a no-op if there is none. */
-  readonly snooze: () => void
+  /**
+   * Defers the boundary the overlay is showing. Answers whether it moved: there
+   * may be no boundary to defer, or the deferred end may already have gone by.
+   */
+  readonly snooze: () => boolean
   readonly getView: () => TimerView
   readonly subscribe: (listener: (update: TimerUpdate) => void) => () => void
   readonly dispose: () => void
@@ -93,9 +96,10 @@ export const createTimerService = (
     snooze: () => {
       const result = snooze(state, clock.now(), SNOOZE_MS)
       // Nothing changed when the boundary is gone, so nothing is announced.
-      if (result.snoozed === null) return
+      if (result.snoozed === null) return false
       state = result.state
       emit([], result.snoozed)
+      return true
     },
     stop: () => {
       state = IDLE

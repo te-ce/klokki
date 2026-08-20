@@ -1,24 +1,15 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, expect, it, vi } from 'vitest'
 import type { Preset } from '../../shared/preset'
 import type { TimerView } from '../../shared/timer'
+import {
+  fakeKlokki,
+  IDLE_VIEW as IDLE,
+  runningView,
+} from './test-support/fake-klokki'
 import { TimerPanel } from './TimerPanel'
 
-const RUNNING: TimerView = {
-  running: true,
-  presetName: 'Pomodoro',
-  phaseLabel: 'Focus',
-  remainingMs: 1_499_000,
-  countdown: '25:00',
-}
-
-const IDLE: TimerView = {
-  running: false,
-  presetName: null,
-  phaseLabel: null,
-  remainingMs: 0,
-  countdown: '00:00',
-}
+const RUNNING: TimerView = runningView()
 
 const PRESETS: readonly Preset[] = [
   {
@@ -29,43 +20,22 @@ const PRESETS: readonly Preset[] = [
   },
 ]
 
-/** Captures the listener the panel registers, so a test can push a view. */
-let push: (view: TimerView) => void
-let unsubscribe: () => void
+const mockApi = (initial: TimerView) =>
+  fakeKlokki({
+    listPresets: () => Promise.resolve(PRESETS),
+    getTimerView: () => Promise.resolve(initial),
+  })
 
-const mockApi = (initial: TimerView) => {
-  unsubscribe = vi.fn<() => void>()
-  const api = {
-    getAppInfo: vi.fn().mockResolvedValue({ version: '0', electron: '43' }),
-    listPresets: vi.fn().mockResolvedValue(PRESETS),
-    getTimerView: vi.fn().mockResolvedValue(initial),
-    startPreset: vi.fn().mockResolvedValue(undefined),
-    stopTimer: vi.fn().mockResolvedValue(undefined),
-    dismissAlert: vi.fn().mockResolvedValue(undefined),
-    snoozeAlert: vi.fn().mockResolvedValue(undefined),
-    savePreset: vi.fn().mockResolvedValue({ ok: true }),
-    deletePreset: vi.fn().mockResolvedValue(undefined),
-    getStats: vi.fn().mockResolvedValue({
-      today: { date: '2026-08-20', completed: 0, minutesByLabel: [] },
-      days: [{ date: '2026-08-20', completed: 0, minutesByLabel: [] }],
-    }),
-    getLaunchAtLogin: vi.fn().mockResolvedValue(false),
-    setLaunchAtLogin: vi.fn().mockResolvedValue(false),
-    onTimerView: vi.fn((listener: (view: TimerView) => void) => {
-      push = listener
-      return unsubscribe
-    }),
-  }
-  window.klokki = api
-  return api
-}
+let api: ReturnType<typeof mockApi>
+
+const push = (view: TimerView) => api.pushTimerView(view)
 
 beforeEach(() => {
   vi.useRealTimers()
 })
 
 it('shows the running preset, phase and countdown on mount', async () => {
-  mockApi(RUNNING)
+  api = mockApi(RUNNING)
 
   render(<TimerPanel />)
 
@@ -74,7 +44,7 @@ it('shows the running preset, phase and countdown on mount', async () => {
 })
 
 it('renders each view the main process pushes', async () => {
-  mockApi(RUNNING)
+  api = mockApi(RUNNING)
   render(<TimerPanel />)
   await screen.findByText('25:00')
 
@@ -85,7 +55,7 @@ it('renders each view the main process pushes', async () => {
 })
 
 it('keeps no countdown of its own: time passing changes nothing', async () => {
-  mockApi(RUNNING)
+  api = mockApi(RUNNING)
   render(<TimerPanel />)
   await screen.findByText('25:00')
 
@@ -97,17 +67,65 @@ it('keeps no countdown of its own: time passing changes nothing', async () => {
 })
 
 it('unsubscribes from the main process when unmounted', async () => {
-  mockApi(RUNNING)
+  api = mockApi(RUNNING)
   const { unmount } = render(<TimerPanel />)
   await screen.findByText('25:00')
 
   unmount()
 
-  expect(unsubscribe).toHaveBeenCalledOnce()
+  expect(api.listenerCount()).toBe(0)
+})
+
+it('offers a preset saved in another window without being reopened', async () => {
+  api = mockApi(IDLE)
+  render(<TimerPanel />)
+  await screen.findByRole('button', { name: 'Start Pomodoro' })
+
+  act(() =>
+    api.pushPresets([
+      ...PRESETS,
+      {
+        id: 'stretch',
+        name: 'Stretch',
+        loop: false,
+        phases: PRESETS[0]!.phases,
+      },
+    ]),
+  )
+
+  expect(
+    await screen.findByRole('button', { name: 'Start Stretch' }),
+  ).toBeInTheDocument()
+})
+
+it('follows a rename made in the editor beside it', async () => {
+  api = mockApi(IDLE)
+  render(<TimerPanel />)
+  await screen.findByRole('button', { name: 'Start Pomodoro' })
+
+  act(() => api.pushPresets([{ ...PRESETS[0]!, name: 'Deep work' }]))
+
+  expect(
+    await screen.findByRole('button', { name: 'Start Deep work' }),
+  ).toBeInTheDocument()
+  expect(
+    screen.queryByRole('button', { name: 'Start Pomodoro' }),
+  ).not.toBeInTheDocument()
+})
+
+it('offers to restart, not start, what is already running', async () => {
+  api = mockApi(RUNNING)
+  render(<TimerPanel />)
+
+  await waitFor(() =>
+    expect(
+      screen.getByRole('button', { name: 'Restart Pomodoro' }),
+    ).toBeInTheDocument(),
+  )
 })
 
 it('starts a preset by id', async () => {
-  const api = mockApi(IDLE)
+  api = mockApi(IDLE)
   render(<TimerPanel />)
 
   fireEvent.click(await screen.findByRole('button', { name: 'Start Pomodoro' }))
@@ -116,7 +134,7 @@ it('starts a preset by id', async () => {
 })
 
 it('stops the timer while one is running', async () => {
-  const api = mockApi(RUNNING)
+  api = mockApi(RUNNING)
   render(<TimerPanel />)
 
   fireEvent.click(await screen.findByRole('button', { name: 'Stop' }))
@@ -125,7 +143,7 @@ it('stops the timer while one is running', async () => {
 })
 
 it('offers no stop button when nothing is running', async () => {
-  mockApi(IDLE)
+  api = mockApi(IDLE)
   render(<TimerPanel />)
 
   await screen.findByRole('button', { name: 'Start Pomodoro' })

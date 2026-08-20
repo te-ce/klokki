@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import type { Preset } from '../../shared/preset'
+import { startLabel } from '../../shared/labels'
 import type { TimerView } from '../../shared/timer'
+import { usePresets } from './usePresets'
 
 /**
  * The whole view of the running timer.
@@ -12,7 +13,7 @@ import type { TimerView } from '../../shared/timer'
  */
 export const TimerPanel = () => {
   const [view, setView] = useState<TimerView | null>(null)
-  const [presets, setPresets] = useState<readonly Preset[]>([])
+  const presets = usePresets()
 
   useEffect(() => {
     let cancelled = false
@@ -22,9 +23,6 @@ export const TimerPanel = () => {
 
     void window.klokki.getTimerView().then((current) => {
       if (!cancelled) setView((latest) => latest ?? current)
-    })
-    void window.klokki.listPresets().then((next) => {
-      if (!cancelled) setPresets(next)
     })
 
     return () => {
@@ -68,7 +66,7 @@ export const TimerPanel = () => {
             className="rounded bg-neutral-700 px-3 py-1 text-sm"
             onClick={() => void window.klokki.startPreset(preset.id)}
           >
-            {view.running ? `Restart ${preset.name}` : `Start ${preset.name}`}
+            {startLabel(preset.name, view.running)}
           </button>
         ))}
       </div>

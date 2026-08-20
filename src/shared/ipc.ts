@@ -10,6 +10,7 @@ import type { HistoryStats } from './history'
 import type { Preset, SaveResult } from './preset'
 import type { TimerView } from './timer'
 
+/** Renderer → main. Every one of these has a handler in src/main/ipc. */
 export const IPC = {
   getAppInfo: 'klokki:get-app-info',
   listPresets: 'klokki:list-presets',
@@ -23,8 +24,24 @@ export const IPC = {
   stopTimer: 'klokki:stop-timer',
   dismissAlert: 'klokki:dismiss-alert',
   snoozeAlert: 'klokki:snooze-alert',
-  /** Main → renderer: a fresh view, once a second while the timer runs. */
+} as const
+
+/**
+ * Main → renderer. Declared apart from the requests because they are answered by
+ * nobody: main pushes them, and `registerIpc` asserts it has a handler for every
+ * channel in `IPC` and none of these.
+ *
+ * Everything a window has to keep fresh while it is open is here. A view that
+ * polls, or that infers one of these from another, is holding state that belongs
+ * to the main process.
+ */
+export const PUSH = {
+  /** A fresh view, once a second while the timer runs. */
   timerView: 'klokki:timer-view',
+  /** The saved preset list, whenever it changes — from any window, or the tray. */
+  presets: 'klokki:presets',
+  /** A stretch of phase was written to the log. Carries nothing: re-read. */
+  historyChanged: 'klokki:history-changed',
 } as const
 
 export type AppInfo = {
@@ -53,8 +70,12 @@ export interface KlokkiApi {
    * Defers the boundary the overlay is showing and closes it. The length of the
    * snooze is the main process's to decide (`SNOOZE_MS`): a renderer must not be
    * able to name an amount of time the timer then honours.
+   *
+   * Resolves to whether the boundary was actually deferred. A snooze whose new
+   * end has already gone by is declined, and the overlay closes either way — but
+   * the two are different events, so they do not answer the same.
    */
-  snoozeAlert(): Promise<void>
+  snoozeAlert(): Promise<boolean>
   /**
    * Upsert by id. The main process validates again — it owns presets.json — so a
    * rejected preset comes back with the reasons instead of throwing.
@@ -67,4 +88,14 @@ export interface KlokkiApi {
   setLaunchAtLogin(enabled: boolean): Promise<boolean>
   /** Returns its own unsubscribe, so a view can clean up on unmount. */
   onTimerView(listener: (view: TimerView) => void): () => void
+  /**
+   * The preset list has one owner, in the main process. A window that keeps its
+   * own copy without this is showing whatever was true when it opened.
+   */
+  onPresets(listener: (presets: readonly Preset[]) => void): () => void
+  /**
+   * Fired when a line lands in the log. "The phase label changed" is not the same
+   * predicate — a snooze, and two phases sharing a label, both write without it.
+   */
+  onHistoryChanged(listener: () => void): () => void
 }

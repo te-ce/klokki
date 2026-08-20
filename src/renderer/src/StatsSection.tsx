@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { DayStats, HistoryStats } from '../../shared/history'
 
 const Minutes = ({ day }: { day: DayStats }) =>
@@ -18,13 +18,15 @@ const Minutes = ({ day }: { day: DayStats }) =>
  * What actually happened, read back from the history log.
  *
  * The window is closed almost all of the time, so this fetches on mount rather
- * than subscribing to a stream of events; while it is open, a phase boundary is
- * the only thing that adds to the log, so the pushed timer view is the cue to
- * re-read — once per boundary, not once per second.
+ * than subscribing to a stream of events, and re-reads when the main process says
+ * a line was written — once per stretch, not once per second.
+ *
+ * The cue is the append itself and not the pushed timer view: "the phase label
+ * changed" is a different predicate, and misses a snooze and two phases that
+ * share a label. Which stretches end, and when, is the main process's to know.
  */
 export const StatsSection = () => {
   const [stats, setStats] = useState<HistoryStats | null>(null)
-  const phase = useRef<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -35,11 +37,7 @@ export const StatsSection = () => {
     }
 
     read()
-    const unsubscribe = window.klokki.onTimerView((view) => {
-      if (view.phaseLabel === phase.current) return
-      phase.current = view.phaseLabel
-      read()
-    })
+    const unsubscribe = window.klokki.onHistoryChanged(read)
 
     return () => {
       cancelled = true

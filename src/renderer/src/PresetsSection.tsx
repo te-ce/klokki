@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useState } from 'react'
 import { validatePreset, type Phase, type Preset } from '../../shared/preset'
+import { usePresets } from './usePresets'
 
 const NEW_PHASE: Phase = { label: '', minutes: 5, notify: true }
 
@@ -114,24 +115,16 @@ const PhaseRow = ({
 
 /**
  * The preset editor. It holds the draft being edited and nothing else: the saved
- * list lives in the main process, which owns presets.json, so every mutation
- * goes over the bridge and the list is re-read from it afterwards (see
- * AGENTS.md). Editing a preset that is currently running is allowed; the run
- * keeps the phases it started with until it is restarted.
+ * list lives in the main process, which owns presets.json, so every mutation goes
+ * over the bridge and the new list arrives back as a push (see AGENTS.md) — the
+ * same one the tray and the timer panel get, so the three cannot disagree.
+ * Editing a preset that is currently running is allowed; the run keeps the phases
+ * it started with until it is restarted.
  */
 export const PresetsSection = () => {
-  const [presets, setPresets] = useState<readonly Preset[]>([])
+  const presets = usePresets()
   const [draft, setDraft] = useState<Preset | null>(null)
   const [problems, setProblems] = useState<readonly string[]>([])
-
-  const refresh = useCallback(
-    () => window.klokki.listPresets().then(setPresets),
-    [],
-  )
-
-  useEffect(() => {
-    void refresh()
-  }, [refresh])
 
   const submit = async (): Promise<void> => {
     if (!draft) return
@@ -150,7 +143,6 @@ export const PresetsSection = () => {
     }
 
     setProblems([])
-    await refresh()
   }
 
   const remove = async (): Promise<void> => {
@@ -158,7 +150,6 @@ export const PresetsSection = () => {
     await window.klokki.deletePreset(draft.id)
     setDraft(null)
     setProblems([])
-    await refresh()
   }
 
   const editPhases = (phases: readonly Phase[]): void => {

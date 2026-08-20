@@ -1,6 +1,22 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import { IPC, type KlokkiApi } from '../shared/ipc'
+import { IPC, PUSH, type KlokkiApi } from '../shared/ipc'
+import type { Preset } from '../shared/preset'
 import type { TimerView } from '../shared/timer'
+
+/**
+ * Subscribes to one of main's push channels.
+ *
+ * Handing back the removal is what lets a view unsubscribe on unmount instead of
+ * leaving a listener on the channel for the window's lifetime.
+ */
+const on = <T>(
+  channel: string,
+  listener: (payload: T) => void,
+): (() => void) => {
+  const handler = (_event: unknown, payload: T): void => listener(payload)
+  ipcRenderer.on(channel, handler)
+  return () => ipcRenderer.removeListener(channel, handler)
+}
 
 // contextIsolation is on, so this object is the renderer's entire capability set.
 const api: KlokkiApi = {
@@ -17,13 +33,9 @@ const api: KlokkiApi = {
   getLaunchAtLogin: () => ipcRenderer.invoke(IPC.getLaunchAtLogin),
   setLaunchAtLogin: (enabled) =>
     ipcRenderer.invoke(IPC.setLaunchAtLogin, enabled),
-  onTimerView: (listener) => {
-    const handler = (_event: unknown, view: TimerView): void => listener(view)
-    ipcRenderer.on(IPC.timerView, handler)
-    // Handing back the removal is what lets a view unsubscribe on unmount
-    // instead of leaving a listener on the channel for the window's lifetime.
-    return () => ipcRenderer.removeListener(IPC.timerView, handler)
-  },
+  onTimerView: (listener) => on<TimerView>(PUSH.timerView, listener),
+  onPresets: (listener) => on<readonly Preset[]>(PUSH.presets, listener),
+  onHistoryChanged: (listener) => on(PUSH.historyChanged, listener),
 }
 
 contextBridge.exposeInMainWorld('klokki', api)

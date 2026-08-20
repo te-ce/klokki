@@ -18,20 +18,43 @@ that cannot reach the filesystem cannot grow its own state.
 
 ## Layout
 
-| Path                | Role                                                          |
-| ------------------- | ------------------------------------------------------------- |
-| `src/main/`         | Phase machine, presets, history, tray, windows. All the logic |
-| `src/preload/`      | The only bridge: exposes `window.klokki` via `contextBridge`  |
-| `src/shared/ipc.ts` | The main↔renderer contract, imported by both sides            |
-| `src/renderer/`     | React views: preset editor, stats, transition overlay         |
-| `e2e/`              | Playwright driving the real app (tray, overlay)               |
-| `scripts/icon/`     | Draws every icon the app ships; run by `pnpm icons`           |
+| Path                | Role                                                             |
+| ------------------- | ---------------------------------------------------------------- |
+| `src/main/`         | Phase machine, presets, history, menubar, windows. All the logic |
+| `src/main/wire.ts`  | How all of it is joined up — the whole app, minus Electron       |
+| `src/preload/`      | The only bridge: exposes `window.klokki` via `contextBridge`     |
+| `src/shared/ipc.ts` | The main↔renderer contract, imported by both sides               |
+| `src/renderer/`     | React views: preset editor, stats, transition overlay            |
+| `e2e/`              | Playwright driving the real app (menubar, overlay)               |
+| `scripts/icon/`     | Draws every icon the app ships; run by `pnpm icons`              |
+
+Anything Electron-shaped is reached through a port, and each port has exactly two
+adapters: the real one, and an in-memory one used by a test.
+
+| Port             | Real                                | Declared in                   |
+| ---------------- | ----------------------------------- | ----------------------------- |
+| `MenubarSurface` | `Tray` + `Menu`                     | `src/main/menubar/surface.ts` |
+| `AlertSurface`   | `Notification` + the overlay window | `src/main/alert/present.ts`   |
+| `RequestSink`    | `ipcMain.handle`                    | `src/main/ipc/index.ts`       |
+| `ViewTarget`     | a window's `webContents`            | `src/main/ipc/broadcast.ts`   |
 
 ## Testing
 
 The phase machine is pure logic over time. **Never call `Date.now()` inside it** —
 take a clock as a parameter. That rule is what keeps the suite fast and
 deterministic; without it every test needs a real `sleep`.
+
+**The seam goes around Electron, not around purity.** A module that imports
+`electron` can hold no decisions: what the menubar says, what the notification
+says, which channel does what, and when the menu is worth rebuilding are all
+decided above the ports above, and all tested. `src/main/wire.ts` is where they
+are joined, and `wire.test.ts` drives the real phase machine and the real history
+log through fake surfaces — which is the only test that can say a phase boundary
+reaches a notification, the log, and every open window.
+
+The residue is deliberate: `index.ts`, `windows.ts`, and the three `surface.ts` /
+`sink.ts` adapters have no unit tests because they contain nothing but Electron
+calls. If a decision starts creeping into one of them, it is in the wrong file.
 
 - `pnpm vitest run` — main-process logic (node env) and renderer views (jsdom)
 - Timelines worth arguing about get vitest snapshots
@@ -40,6 +63,9 @@ deterministic; without it every test needs a real `sleep`.
 
 macOS exposes no API for reading the menubar from outside the app, so
 `src/main/index.ts` installs a `globalThis.__klokkiTest` seam when `KLOKKI_E2E=1`.
+It reads the real thing — the menubar's own title, the real `Menu` template, the
+live overlay window — because asking the model instead would only prove the model
+agrees with itself.
 The e2e suite reads tray state through it via `app.evaluate`, which runs in the
 main process. Two rules keep that suite honest: each test launches with its own
 `--user-data-dir` (Klokki's single-instance lock is keyed on it), and `launch()`
@@ -57,6 +83,20 @@ waits for the seam to appear, because `electron.launch()` resolves before
   fire at once, and one that lengthened would move a break they were counting on.
   `startPresetById` reads the store at the moment of the start, so the next start
   picks the edit up. Deleting the running preset does not stop the timer.
+- **State main owns is pushed, never inferred.** Anything a window has to keep
+  fresh while it is open is a channel in `PUSH` (`src/shared/ipc.ts`): the timer
+  view, the preset list, and the fact that a line landed in the log. A view that
+  reads once on mount is showing what was true when it opened, and a view that
+  derives one push from another gets it wrong at the edges — "a stretch was
+  logged" is not "the phase label changed", because a snooze and two phases
+  sharing a label both write without changing it. `usePresets` reads once and then
+  subscribes, the same shape as the timer view, so a window is never blank while
+  it waits for the first push.
+- **A snooze answers whether it happened.** `service.snooze()` and
+  `snoozeAlert()` return a boolean: the machine declines a boundary whose deferred
+  end has already gone by, and that is a different event from a snooze that
+  worked. The overlay closes either way — one naming a boundary long past is worse
+  than none.
 - **The preset list has one owner.** `createPresetStore` holds it, writes
   `presets.json`, validates every save (`validatePreset` in `src/shared/preset.ts`,
   so the form and the file agree), and notifies subscribers — which is how the
