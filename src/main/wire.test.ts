@@ -482,15 +482,30 @@ describe('reminders, saved for a restart', () => {
     expect(wired.reminderService.getState()).toEqual([])
   })
 
-  it('pushes the reminder list to every open window', () => {
+  it('pushes the reminder list, joined with its schedule, to every open window', () => {
     const wired = build()
     const window = wired.openWindow()
 
     wired.reminderStore.save(water)
 
     expect(window.on(PUSH.reminders)).toEqual([
-      { channel: PUSH.reminders, payload: [water] },
+      {
+        channel: PUSH.reminders,
+        payload: [{ ...water, nextFireAt: 30 * MINUTE }],
+      },
     ])
+  })
+
+  it('reflects a disabled reminder losing its schedule in the pushed list', () => {
+    const wired = build(null, { reminders: [water] })
+    const window = wired.openWindow()
+
+    wired.reminderStore.setEnabled('water', false)
+
+    expect(window.on(PUSH.reminders).at(-1)).toEqual({
+      channel: PUSH.reminders,
+      payload: [{ ...water, enabled: false, nextFireAt: null }],
+    })
   })
 
   it('shows both halves of the alert when a reminder comes due', () => {

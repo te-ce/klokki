@@ -8,7 +8,7 @@
 
 import type { HistoryStats } from './history'
 import type { Preset, SaveResult } from './preset'
-import type { ReminderDefinition } from './reminder'
+import type { ReminderDefinition, ReminderView } from './reminder'
 import type { TimerView } from './timer'
 
 /** Renderer → main. Every one of these has a handler in src/main/ipc. */
@@ -112,8 +112,12 @@ export interface KlokkiApi {
    */
   savePreset(preset: Preset): Promise<SaveResult>
   deletePreset(id: string): Promise<void>
-  /** A second, independent list from presets — see issues/open/08. */
-  listReminders(): Promise<readonly ReminderDefinition[]>
+  /**
+   * A second, independent list from presets — see issues/open/08. Each entry
+   * carries its own `nextFireAt`, joined from the reminder engine's live
+   * schedule (see src/main/reminders/view.ts).
+   */
+  listReminders(): Promise<readonly ReminderView[]>
   /** Upsert by id. The main process validates again — it owns reminders.json. */
   saveReminder(definition: ReminderDefinition): Promise<SaveResult>
   deleteReminder(id: string): Promise<void>
@@ -149,6 +153,6 @@ export interface KlokkiApi {
    */
   onHistoryChanged(listener: () => void): () => void
   onReminders(
-    listener: (reminders: readonly ReminderDefinition[]) => void,
+    listener: (reminders: readonly ReminderView[]) => void,
   ): () => void
 }

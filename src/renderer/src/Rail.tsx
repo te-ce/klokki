@@ -3,15 +3,17 @@ import {
   GeneralIcon,
   MarkIcon,
   PresetsIcon,
+  RemindersIcon,
   StatsIcon,
   TimerIcon,
 } from './icons'
 
-export type Section = 'timer' | 'presets' | 'stats' | 'general'
+export type Section = 'timer' | 'presets' | 'reminders' | 'stats' | 'general'
 
 const SECTIONS = [
   { id: 'timer', label: 'Timer', Icon: TimerIcon },
   { id: 'presets', label: 'Presets', Icon: PresetsIcon },
+  { id: 'reminders', label: 'Reminders', Icon: RemindersIcon },
   { id: 'stats', label: 'Stats', Icon: StatsIcon },
   { id: 'general', label: 'General', Icon: GeneralIcon },
 ] as const satisfies readonly { id: Section; label: string; Icon: unknown }[]
@@ -23,7 +25,7 @@ type RailProps = {
 }
 
 /**
- * The window's one navigation: four destinations, always visible, one pane at a
+ * The window's one navigation: five destinations, always visible, one pane at a
  * time.
  *
  * Which pane is open is the only piece of state the renderer owns outright — it

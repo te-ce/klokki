@@ -23,15 +23,15 @@ what preset deletion already does.
 
 ## Acceptance criteria
 
-- [ ] Reminders rail entry exists and its pane opens/subscribes only while
+- [x] Reminders rail entry exists and its pane opens/subscribes only while
       visible, matching the other panes
-- [ ] Reminder list shows name, interval, steps, enabled state and next-fire time
-- [ ] Create/edit form supports an ordered, reorderable step list, each step with
+- [x] Reminder list shows name, interval, steps, enabled state and next-fire time
+- [x] Create/edit form supports an ordered, reorderable step list, each step with
       a label and optional unit
-- [ ] Enabling/disabling a reminder from the list takes effect immediately
+- [x] Enabling/disabling a reminder from the list takes effect immediately
       (reflected in `nextFireAt` scheduling from 08)
-- [ ] Delete removes the reminder and cancels its schedule
-- [ ] Renderer tests cover the form and list the way `PresetsSection.test.tsx`
+- [x] Delete removes the reminder and cancels its schedule
+- [x] Renderer tests cover the form and list the way `PresetsSection.test.tsx`
       covers preset editing
 
 ## Blocked by

@@ -21,6 +21,17 @@ export type ReminderDefinition = {
   readonly enabled: boolean
 }
 
+/**
+ * A reminder definition plus when it next fires — null while disabled, or not
+ * yet scheduled. This is what the settings window shows and nothing else: the
+ * schedule lives in the reminder engine, not in reminders.json, so it is joined
+ * on here rather than carried on `ReminderDefinition` itself (see
+ * src/main/reminders/view.ts).
+ */
+export type ReminderView = ReminderDefinition & {
+  readonly nextFireAt: number | null
+}
+
 export const isReminderStep = (value: unknown): value is ReminderStep =>
   isRecord(value) &&
   typeof value.label === 'string' &&
@@ -44,6 +55,28 @@ export const isReminderDefinition = (
  */
 export const isRunnableReminder = (definition: ReminderDefinition): boolean =>
   definition.steps.length > 0 && definition.intervalMinutes > 0
+
+const sameStep = (a: ReminderStep, b: ReminderStep): boolean =>
+  a.label === b.label && (a.unit ?? null) === (b.unit ?? null)
+
+/**
+ * Whether two reminders are the same reminder, field for field — the reminder
+ * counterpart to `samePreset`, and for the same reason: the editor compares its
+ * draft against the reminder it opened to decide whether Save is worth offering.
+ */
+export const sameReminder = (
+  a: ReminderDefinition,
+  b: ReminderDefinition,
+): boolean =>
+  a.id === b.id &&
+  a.name === b.name &&
+  a.intervalMinutes === b.intervalMinutes &&
+  a.enabled === b.enabled &&
+  a.steps.length === b.steps.length &&
+  a.steps.every((step, index) => {
+    const other = b.steps[index]
+    return other !== undefined && sameStep(step, other)
+  })
 
 /** Why the user cannot save this reminder, in the order the form should show it. */
 export const validateReminder = (

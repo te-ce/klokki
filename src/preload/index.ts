@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC, PUSH, type KlokkiApi } from '../shared/ipc'
 import type { Preset } from '../shared/preset'
-import type { ReminderDefinition } from '../shared/reminder'
+import type { ReminderView } from '../shared/reminder'
 import type { TimerView } from '../shared/timer'
 
 /**
@@ -50,7 +50,7 @@ const api: KlokkiApi = {
   onPresets: (listener) => on<readonly Preset[]>(PUSH.presets, listener),
   onHistoryChanged: (listener) => on(PUSH.historyChanged, listener),
   onReminders: (listener) =>
-    on<readonly ReminderDefinition[]>(PUSH.reminders, listener),
+    on<readonly ReminderView[]>(PUSH.reminders, listener),
 }
 
 contextBridge.exposeInMainWorld('klokki', api)

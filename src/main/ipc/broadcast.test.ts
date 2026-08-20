@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Preset } from '../../shared/preset'
-import type { ReminderDefinition } from '../../shared/reminder'
+import type { ReminderView } from '../../shared/reminder'
 import { runningView } from '../../shared/test-support/timer-view'
 import type { TimerView } from '../../shared/timer'
 import type { TimerUpdate } from '../timer/service'
@@ -25,9 +25,7 @@ const fakeSources = () => {
   const timer = new Set<(update: TimerUpdate) => void>()
   const presets = new Set<(presets: readonly Preset[]) => void>()
   const history = new Set<() => void>()
-  const reminders = new Set<
-    (reminders: readonly ReminderDefinition[]) => void
-  >()
+  const reminders = new Set<(reminders: readonly ReminderView[]) => void>()
 
   const subscriber =
     <T>(set: Set<T>) =>
@@ -53,7 +51,7 @@ const fakeSources = () => {
     pushHistory: () => {
       for (const listener of history) listener()
     },
-    pushReminders: (next: readonly ReminderDefinition[]) => {
+    pushReminders: (next: readonly ReminderView[]) => {
       for (const listener of reminders) listener(next)
     },
     listenerCount: () =>
@@ -116,12 +114,13 @@ describe('createViewBroadcaster', () => {
   it('pushes the saved reminder list, so no window has to re-ask for it', () => {
     const broadcaster = createViewBroadcaster(source.sources)
     const target = fakeTarget()
-    const water: ReminderDefinition = {
+    const water: ReminderView = {
       id: 'water',
       name: 'Drink water',
       intervalMinutes: 30,
       steps: [{ label: 'Drink a glass of water' }],
       enabled: true,
+      nextFireAt: 1_800_000,
     }
 
     broadcaster.register(target)

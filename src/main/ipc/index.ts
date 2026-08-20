@@ -1,6 +1,6 @@
 import { IPC, type AppInfo } from '../../shared/ipc'
 import type { Phase, Preset } from '../../shared/preset'
-import { isReminderDefinition } from '../../shared/reminder'
+import { isReminderDefinition, type ReminderView } from '../../shared/reminder'
 import type { History } from '../history'
 import type { LoginItem } from '../login-item'
 import { startPresetById } from '../presets/start'
@@ -39,6 +39,8 @@ export type IpcDeps = {
   readonly history: History
   readonly overlay: OverlayControl
   readonly reminderStore: ReminderStore
+  /** The reminder list joined with the engine's live schedule — see wire.ts. */
+  readonly reminderViews: () => readonly ReminderView[]
   readonly reminderAnswers: ReminderAnswers
   readonly appInfo: () => AppInfo
 }
@@ -123,6 +125,7 @@ export const registerIpc = (deps: IpcDeps): void => {
     history,
     overlay,
     reminderStore,
+    reminderViews,
     reminderAnswers,
   } = deps
 
@@ -158,7 +161,7 @@ export const registerIpc = (deps: IpcDeps): void => {
       overlay.close()
       return snoozed
     },
-    listReminders: () => reminderStore.list(),
+    listReminders: () => reminderViews(),
     saveReminder: (definition) =>
       reminderStore.save(
         expect(definition, isReminderDefinition, 'a reminder'),

@@ -1,4 +1,5 @@
 import type { AppInfo } from '../shared/ipc'
+import type { ReminderView } from '../shared/reminder'
 import { ADD_TIME_MS } from '../shared/timer'
 import { createAlertPresenter, type AlertSurface } from './alert/present'
 import { wireAlerts } from './alert/wire'
@@ -23,6 +24,7 @@ import {
 import type { ReminderRunStore } from './reminders/run-store'
 import type { ReminderService } from './reminders/service'
 import type { ReminderStore } from './reminders/store'
+import { toReminderViews } from './reminders/view'
 import { wireReminderAlerts } from './reminders/wire'
 import type { TimerState } from './timer/machine'
 import { persistSnapshot } from './timer/persist'
@@ -83,11 +85,34 @@ export type WiredApp = {
  * joined up, and nothing above this line could assert it.
  */
 export const wireApp = (ports: AppPorts): WiredApp => {
+  // The reminder list a window sees is the store's definitions joined with the
+  // engine's live schedule (`toReminderViews`), so it is read fresh from both on
+  // every call rather than cached — the same reasoning `listPresets` reads the
+  // store per call instead of capturing it.
+  const reminderViews = (): readonly ReminderView[] =>
+    toReminderViews(
+      ports.reminderStore.list(),
+      ports.reminderService.getState(),
+    )
+
+  const reminderViewListeners = new Set<
+    (views: readonly ReminderView[]) => void
+  >()
+  const emitReminderViews = (): void => {
+    const views = reminderViews()
+    for (const listener of reminderViewListeners) listener(views)
+  }
+
   const broadcaster = createViewBroadcaster({
     timer: ports.service,
     presets: ports.store,
     history: ports.history,
-    reminders: ports.reminderStore,
+    reminders: {
+      subscribe: (listener) => {
+        reminderViewListeners.add(listener)
+        return () => reminderViewListeners.delete(listener)
+      },
+    },
   })
 
   // Every window is a subscriber for as long as it exists, and stops being one
@@ -112,6 +137,7 @@ export const wireApp = (ports: AppPorts): WiredApp => {
     history: ports.history,
     overlay: ports.overlay,
     reminderStore: ports.reminderStore,
+    reminderViews,
     reminderAnswers: reminderAlerts,
     appInfo: ports.appInfo,
   })
@@ -145,10 +171,12 @@ export const wireApp = (ports: AppPorts): WiredApp => {
   const unwireReminderStore = ports.reminderStore.subscribe((list) => {
     ports.reminderService.setDefinitions(list)
     persistReminderRun()
+    emitReminderViews()
   })
-  const unwireReminderTick = ports.reminderService.subscribe(() =>
-    persistReminderRun(),
-  )
+  const unwireReminderTick = ports.reminderService.subscribe(() => {
+    persistReminderRun()
+    emitReminderViews()
+  })
 
   const menubar = createMenubar(
     ports.menubar,

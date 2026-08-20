@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { IPC, PUSH } from '../../shared/ipc'
 import type { Preset } from '../../shared/preset'
-import type { ReminderDefinition } from '../../shared/reminder'
+import type { ReminderDefinition, ReminderView } from '../../shared/reminder'
 import { IDLE_VIEW } from '../../shared/test-support/timer-view'
 import { registerIpc, type IpcDeps, type RequestSink } from './index'
 
@@ -19,6 +19,8 @@ const water: ReminderDefinition = {
   steps: [{ label: 'Drink a glass of water' }],
   enabled: true,
 }
+
+const waterView: ReminderView = { ...water, nextFireAt: 1_800_000 }
 
 const IDLE = IDLE_VIEW
 
@@ -85,6 +87,7 @@ const wire = (overrides: Partial<IpcDeps> = {}) => {
     setEnabled: vi.fn(),
     subscribe: vi.fn(() => () => {}),
   }
+  const reminderViews = vi.fn((): readonly ReminderView[] => [waterView])
   const deps: IpcDeps = {
     requests: sink.sink,
     service,
@@ -93,6 +96,7 @@ const wire = (overrides: Partial<IpcDeps> = {}) => {
     history,
     overlay,
     reminderStore,
+    reminderViews,
     reminderAnswers,
     appInfo: () => ({ version: '1.2.3', electron: '43.0.0' }),
     ...overrides,
@@ -107,6 +111,7 @@ const wire = (overrides: Partial<IpcDeps> = {}) => {
     history,
     overlay,
     reminderStore,
+    reminderViews,
     reminderAnswers,
   }
 }
@@ -262,10 +267,11 @@ describe('what the handlers do', () => {
     expect(app.history.stats).toHaveBeenCalledTimes(2)
   })
 
-  it('reads the reminder list per call', () => {
+  it('reads the reminder list per call, joined with its schedule', () => {
     const app = wire()
 
-    expect(app.invoke(IPC.listReminders)).toEqual([water])
+    expect(app.invoke(IPC.listReminders)).toEqual([waterView])
+    expect(app.reminderViews).toHaveBeenCalledTimes(1)
   })
 
   it('saves a reminder, upserting by id', () => {

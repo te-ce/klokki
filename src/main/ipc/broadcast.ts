@@ -1,6 +1,6 @@
 import { PUSH } from '../../shared/ipc'
 import type { Preset } from '../../shared/preset'
-import type { ReminderDefinition } from '../../shared/reminder'
+import type { ReminderView } from '../../shared/reminder'
 import type { TimerUpdate } from '../timer/service'
 
 /** The slice of a window's webContents the broadcaster needs. */
@@ -30,7 +30,7 @@ export type BroadcastSources = {
   }
   readonly reminders: {
     readonly subscribe: (
-      listener: (reminders: readonly ReminderDefinition[]) => void,
+      listener: (reminders: readonly ReminderView[]) => void,
     ) => () => void
   }
 }
