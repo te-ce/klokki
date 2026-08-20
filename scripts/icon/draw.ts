@@ -5,23 +5,14 @@ import { appStrokeRatio } from './optical.ts'
 import { coverage } from './raster.ts'
 
 /**
- * The menubar glyph's weight, unchanged from the first version of this script.
- * Nothing about it is optical: it is the weight that survives 22 pixels, and
- * the app icon deliberately does not share it.
+ * The menubar glyph's weight. Nothing about it is optical: it is the weight
+ * that survives 22 pixels, and the app icon deliberately does not share it.
+ * At 22px this is a 2px stroke — heavy enough to hold its colour against the
+ * menubar, thin enough that the ring and the K inside it stay separate shapes
+ * rather than closing into a filled disc.
  */
-const TRAY_RING_RADIUS = 0.4
-const TRAY_STROKE_RATIO = 0.085
-
-/**
- * A quarter past twelve, not the app icon's ten past ten. At 22px the menubar's
- * stroke is a fifth of the ring radius, so two hands leaving the centre in
- * similar directions merge into one wedge — no weight or length fixes it, only
- * a perpendicular pose does. The app icon has the resolution for the nicer
- * pose; the menubar does not, and a clock showing a different time is not an
- * inconsistency in a timer.
- */
-const TRAY_BEARINGS = [0, 90] as const
-const TRAY_HANDS = [0.55, 0.62] as const
+const TRAY_RING_RADIUS = 0.42
+const TRAY_STROKE_RATIO = 0.045
 
 export type Palette = {
   /** Top and bottom of the ground's vertical fall, as [r, g, b]. */
@@ -52,8 +43,6 @@ export const drawTemplate = (size: number): Uint8Array =>
       notched: false,
       ringRadius: TRAY_RING_RADIUS,
       strokeRatio: TRAY_STROKE_RATIO,
-      handLengths: TRAY_HANDS,
-      bearings: TRAY_BEARINGS,
     }),
     size,
   )

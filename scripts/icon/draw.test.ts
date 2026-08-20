@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { INK, drawAppIcon, drawTemplate } from './draw.ts'
 
 const TRAY = 22
-const RING = TRAY * 0.4
+const RING = TRAY * 0.42
 
 const onRing = (
   size: number,
@@ -31,22 +31,32 @@ describe('drawTemplate', () => {
     }
   })
 
-  it('points its hands at a quarter past twelve, not the icon’s ten past ten', () => {
-    expect(at(...onRing(TRAY, 0, RING * 0.4))).toBeGreaterThan(0)
-    expect(at(...onRing(TRAY, 90, RING * 0.4))).toBeGreaterThan(0)
-    expect(at(...onRing(TRAY, 180, RING * 0.4))).toBe(0)
-    expect(at(...onRing(TRAY, 270, RING * 0.4))).toBe(0)
-  })
-
-  it('keeps the two hands separable, which is why the pose differs', () => {
-    // The legibility property the menubar needs and ten past ten cannot give
-    // it: dial left visibly empty between the hands. At this stroke weight two
-    // hands leaning the same way merge into one wedge and the glyph reads as a
-    // blob. Checked at ten times the size, since every proportion is a fraction
-    // of the canvas and a 22px grid rounds the answer away.
+  it('carries the K inside the dial', () => {
+    // Measured at ten times the size: every proportion is a fraction of the
+    // canvas, and a 22px grid rounds the answer away.
     const large = 220
     const alphaLarge = drawTemplate(large)
-    const [x, y] = onRing(large, 45, large * 0.4 * 0.55)
+    const ring = large * 0.42
+    const atLarge = (x: number, y: number) =>
+      alphaLarge[Math.round(y) * large + Math.round(x)]!
+    const stem = large / 2 - ring * 0.3
+    const half = ring * 0.55
+    expect(atLarge(stem, large / 2 - half * 0.8)).toBeGreaterThan(0)
+    expect(atLarge(stem, large / 2 + half * 0.8)).toBeGreaterThan(0)
+    // The wedge between the arms stays open — the glyph must not read as a
+    // filled blob at menubar weight, which is what a thicker stroke did.
+    expect(atLarge(large / 2 + ring * 0.21, large / 2)).toBe(0)
+  })
+
+  it('keeps the K clear of the ring at menubar weight', () => {
+    // The gap this glyph lives or dies on: letter and dial are two shapes, and
+    // a stroke heavy enough to close the gap turns them into one.
+    const large = 220
+    const alphaLarge = drawTemplate(large)
+    const ring = large * 0.42
+    const tip = ring * 0.55 + large * 0.045 // arm tip plus its own stroke
+    const gap = (ring - large * 0.045 - tip) / 2
+    const [x, y] = onRing(large, 90, ring - large * 0.045 - gap)
     expect(alphaLarge[Math.round(y) * large + Math.round(x)]).toBe(0)
   })
 
@@ -74,7 +84,8 @@ describe('drawAppIcon', () => {
   })
 
   it('paints the mark in the ink palette’s foreground', () => {
-    const [r, g, b, a] = at(SIZE / 2, SIZE / 2) // the hands meet here
+    // Where the K's two arms meet its stem.
+    const [r, g, b, a] = at(SIZE / 2 - SIZE * 0.29 * 0.3, SIZE / 2)
     expect(a).toBe(255)
     expect([r, g, b]).toEqual(INK.mark)
   })

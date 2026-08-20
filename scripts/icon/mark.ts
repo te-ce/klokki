@@ -1,5 +1,11 @@
-// The Klokki mark: a clock ring broken by two notches — a long work arc and a
-// short break arc — with hands at ten past ten.
+// The Klokki mark: a clock ring with a K inside it. The app icon breaks the
+// ring with two notches — a long work arc and a short break arc — where it has
+// the resolution for them.
+//
+// A ring with two hands is what every timer's menubar glyph is, so it says
+// nothing about which timer this is; the K does. It also survives 22px better
+// than hands do, because a letter is read by its shape and not by the angle
+// between two strokes of the same weight.
 //
 // The menubar template and the app icon share this geometry and nothing else.
 // They deliberately differ in weight: a hairline that looks right at 1024px is
@@ -8,21 +14,15 @@
 /** True when the point is inside the shape. Coordinates are in device pixels. */
 export type Shape = (x: number, y: number) => boolean
 
-/** Where the two hands point, clockwise from 12 o'clock: [hour, minute]. */
-export type Bearings = readonly [number, number]
-
-/** Hand lengths as a fraction of the ring radius: [hour, minute]. */
-export type HandLengths = readonly [number, number]
-
 /**
- * Ten past ten — the pose every watch catalogue uses, because it is open and
- * symmetric. It needs a hairline: at menubar weight the two hands both lean
- * upwards and their strokes merge into a single wedge.
+ * The K, in fractions of the ring radius: half its cap height, how far its
+ * stem sits left of centre, and how far its arms reach right of it. Stem and
+ * reach are equal so the letter is optically centred in the dial rather than
+ * hung off its own stem.
  */
-const TEN_PAST_TEN: Bearings = [300, 60]
-
-/** What the app icon's hairline can carry without crowding the ring. */
-const HAIRLINE_HANDS: HandLengths = [0.5, 0.74]
+const K_HALF_HEIGHT = 0.55
+const K_STEM = 0.3
+const K_REACH = 0.3
 
 /**
  * Bearings, clockwise from 12 o'clock, where the ring is drawn. The two gaps
@@ -56,15 +56,6 @@ export const squircle = (size: number): Shape => {
     1
 }
 
-const point = (
-  centre: number,
-  radius: number,
-  bearing: number,
-): [number, number] => [
-  centre + radius * Math.sin((bearing * Math.PI) / 180),
-  centre - radius * Math.cos((bearing * Math.PI) / 180),
-]
-
 /** Distance from a point to a line segment — a stroke is this, thresholded. */
 const distanceToSegment = (
   px: number,
@@ -93,6 +84,25 @@ const bearingOf = (x: number, y: number, centre: number): number => {
   return deg < 0 ? deg + 360 : deg
 }
 
+/**
+ * The three strokes of a K: the stem, and two arms meeting it at mid height.
+ * Returned as segments so both the shape and its own test can reason about
+ * where the letter ends — nothing else in the mark may reach further out.
+ */
+const kStrokes = (
+  centre: number,
+  radius: number,
+): readonly [number, number, number, number][] => {
+  const half = radius * K_HALF_HEIGHT
+  const stem = centre - radius * K_STEM
+  const reach = centre + radius * K_REACH
+  return [
+    [stem, centre - half, stem, centre + half],
+    [stem, centre, reach, centre - half],
+    [stem, centre, reach, centre + half],
+  ]
+}
+
 export type MarkOptions = {
   /** Ring radius as a fraction of the canvas. */
   readonly ringRadius?: number
@@ -103,18 +113,6 @@ export type MarkOptions = {
    * them, which the menubar glyph has no room for.
    */
   readonly notched?: boolean
-  /**
-   * Hand lengths, as a fraction of the ring radius. A heavier stroke needs
-   * shorter hands: the stroke's round cap extends past the tip, so hands drawn
-   * for a hairline reach the ring once the stroke thickens.
-   */
-  readonly handLengths?: HandLengths
-  /**
-   * Where the hands point. A pose whose hands leave the centre in similar
-   * directions needs a thin stroke to stay readable, so the menubar glyph
-   * chooses a perpendicular one instead.
-   */
-  readonly bearings?: Bearings
 }
 
 export const clockMark = (
@@ -123,23 +121,17 @@ export const clockMark = (
     ringRadius = RING_RADIUS,
     strokeRatio = 0.0165,
     notched = true,
-    handLengths = HAIRLINE_HANDS,
-    bearings = TEN_PAST_TEN,
   }: MarkOptions = {},
 ): Shape => {
   const centre = size / 2
   const radius = size * ringRadius
   const stroke = size * strokeRatio
-  const [hourLength, minuteLength] = handLengths
-  const [hourBearing, minuteBearing] = bearings
-  const [hourX, hourY] = point(centre, radius * hourLength, hourBearing)
-  const [minuteX, minuteY] = point(centre, radius * minuteLength, minuteBearing)
+  const letter = kStrokes(centre, radius)
 
   return (x, y) => {
-    if (distanceToSegment(x, y, centre, centre, hourX, hourY) <= stroke)
-      return true
-    if (distanceToSegment(x, y, centre, centre, minuteX, minuteY) <= stroke)
-      return true
+    for (const [ax, ay, bx, by] of letter) {
+      if (distanceToSegment(x, y, ax, ay, bx, by) <= stroke) return true
+    }
     if (Math.abs(Math.hypot(x - centre, y - centre) - radius) > stroke)
       return false
     if (!notched) return true

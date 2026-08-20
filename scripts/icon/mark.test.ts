@@ -42,17 +42,28 @@ describe('clockMark', () => {
     expect(short).toBeGreaterThan(30)
   })
 
-  it('draws hands at ten past ten', () => {
-    // Hour hand towards 10 o'clock, minute hand towards 2 o'clock, both
-    // measured half way along their own length so a shorter hand still counts.
-    expect(mark(...onRing(300, RING * 0.25))).toBe(true)
-    expect(mark(...onRing(60, RING * 0.37))).toBe(true)
-    // The dial between the hands stays empty.
-    expect(mark(...onRing(180, RING * 0.5))).toBe(false)
+  it('draws a K in the dial, not a pair of hands', () => {
+    const stem = SIZE / 2 - RING * 0.3
+    const reach = SIZE / 2 + RING * 0.3
+    const half = RING * 0.55
+    // The stem, top to bottom.
+    expect(mark(stem, SIZE / 2 - half * 0.8)).toBe(true)
+    expect(mark(stem, SIZE / 2 + half * 0.8)).toBe(true)
+    // Both arms, half way along their own length.
+    expect(mark((stem + reach) / 2, SIZE / 2 - half / 2)).toBe(true)
+    expect(mark((stem + reach) / 2, SIZE / 2 + half / 2)).toBe(true)
+    // The wedge the two arms open is empty — a K read as a filled triangle is
+    // the failure a heavier stroke or a bigger letter would cause first.
+    expect(mark(reach - RING * 0.05, SIZE / 2)).toBe(false)
+    // And nothing hangs off the left of the stem.
+    expect(mark(stem - RING * 0.12, SIZE / 2)).toBe(false)
   })
 
-  it('meets both hands at the centre', () => {
-    expect(mark(SIZE / 2, SIZE / 2)).toBe(true)
+  it('leaves the letter clear of the ring it sits in', () => {
+    // The K's furthest point is an arm tip; it must not touch the dial, or the
+    // letter and the ring read as one closed shape at small sizes.
+    const tip = Math.hypot(RING * 0.3, RING * 0.55)
+    expect(tip + SIZE * 0.0165).toBeLessThan(RING - SIZE * 0.0165)
   })
 
   it('draws nothing beyond the ring', () => {
