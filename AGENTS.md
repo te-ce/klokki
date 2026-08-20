@@ -66,6 +66,20 @@ waits for the seam to appear, because `electron.launch()` resolves before
 - **Local-only distribution.** arm64, unsigned, no notarization. macOS will warn
   on first launch; right-click → Open once.
 
+## Issues
+
+Work is tracked as markdown files, not on a remote tracker.
+
+- `issues/open/` — not started or in progress
+- `issues/done/` — **move** the file here when it is finished; do not delete it
+  and do not leave a copy behind
+
+Files are numbered in dependency order and carry a `**Type:**` of AFK
+(mergeable without a human) or HITL (needs a human decision or review). Each one
+states what to build, its acceptance criteria, and what blocks it. Tick the
+acceptance criteria in the file as they land, and check the `Blocked by` list
+before picking something up.
+
 ## Paths at runtime
 
 `app.getPath('userData')` = `~/Library/Application Support/Klokki/`

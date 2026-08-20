@@ -44,6 +44,8 @@ distribution), so the first launch needs right-click → Open.
 The phase machine, the menubar countdown and the preset seeds are in place.
 Still to come: the preset editor, the transition notification and overlay,
 `history.jsonl` with the 7-day stats view, launch-at-login, and an app icon.
+These are broken down in [`issues/open/`](./issues/open); finished issues move to
+`issues/done/`.
 
 ## Architecture
 
