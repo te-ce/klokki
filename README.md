@@ -7,6 +7,12 @@ Klokki lives in the menubar and counts down phases: 25 min work / 5 min break, o
 fires a notification and an overlay you have to acknowledge or snooze, because a
 health timer you can ignore is not a health timer.
 
+Alongside the phase timer, standalone reminders cycle their own steps on an
+interval (e.g. "look 20ft away" every 20 minutes) independent of any preset.
+
+Settings window has four panes — Timer, Presets, Reminders, Stats — and a
+7-day history of every phase and reminder logged locally.
+
 ## Requirements
 
 - macOS on Apple Silicon
@@ -41,11 +47,11 @@ distribution), so the first launch needs right-click → Open.
 
 ## Status
 
-The phase machine, the menubar countdown and the preset seeds are in place.
-Still to come: the preset editor, the transition notification and overlay,
-`history.jsonl` with the 7-day stats view, launch-at-login, and an app icon.
-These are broken down in [`issues/open/`](./issues/open); finished issues move to
-`issues/done/`.
+Feature-complete for v0: presets, the preset editor, transition notification +
+overlay with snooze, interval reminders with their own settings pane,
+`history.jsonl` with the 7-day stats view, launch-at-login, and a drawn app icon.
+Work is tracked as markdown files in [`issues/`](./issues) — `open/` for what's
+next, `done/` for what's shipped.
 
 ## Architecture
 

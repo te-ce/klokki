@@ -397,10 +397,13 @@ describe('when Save is worth offering', () => {
     })
     expect(saveButton()).toBeEnabled()
 
+    // Collapsed by the first click (it was already open), reopened fresh by the second.
+    await edit('Pomodoro')
     await edit('Pomodoro')
     fireEvent.click(screen.getByLabelText('Repeat when the last phase ends'))
     expect(saveButton()).toBeEnabled()
 
+    await edit('Pomodoro')
     await edit('Pomodoro')
     fireEvent.click(screen.getByLabelText('Move phase 2 up'))
     expect(saveButton()).toBeEnabled()

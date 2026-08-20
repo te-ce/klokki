@@ -147,7 +147,9 @@ export const RemindersSection = () => {
                 aria-label={`Edit ${reminder.name}`}
                 aria-current={reminder.id === draft?.id ? 'true' : undefined}
                 className="hover:bg-panel flex min-w-0 flex-1 items-center gap-2.5 rounded px-1 py-0.5 text-left"
-                onClick={() => edit(reminder)}
+                onClick={() =>
+                  edit(reminder.id === draft?.id ? null : reminder)
+                }
               >
                 <span className="font-medium">{reminder.name}</span>
                 <span className="text-ink-faint min-w-0 truncate text-[11px] tabular-nums">

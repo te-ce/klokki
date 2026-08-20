@@ -124,7 +124,7 @@ export const PresetsSection = () => {
               className={`flex w-full items-center gap-2.5 px-3 py-2 text-left ${
                 preset.id === draft?.id ? 'bg-line' : 'hover:bg-panel'
               }`}
-              onClick={() => edit(preset)}
+              onClick={() => edit(preset.id === draft?.id ? null : preset)}
             >
               <span className="font-medium">{preset.name}</span>
               <span className="text-ink-faint min-w-0 truncate text-[11px] tabular-nums">
