@@ -19,15 +19,15 @@ day with nothing logged renders empty, not missing.
 
 ## Acceptance criteria
 
-- [ ] Every Done and Snooze answer from 09 appends one `reminders-history.jsonl`
+- [x] Every Done and Snooze answer from 09 appends one `reminders-history.jsonl`
       line
-- [ ] The log is append-only, survives relaunches, and a truncated final line is
+- [x] The log is append-only, survives relaunches, and a truncated final line is
       skipped without failing the read
-- [ ] Stats pane shows today's total quantity per step label
-- [ ] Stats pane shows the last 7 days per step label, reading only the log's
+- [x] Stats pane shows today's total quantity per step label
+- [x] Stats pane shows the last 7 days per step label, reading only the log's
       tail
-- [ ] A day with no reminder activity renders empty rather than erroring
-- [ ] Unit tests cover append, tail-read, the malformed-line case and day-bucket
+- [x] A day with no reminder activity renders empty rather than erroring
+- [x] Unit tests cover append, tail-read, the malformed-line case and day-bucket
       arithmetic against a fixed clock, mirroring `stats.test.ts`
 
 ## Blocked by

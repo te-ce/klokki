@@ -1,7 +1,7 @@
 import { IPC, type AppInfo } from '../../shared/ipc'
 import type { Phase, Preset } from '../../shared/preset'
 import { isReminderDefinition, type ReminderView } from '../../shared/reminder'
-import type { History } from '../history'
+import type { History, ReminderHistory } from '../history'
 import type { LoginItem } from '../login-item'
 import { startPresetById } from '../presets/start'
 import type { PresetStore } from '../presets/store'
@@ -37,6 +37,7 @@ export type IpcDeps = {
   readonly store: PresetStore
   readonly loginItem: LoginItem
   readonly history: History
+  readonly reminderHistory: ReminderHistory
   readonly overlay: OverlayControl
   readonly reminderStore: ReminderStore
   /** The reminder list joined with the engine's live schedule — see wire.ts. */
@@ -123,6 +124,7 @@ export const registerIpc = (deps: IpcDeps): void => {
     store,
     loginItem,
     history,
+    reminderHistory,
     overlay,
     reminderStore,
     reminderViews,
@@ -138,6 +140,7 @@ export const registerIpc = (deps: IpcDeps): void => {
     // Summarised per call, from the log's tail: the window is open rarely and a
     // cached summary would be wrong the moment a phase ended behind it.
     getStats: () => history.stats(),
+    getReminderStats: () => reminderHistory.stats(),
     startPreset: (id) =>
       startPresetById(service, store, expect(id, isString, 'a preset id')),
     savePreset: (preset) => store.save(expect(preset, isPreset, 'a preset')),

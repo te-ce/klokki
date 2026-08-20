@@ -75,6 +75,14 @@ const wire = (overrides: Partial<IpcDeps> = {}) => {
     })),
     subscribe: vi.fn(() => () => {}),
   }
+  const reminderHistory = {
+    append: vi.fn(),
+    stats: vi.fn(() => ({
+      today: { date: '2026-08-20', quantityByLabel: [] },
+      days: [],
+    })),
+    subscribe: vi.fn(() => () => {}),
+  }
   const overlay = { close: vi.fn() }
   const reminderAnswers = {
     snooze: vi.fn(() => true),
@@ -94,6 +102,7 @@ const wire = (overrides: Partial<IpcDeps> = {}) => {
     store,
     loginItem,
     history,
+    reminderHistory,
     overlay,
     reminderStore,
     reminderViews,
@@ -109,6 +118,7 @@ const wire = (overrides: Partial<IpcDeps> = {}) => {
     store,
     loginItem,
     history,
+    reminderHistory,
     overlay,
     reminderStore,
     reminderViews,
@@ -332,5 +342,14 @@ describe('what the handlers do', () => {
     app.invoke(IPC.completeReminder, null)
 
     expect(app.reminderAnswers.complete).toHaveBeenCalledWith(null)
+  })
+
+  it('summarises the reminder log per call, never from a cache', () => {
+    const app = wire()
+
+    app.invoke(IPC.getReminderStats)
+    app.invoke(IPC.getReminderStats)
+
+    expect(app.reminderHistory.stats).toHaveBeenCalledTimes(2)
   })
 })

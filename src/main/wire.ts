@@ -3,7 +3,7 @@ import type { ReminderView } from '../shared/reminder'
 import { ADD_TIME_MS } from '../shared/timer'
 import { createAlertPresenter, type AlertSurface } from './alert/present'
 import { wireAlerts } from './alert/wire'
-import type { History } from './history'
+import type { History, ReminderHistory } from './history'
 import { recordHistory } from './history/record'
 import {
   createViewBroadcaster,
@@ -26,6 +26,7 @@ import type { ReminderService } from './reminders/service'
 import type { ReminderStore } from './reminders/store'
 import { toReminderViews } from './reminders/view'
 import { wireReminderAlerts } from './reminders/wire'
+import { systemClock, type Clock } from './timer/clock'
 import type { TimerState } from './timer/machine'
 import { persistSnapshot } from './timer/persist'
 import type { TimerService } from './timer/service'
@@ -46,6 +47,7 @@ export type AppPorts = {
   readonly service: TimerService
   readonly store: PresetStore
   readonly history: History
+  readonly reminderHistory: ReminderHistory
   readonly snapshot: SnapshotStore & {
     readonly load: () => TimerState | null
   }
@@ -67,6 +69,8 @@ export type AppPorts = {
   }
   readonly openSettings: () => void
   readonly quit: () => void
+  /** For the loggedAt stamp on a reminder answer. Defaults to the system clock. */
+  readonly clock?: Clock
 }
 
 export type WiredApp = {
@@ -107,6 +111,7 @@ export const wireApp = (ports: AppPorts): WiredApp => {
     timer: ports.service,
     presets: ports.store,
     history: ports.history,
+    reminderHistory: ports.reminderHistory,
     reminders: {
       subscribe: (listener) => {
         reminderViewListeners.add(listener)
@@ -127,6 +132,8 @@ export const wireApp = (ports: AppPorts): WiredApp => {
     ports.reminderService,
     createReminderAlertPresenter(ports.reminderAlerts),
     ports.reminderOverlay.close,
+    ports.reminderHistory.append,
+    ports.clock ?? systemClock,
   )
 
   registerIpc({
@@ -135,6 +142,7 @@ export const wireApp = (ports: AppPorts): WiredApp => {
     store: ports.store,
     loginItem: ports.loginItem,
     history: ports.history,
+    reminderHistory: ports.reminderHistory,
     overlay: ports.overlay,
     reminderStore: ports.reminderStore,
     reminderViews,

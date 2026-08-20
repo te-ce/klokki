@@ -25,6 +25,7 @@ const fakeSources = () => {
   const timer = new Set<(update: TimerUpdate) => void>()
   const presets = new Set<(presets: readonly Preset[]) => void>()
   const history = new Set<() => void>()
+  const reminderHistory = new Set<() => void>()
   const reminders = new Set<(reminders: readonly ReminderView[]) => void>()
 
   const subscriber =
@@ -39,6 +40,7 @@ const fakeSources = () => {
       timer: { subscribe: subscriber(timer) },
       presets: { subscribe: subscriber(presets) },
       history: { subscribe: subscriber(history) },
+      reminderHistory: { subscribe: subscriber(reminderHistory) },
       reminders: { subscribe: subscriber(reminders) },
     } satisfies BroadcastSources,
     pushView: (countdown: string) => {
@@ -51,11 +53,18 @@ const fakeSources = () => {
     pushHistory: () => {
       for (const listener of history) listener()
     },
+    pushReminderHistory: () => {
+      for (const listener of reminderHistory) listener()
+    },
     pushReminders: (next: readonly ReminderView[]) => {
       for (const listener of reminders) listener(next)
     },
     listenerCount: () =>
-      timer.size + presets.size + history.size + reminders.size,
+      timer.size +
+      presets.size +
+      history.size +
+      reminderHistory.size +
+      reminders.size,
   }
 }
 
@@ -104,6 +113,19 @@ describe('createViewBroadcaster', () => {
 
     broadcaster.register(target)
     source.pushHistory()
+
+    expect(target.send).toHaveBeenCalledWith(
+      'klokki:history-changed',
+      undefined,
+    )
+  })
+
+  it('announces a line written to the reminder log, on the same channel as history', () => {
+    const broadcaster = createViewBroadcaster(source.sources)
+    const target = fakeTarget()
+
+    broadcaster.register(target)
+    source.pushReminderHistory()
 
     expect(target.send).toHaveBeenCalledWith(
       'klokki:history-changed',
@@ -181,7 +203,7 @@ describe('createViewBroadcaster', () => {
 
   it('subscribes to each source once and releases them all on dispose', () => {
     const broadcaster = createViewBroadcaster(source.sources)
-    expect(source.listenerCount()).toBe(4)
+    expect(source.listenerCount()).toBe(5)
 
     broadcaster.dispose()
 

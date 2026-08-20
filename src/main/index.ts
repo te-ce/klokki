@@ -1,6 +1,6 @@
 import { BrowserWindow, app } from 'electron'
 import { electronAlertSurface } from './alert/surface'
-import { createHistory } from './history'
+import { createHistory, createReminderHistory } from './history'
 import { electronAppInfo, electronRequestSink } from './ipc/sink'
 import { createLoginItem } from './login-item'
 import { electronMenubarSurface } from './menubar/surface'
@@ -54,6 +54,7 @@ const bootstrap = (): void => {
 
     const store = createPresetStore(app.getPath('userData'))
     const history = createHistory(app.getPath('userData'))
+    const reminderHistory = createReminderHistory(app.getPath('userData'))
     const snapshot = createSnapshotStore(app.getPath('userData'))
     const service = createTimerService()
     const reminderStore = createReminderStore(app.getPath('userData'))
@@ -64,6 +65,7 @@ const bootstrap = (): void => {
       service,
       store,
       history,
+      reminderHistory,
       snapshot,
       reminderStore,
       reminderService,

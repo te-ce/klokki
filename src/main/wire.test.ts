@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { IPC, PUSH } from '../shared/ipc'
 import type { Preset } from '../shared/preset'
 import type { ReminderDefinition } from '../shared/reminder'
-import { createHistory } from './history'
+import { createHistory, createReminderHistory } from './history'
 import type { ViewTarget } from './ipc/broadcast'
 import type { MenubarAction, MenubarItem } from './menubar/surface'
 import type { PresetStore } from './presets/store'
@@ -174,6 +174,10 @@ const build = (
     mkdtempSync(join(tmpdir(), 'klokki-wire-')),
     clock,
   )
+  const reminderHistory = createReminderHistory(
+    mkdtempSync(join(tmpdir(), 'klokki-wire-reminder-history-')),
+    clock,
+  )
   const service = createTimerService(clock)
   const snapshot = fakeSnapshot(initialSnapshot)
   const reminderStore = fakeReminderStore(options.reminders)
@@ -191,6 +195,7 @@ const build = (
     service,
     store,
     history,
+    reminderHistory,
     snapshot,
     reminderStore,
     reminderService,
@@ -212,6 +217,7 @@ const build = (
     },
     openSettings: vi.fn(),
     quit: vi.fn(),
+    clock,
   }
 
   const app = wireApp(ports)
@@ -220,6 +226,7 @@ const build = (
     ports,
     store,
     history,
+    reminderHistory,
     service,
     snapshot,
     reminderStore,
@@ -562,6 +569,38 @@ describe('reminders, saved for a restart', () => {
       label: 'Pushups',
       unit: 'reps',
     })
+  })
+
+  it('logs a Done answer to reminder history and tells every open window', () => {
+    const pushups: ReminderDefinition = {
+      id: 'pushups',
+      name: 'Pushups',
+      intervalMinutes: 30,
+      steps: [{ label: 'Pushups', unit: 'reps' }],
+      enabled: true,
+    }
+    const wired = build(null, { reminders: [pushups] })
+    const window = wired.openWindow()
+    elapse(30 * MINUTE)
+
+    wired.invoke(IPC.completeReminder, 20)
+
+    expect(wired.reminderHistory.stats().today.quantityByLabel).toEqual([
+      { label: 'Pushups', quantity: 20 },
+    ])
+    expect(window.on(PUSH.historyChanged).length).toBeGreaterThan(0)
+  })
+
+  it('logs a successful Snooze answer to reminder history', () => {
+    const wired = build(null, { reminders: [water] })
+    const window = wired.openWindow()
+    elapse(30 * MINUTE)
+
+    wired.invoke(IPC.snoozeReminder, 10 * MINUTE)
+
+    // A snoozed step logs no quantity, but the line was written — the same
+    // re-read cue as any other stretch landing in a log.
+    expect(window.on(PUSH.historyChanged).length).toBeGreaterThan(0)
   })
 })
 

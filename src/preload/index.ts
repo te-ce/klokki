@@ -25,6 +25,7 @@ const api: KlokkiApi = {
   listPresets: () => ipcRenderer.invoke(IPC.listPresets),
   getTimerView: () => ipcRenderer.invoke(IPC.getTimerView),
   getStats: () => ipcRenderer.invoke(IPC.getStats),
+  getReminderStats: () => ipcRenderer.invoke(IPC.getReminderStats),
   startPreset: (id) => ipcRenderer.invoke(IPC.startPreset, id),
   stopTimer: () => ipcRenderer.invoke(IPC.stopTimer),
   skipPhase: () => ipcRenderer.invoke(IPC.skipPhase),

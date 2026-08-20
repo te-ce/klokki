@@ -1,4 +1,6 @@
 import type { ReminderAlert } from '../../shared/reminder-alert'
+import type { ReminderHistoryEvent } from '../../shared/reminder-history'
+import { systemClock, type Clock } from '../timer/clock'
 import { EMPTY_QUEUE, advance, enqueue, type ReminderQueueState } from './queue'
 import type { ReminderDue } from './engine'
 
@@ -34,6 +36,9 @@ export const wireReminderAlerts = (
   source: ReminderAlertSource,
   present: (alert: ReminderAlert) => void,
   close: () => void,
+  /** Appends one line for every Done and every Snooze that actually took. */
+  record: (event: ReminderHistoryEvent) => void = () => {},
+  clock: Clock = systemClock,
 ): ReminderAlertController => {
   let queue: ReminderQueueState = EMPTY_QUEUE
 
@@ -56,12 +61,31 @@ export const wireReminderAlerts = (
       const current = queue.current
       if (!current) return false
       const snoozed = source.snooze(current.definitionId, extraMs)
+      // A declined snooze — its new time already past — deferred nothing, so
+      // there is no stretch of "later" to log, the same reason a declined
+      // phase snooze writes nothing to history.jsonl.
+      if (snoozed)
+        record({
+          loggedAt: clock.now(),
+          reminderId: current.definitionId,
+          stepLabel: current.step.label,
+          quantity: null,
+          outcome: 'snoozed',
+        })
       close()
       advanceQueue()
       return snoozed
     },
-    complete: (_quantity) => {
-      if (!queue.current) return
+    complete: (quantity) => {
+      const current = queue.current
+      if (!current) return
+      record({
+        loggedAt: clock.now(),
+        reminderId: current.definitionId,
+        stepLabel: current.step.label,
+        quantity,
+        outcome: 'done',
+      })
       close()
       advanceQueue()
     },

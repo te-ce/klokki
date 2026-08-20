@@ -1,6 +1,7 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import type { HistoryStats } from '../../shared/history'
+import type { ReminderHistoryStats } from '../../shared/reminder-history'
 import { StatsSection } from './StatsSection'
 import { fakeKlokki, runningView, TODAY } from './test-support/fake-klokki'
 
@@ -31,8 +32,42 @@ const stats = (overrides: Partial<HistoryStats> = {}): HistoryStats =>
     ...overrides,
   }) as HistoryStats
 
-const mockApi = (value: HistoryStats = stats()) =>
-  fakeKlokki({ getStats: () => Promise.resolve(value) })
+const reminderDay = (date: string, quantityByLabel: unknown[] = []) => ({
+  date,
+  quantityByLabel,
+})
+
+const reminderStats = (
+  overrides: Partial<ReminderHistoryStats> = {},
+): ReminderHistoryStats =>
+  ({
+    today: reminderDay(TODAY, [
+      { label: 'Pushups', quantity: 60 },
+      { label: 'Squats', quantity: 40 },
+    ]),
+    days: [
+      reminderDay(TODAY, [
+        { label: 'Pushups', quantity: 60 },
+        { label: 'Squats', quantity: 40 },
+      ]),
+      reminderDay('2026-08-19'),
+      reminderDay('2026-08-18', [{ label: 'Pushups', quantity: 20 }]),
+      reminderDay('2026-08-17'),
+      reminderDay('2026-08-16'),
+      reminderDay('2026-08-15'),
+      reminderDay('2026-08-14'),
+    ],
+    ...overrides,
+  }) as ReminderHistoryStats
+
+const mockApi = (
+  value: HistoryStats = stats(),
+  reminderValue: ReminderHistoryStats = reminderStats(),
+) =>
+  fakeKlokki({
+    getStats: () => Promise.resolve(value),
+    getReminderStats: () => Promise.resolve(reminderValue),
+  })
 
 describe('StatsSection', () => {
   it("shows today's completed phases and minutes per label", async () => {
@@ -51,7 +86,8 @@ describe('StatsSection', () => {
     mockApi()
     render(<StatsSection />)
 
-    const rows = await screen.findAllByRole('listitem')
+    const list = await screen.findByRole('list', { name: /^last 7 days$/i })
+    const rows = within(list).getAllByRole('listitem')
     expect(rows).toHaveLength(7)
     expect(rows[0]).toHaveTextContent('2026-08-20')
     expect(rows[6]).toHaveTextContent('2026-08-14')
@@ -61,7 +97,8 @@ describe('StatsSection', () => {
     mockApi()
     render(<StatsSection />)
 
-    const rows = await screen.findAllByRole('listitem')
+    const list = await screen.findByRole('list', { name: /^last 7 days$/i })
+    const rows = within(list).getAllByRole('listitem')
     expect(rows[1]).toHaveTextContent('2026-08-19')
     expect(rows[1]).toHaveTextContent('Nothing recorded')
   })
@@ -108,5 +145,47 @@ describe('StatsSection', () => {
     view.unmount()
 
     expect(api.listenerCount()).toBe(0)
+  })
+
+  it("shows today's total quantity per reminder step label", async () => {
+    mockApi()
+    render(<StatsSection />)
+
+    const today = await screen.findByRole('group', { name: /Reminders/ })
+    expect(today).toHaveTextContent('Pushups')
+    expect(today).toHaveTextContent('60')
+    expect(today).toHaveTextContent('Squats')
+    expect(today).toHaveTextContent('40')
+  })
+
+  it('lists the last seven days of reminder totals, newest first', async () => {
+    mockApi()
+    render(<StatsSection />)
+
+    const list = await screen.findByRole('list', { name: /reminders/i })
+    const rows = within(list).getAllByRole('listitem')
+    expect(rows).toHaveLength(7)
+    expect(rows[0]).toHaveTextContent('2026-08-20')
+    expect(rows[6]).toHaveTextContent('2026-08-14')
+  })
+
+  it('renders a reminder day with nothing logged as empty rather than omitting it', async () => {
+    mockApi()
+    render(<StatsSection />)
+
+    const list = await screen.findByRole('list', { name: /reminders/i })
+    const rows = within(list).getAllByRole('listitem')
+    expect(rows[1]).toHaveTextContent('2026-08-19')
+    expect(rows[1]).toHaveTextContent('Nothing recorded')
+  })
+
+  it('re-reads the reminder log when the main process says a line was written', async () => {
+    const api = mockApi()
+    render(<StatsSection />)
+
+    await waitFor(() => expect(api.getReminderStats).toHaveBeenCalledTimes(1))
+
+    api.pushHistoryChanged()
+    await waitFor(() => expect(api.getReminderStats).toHaveBeenCalledTimes(2))
   })
 })

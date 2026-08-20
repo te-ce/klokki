@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import type { Clock } from '../timer/clock'
 import type { ReminderDue } from './engine'
 import { wireReminderAlerts } from './wire'
 
@@ -90,6 +91,81 @@ describe('wireReminderAlerts', () => {
     controller.complete(null)
 
     expect(close).not.toHaveBeenCalled()
+    controller.dispose()
+  })
+
+  it('records a Done answer for history, quantity and all', () => {
+    const service = fakeService()
+    const record = vi.fn()
+    const clock: Clock = { now: () => 1_700_000_000_000 }
+    const controller = wireReminderAlerts(
+      service,
+      vi.fn(),
+      vi.fn(),
+      record,
+      clock,
+    )
+    service.fire([due('pushups', 'Pushups')])
+
+    controller.complete(20)
+
+    expect(record).toHaveBeenCalledExactlyOnceWith({
+      loggedAt: 1_700_000_000_000,
+      reminderId: 'pushups',
+      stepLabel: 'Pushups',
+      quantity: 20,
+      outcome: 'done',
+    })
+    controller.dispose()
+  })
+
+  it('records a successful Snooze answer for history, with a null quantity', () => {
+    const service = fakeService()
+    const record = vi.fn()
+    const clock: Clock = { now: () => 1_700_000_000_000 }
+    const controller = wireReminderAlerts(
+      service,
+      vi.fn(),
+      vi.fn(),
+      record,
+      clock,
+    )
+    service.fire([due('water', 'Drink water')])
+
+    controller.snooze(5 * 60_000)
+
+    expect(record).toHaveBeenCalledExactlyOnceWith({
+      loggedAt: 1_700_000_000_000,
+      reminderId: 'water',
+      stepLabel: 'Drink water',
+      quantity: null,
+      outcome: 'snoozed',
+    })
+    controller.dispose()
+  })
+
+  it('does not record a declined Snooze — nothing really happened', () => {
+    const service = fakeService()
+    service.snooze.mockReturnValue(false)
+    const record = vi.fn()
+    const controller = wireReminderAlerts(service, vi.fn(), vi.fn(), record)
+    service.fire([due('water', 'Drink water')])
+
+    controller.snooze(5 * 60_000)
+
+    expect(record).not.toHaveBeenCalled()
+    controller.dispose()
+  })
+
+  it('does not record anything when Done or Snooze is answered with nothing showing', () => {
+    const service = fakeService()
+    const record = vi.fn()
+    const controller = wireReminderAlerts(service, vi.fn(), vi.fn(), record)
+
+    controller.complete(null)
+    controller.snooze(5 * 60_000)
+
+    expect(record).not.toHaveBeenCalled()
     controller.dispose()
   })
 })

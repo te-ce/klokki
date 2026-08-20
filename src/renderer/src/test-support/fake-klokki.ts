@@ -3,6 +3,7 @@ import type { HistoryStats } from '../../../shared/history'
 import type { KlokkiApi } from '../../../shared/ipc'
 import type { Preset } from '../../../shared/preset'
 import type { ReminderView } from '../../../shared/reminder'
+import type { ReminderHistoryStats } from '../../../shared/reminder-history'
 // One owner, shared with the main-process suite: see src/shared/test-support.
 import { IDLE_VIEW } from '../../../shared/test-support/timer-view'
 import type { TimerView } from '../../../shared/timer'
@@ -15,6 +16,11 @@ export const TODAY = '2026-08-20'
 export const emptyStats: HistoryStats = {
   today: { date: TODAY, completed: 0, minutesByLabel: [] },
   days: [{ date: TODAY, completed: 0, minutesByLabel: [] }],
+}
+
+export const emptyReminderStats: ReminderHistoryStats = {
+  today: { date: TODAY, quantityByLabel: [] },
+  days: [{ date: TODAY, quantityByLabel: [] }],
 }
 
 type Mocked = { readonly [K in keyof KlokkiApi]: Mock<KlokkiApi[K]> }
@@ -65,6 +71,7 @@ export const fakeKlokki = (overrides: Partial<KlokkiApi> = {}): FakeKlokki => {
     listPresets: () => Promise.resolve([]),
     getTimerView: () => Promise.resolve(IDLE_VIEW),
     getStats: () => Promise.resolve(emptyStats),
+    getReminderStats: () => Promise.resolve(emptyReminderStats),
     startPreset: () => Promise.resolve(),
     stopTimer: () => Promise.resolve(),
     skipPhase: () => Promise.resolve(true),

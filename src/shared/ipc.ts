@@ -9,6 +9,7 @@
 import type { HistoryStats } from './history'
 import type { Preset, SaveResult } from './preset'
 import type { ReminderDefinition, ReminderView } from './reminder'
+import type { ReminderHistoryStats } from './reminder-history'
 import type { TimerView } from './timer'
 
 /** Renderer → main. Every one of these has a handler in src/main/ipc. */
@@ -17,6 +18,7 @@ export const IPC = {
   listPresets: 'klokki:list-presets',
   getTimerView: 'klokki:get-timer-view',
   getStats: 'klokki:get-stats',
+  getReminderStats: 'klokki:get-reminder-stats',
   startPreset: 'klokki:start-preset',
   savePreset: 'klokki:save-preset',
   deletePreset: 'klokki:delete-preset',
@@ -74,6 +76,12 @@ export interface KlokkiApi {
    * every call — the renderer keeps no copy to go stale.
    */
   getStats(): Promise<HistoryStats>
+  /**
+   * Today plus the last seven days of answered reminder steps, derived from
+   * the tail of reminders-history.jsonl on every call — the reminder
+   * counterpart to `getStats`.
+   */
+  getReminderStats(): Promise<ReminderHistoryStats>
   startPreset(id: string): Promise<void>
   stopTimer(): Promise<void>
   /**
