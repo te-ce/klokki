@@ -1,0 +1,33 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn", "oxc", "react", "jsx-a11y", "import"],
+  "categories": {
+    "correctness": "error"
+  },
+  "rules": {
+    "jsx-a11y/no-autofocus": "off",
+    "complexity": ["error", { "max": 10 }],
+    "max-depth": ["error", { "max": 4 }],
+    "no-console": ["error", { "allow": ["warn", "error"] }]
+  },
+  "env": {
+    "builtin": true
+  },
+  "overrides": [
+    {
+      "files": ["src/main/**", "src/preload/**", "e2e/**", "*.config.ts"],
+      "env": { "node": true }
+    },
+    {
+      "files": ["src/renderer/**"],
+      "env": { "browser": true }
+    }
+  ],
+  "ignorePatterns": [
+    "out",
+    "dist",
+    "coverage",
+    "playwright-report",
+    "test-results"
+  ]
+}

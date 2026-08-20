@@ -1,0 +1,27 @@
+# Logs
+*.log
+pnpm-debug.log*
+
+node_modules
+
+# Build output
+out/
+dist/
+
+# Test output
+coverage/
+playwright-report/
+test-results/
+
+# Env
+.env
+.env.local
+*.local
+
+# macOS
+.DS_Store
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+.idea

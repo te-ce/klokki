@@ -1,0 +1,19 @@
+appId: de.te-ce.klokki
+productName: Klokki
+directories:
+  output: dist
+  buildResources: build
+files:
+  - out/**
+  - '!**/*.map'
+mac:
+  target:
+    - target: dmg
+      arch:
+        - arm64
+  category: public.app-category.productivity
+  # Menubar-only app: no Dock icon, no app switcher entry.
+  extendInfo:
+    LSUIElement: true
+  # Local-only distribution (see AGENTS.md): unsigned, no notarization.
+  identity: null

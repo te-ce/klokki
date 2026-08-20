@@ -1,0 +1,4 @@
+#!/bin/sh
+# `pnpm build` here is electron-vite (seconds), not electron-builder packaging (minutes).
+# It exists because the smoke e2e launches the built app from out/.
+pnpm lint && pnpm vitest run && pnpm build && pnpm e2e:smoke && pnpm knip
