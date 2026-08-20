@@ -10,7 +10,7 @@
     "dev": "electron-vite dev",
     "start": "electron-vite preview",
     "build": "tsc -b && electron-vite build",
-    "build:mac": "pnpm build && electron-builder --mac --arm64",
+    "build:mac": "pnpm icons && pnpm build && electron-builder --mac --arm64",
     "lint": "oxlint --type-aware",
     "lint:fix": "oxlint --type-aware --fix",
     "format": "prettier --write .",
@@ -22,7 +22,7 @@
     "e2e:smoke": "playwright test --grep @smoke",
     "knip": "knip",
     "prepare": "husky",
-    "icons": "node scripts/generate-tray-icon.mjs"
+    "icons": "node scripts/generate-icons.ts"
   },
   "lint-staged": {
     "*.{ts,tsx}": [

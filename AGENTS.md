@@ -25,6 +25,7 @@ that cannot reach the filesystem cannot grow its own state.
 | `src/shared/ipc.ts` | The main↔renderer contract, imported by both sides            |
 | `src/renderer/`     | React views: preset editor, stats, transition overlay         |
 | `e2e/`              | Playwright driving the real app (tray, overlay)               |
+| `scripts/icon/`     | Draws every icon the app ships; run by `pnpm icons`           |
 
 ## Testing
 
@@ -89,6 +90,23 @@ waits for the seam to appear, because `electron.launch()` resolves before
   on the calendar, not by subtracting 24 hours, because daylight saving makes a
   day 23 or 25 hours long; `summarise` takes both the clock and the zone as
   parameters so every boundary case is a test, not a wait.
+- **Every icon is drawn by code**, never committed as artwork (`pnpm icons`).
+  The mark is a clock ring with two hands; the app icon breaks the ring with two
+  notches — a long work arc and a short break arc — on an Ink squircle. The PNG
+  and `.icns` encoders are written out in `scripts/icon/` rather than shelled out
+  to `iconutil` or pulled from an image library, which is what keeps the format
+  under test and the repo free of opaque binaries. The menubar templates in
+  `resources/` are committed because they are loaded at runtime; `build/icon.icns`
+  is generated at package time and ignored.
+- **The menubar glyph and the app icon share geometry, not weight or pose.** A
+  hairline that looks right at 1024px is invisible at 22px, so the app icon's
+  stroke is optically sized — each slot drawn at the weight its _point_ size
+  wants, which is why a 16pt @2x slot is not just the 32pt one. The glyph also
+  keeps a quarter past twelve where the icon shows ten past ten: at menubar
+  weight the stroke is a fifth of the ring radius, and two hands leaving the
+  centre in similar directions merge into one wedge. No weight or hand length
+  fixes that — only a perpendicular pose does. The notches go the same way; they
+  need a gap wider than the stroke around them, which 22px has no room for.
 - **oxlint only**, `--type-aware`. No typescript-eslint: the second linter is
   config surface and CI seconds for no coverage this project misses.
 - **Local-only distribution.** arm64, unsigned, no notarization. macOS will warn

@@ -13,6 +13,15 @@ export default defineConfig({
         },
       },
       {
+        // Icon generation: geometry, PNG and ICNS encoders. Build tooling, run
+        // by `pnpm icons`, but held to the same test discipline as src/.
+        test: {
+          name: 'icons',
+          environment: 'node',
+          include: ['scripts/**/*.test.ts'],
+        },
+      },
+      {
         test: {
           name: 'renderer',
           environment: 'jsdom',
