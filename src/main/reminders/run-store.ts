@@ -11,7 +11,7 @@ const FILE_NAME = 'reminders-state.json'
 const isReminderRunState = (value: unknown): value is ReminderRunState =>
   isRecord(value) &&
   typeof value.definitionId === 'string' &&
-  typeof value.nextFireAt === 'number' &&
+  (typeof value.nextFireAt === 'number' || value.nextFireAt === null) &&
   typeof value.stepIndex === 'number'
 
 /**
@@ -35,7 +35,8 @@ const decode = (raw: string): RemindersState | null => {
 /**
  * Each enabled reminder's `nextFireAt` and step cursor, so a reminder due in
  * 90 minutes is still due in 90 minutes after a relaunch — the same guarantee
- * `SnapshotStore` gives the running timer.
+ * `SnapshotStore` gives the running timer. A null `nextFireAt` survives too: a
+ * step fired and not yet answered is still not answered after a restart.
  */
 export type ReminderRunStore = {
   readonly save: (state: RemindersState) => void

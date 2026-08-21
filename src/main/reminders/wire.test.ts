@@ -18,6 +18,7 @@ const fakeService = () => {
       return () => listeners.delete(listener)
     }),
     snooze: vi.fn(() => true),
+    confirm: vi.fn(() => true),
     fire: (batch: readonly ReminderDue[]) => {
       for (const listener of listeners) listener(batch)
     },
@@ -91,6 +92,29 @@ describe('wireReminderAlerts', () => {
     controller.complete(null)
 
     expect(close).not.toHaveBeenCalled()
+    controller.dispose()
+  })
+
+  it('starts the next interval when the reminder is answered as done', () => {
+    const service = fakeService()
+    const controller = wireReminderAlerts(service, vi.fn(), vi.fn())
+    service.fire([due('water', 'Drink water')])
+
+    controller.complete(null)
+
+    // The reminder held its next interval for this answer, so the answer is
+    // what starts it — not the boundary the user took a while to notice.
+    expect(service.confirm).toHaveBeenCalledWith('water')
+    controller.dispose()
+  })
+
+  it('does not confirm an interval when nothing is showing', () => {
+    const service = fakeService()
+    const controller = wireReminderAlerts(service, vi.fn(), vi.fn())
+
+    controller.complete(null)
+
+    expect(service.confirm).not.toHaveBeenCalled()
     controller.dispose()
   })
 

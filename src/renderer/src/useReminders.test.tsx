@@ -11,6 +11,7 @@ const reminder = (id: string, name: string): ReminderView => ({
   steps: [{ label: 'Drink water' }],
   enabled: true,
   nextFireAt: 1_800_000,
+  awaiting: false,
 })
 
 const Names = () => (

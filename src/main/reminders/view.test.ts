@@ -18,7 +18,7 @@ describe('toReminderViews', () => {
     ]
 
     expect(toReminderViews([water], state)).toEqual([
-      { ...water, nextFireAt: 1_800_000 },
+      { ...water, nextFireAt: 1_800_000, awaiting: false },
     ])
   })
 
@@ -26,7 +26,19 @@ describe('toReminderViews', () => {
     const disabled = { ...water, enabled: false }
 
     expect(toReminderViews([disabled], [])).toEqual([
-      { ...disabled, nextFireAt: null },
+      { ...disabled, nextFireAt: null, awaiting: false },
+    ])
+  })
+
+  it('tells "waiting for you" apart from "not scheduled"', () => {
+    // Both have no next fire time, and they are not the same thing to read: one
+    // is off, the other is a step the user has not answered yet.
+    const waiting: RemindersState = [
+      { definitionId: 'water', nextFireAt: null, stepIndex: 0 },
+    ]
+
+    expect(toReminderViews([water], waiting)).toEqual([
+      { ...water, nextFireAt: null, awaiting: true },
     ])
   })
 })

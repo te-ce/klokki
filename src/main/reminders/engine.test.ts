@@ -6,6 +6,7 @@ import {
   scheduleAt,
   snooze,
   tick,
+  withConfirmed,
   withRemoved,
   withScheduled,
   type RemindersState,
@@ -63,10 +64,12 @@ describe('tick', () => {
         at: T0 + minutes(60),
       },
     ])
+    // The cursor moves on, but the next interval has no start yet: the step
+    // that just fired has not been answered.
     expect(result.state).toEqual([
       {
         definitionId: 'pushups',
-        nextFireAt: T0 + minutes(120),
+        nextFireAt: null,
         stepIndex: 1,
       },
     ])
@@ -88,18 +91,25 @@ describe('tick', () => {
     expect(result.state[0]).toMatchObject({ stepIndex: 0 })
   })
 
-  it('drains every boundary elapsed since the last tick, not just one', () => {
+  it('asks once however many intervals went by unanswered', () => {
     const state: RemindersState = [scheduleAt(pushupsAndSquats, T0)]
     const result = tick(state, [pushupsAndSquats], T0 + minutes(180))
 
-    expect(result.due.map((event) => event.step.label)).toEqual([
-      'Pushups',
-      'Squats',
-      'Pushups',
-    ])
+    // Three hours of a hourly reminder is not three sets of pushups owed: it
+    // fired, nobody answered, and it is still that one step waiting.
+    expect(result.due.map((event) => event.step.label)).toEqual(['Pushups'])
     expect(result.state).toEqual([
-      { definitionId: 'pushups', nextFireAt: T0 + minutes(240), stepIndex: 1 },
+      { definitionId: 'pushups', nextFireAt: null, stepIndex: 1 },
     ])
+  })
+
+  it('reports nothing more until the fired step is answered', () => {
+    const fired = tick([scheduleAt(water, T0)], [water], T0 + minutes(60)).state
+
+    expect(tick(fired, [water], T0 + minutes(600))).toEqual({
+      state: fired,
+      due: [],
+    })
   })
 
   it('runs multiple reminders independently', () => {
@@ -111,7 +121,6 @@ describe('tick', () => {
 
     expect(result.due.map((event) => event.definitionId).sort()).toEqual([
       'pushups',
-      'water',
       'water',
     ])
   })
@@ -154,6 +163,33 @@ describe('withRemoved', () => {
   })
 })
 
+describe('withConfirmed', () => {
+  it('starts the next interval from the answer, not from the boundary', () => {
+    const fired = tick(
+      [scheduleAt(pushupsAndSquats, T0)],
+      [pushupsAndSquats],
+      T0 + minutes(60),
+    ).state
+    const answered = T0 + minutes(63)
+
+    expect(withConfirmed(fired, pushupsAndSquats, answered)).toEqual([
+      {
+        definitionId: 'pushups',
+        nextFireAt: answered + minutes(60),
+        stepIndex: 1,
+      },
+    ])
+  })
+
+  it('leaves a run that is not waiting for an answer alone', () => {
+    const scheduled = [scheduleAt(pushupsAndSquats, T0)]
+
+    expect(withConfirmed(scheduled, pushupsAndSquats, T0 + minutes(5))).toEqual(
+      scheduled,
+    )
+  })
+})
+
 describe('snooze', () => {
   it('reschedules the same step that just fired, not the next one', () => {
     const fired = tick(
@@ -190,8 +226,12 @@ describe('property: tick never advances a schedule past now', () => {
           }
           const now = T0 + minutes(elapsedMinutes)
           const result = tick([scheduleAt(definition, T0)], [definition], now)
+          // Either still counting towards a firing in the future, or waiting
+          // for the answer to one that just happened — never a schedule the
+          // clock has already gone past.
           for (const run of result.state)
-            expect(run.nextFireAt).toBeGreaterThan(now)
+            if (run.nextFireAt !== null)
+              expect(run.nextFireAt).toBeGreaterThan(now)
         },
       ),
     )

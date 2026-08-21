@@ -9,7 +9,7 @@ export const SNAPSHOT_SCHEMA_VERSION = 1
 const FILE_NAME = 'timer-state.json'
 
 /** A decoded, but not yet bounds-checked, running state. */
-type Candidate = {
+type RunningCandidate = {
   readonly preset: Preset
   readonly phaseIndex: number
   readonly phaseStartedAt: number
@@ -17,7 +17,17 @@ type Candidate = {
   readonly snoozedMs: number
 }
 
-const isCandidate = (state: Record<string, unknown>): state is Candidate =>
+/** The same, for a run saved while holding at an unanswered boundary. */
+type AwaitingCandidate = {
+  readonly preset: Preset
+  readonly phaseIndex: number
+  readonly completedIndex: number
+  readonly boundaryAt: number
+}
+
+const isRunningCandidate = (
+  state: Record<string, unknown>,
+): state is RunningCandidate =>
   state.status === 'running' &&
   isPreset(state.preset) &&
   typeof state.phaseIndex === 'number' &&
@@ -25,14 +35,26 @@ const isCandidate = (state: Record<string, unknown>): state is Candidate =>
   typeof state.phaseEndsAt === 'number' &&
   typeof state.snoozedMs === 'number'
 
-const inRange = (candidate: Candidate): boolean =>
-  candidate.phaseIndex >= 0 &&
-  candidate.phaseIndex < candidate.preset.phases.length
+const isAwaitingCandidate = (
+  state: Record<string, unknown>,
+): state is AwaitingCandidate =>
+  state.status === 'awaiting' &&
+  isPreset(state.preset) &&
+  typeof state.phaseIndex === 'number' &&
+  typeof state.completedIndex === 'number' &&
+  typeof state.boundaryAt === 'number'
+
+const indexInRange = (preset: Preset, index: number): boolean =>
+  index >= 0 && index < preset.phases.length
 
 /**
  * The file is as hand-editable as presets.json, so every field is untrusted.
- * Anything that does not decode to a runnable running state is treated as no
- * saved run at all — starting idle is always safe, replaying a bad state is not.
+ * Anything that does not decode to a runnable state is treated as no saved run
+ * at all — starting idle is always safe, replaying a bad state is not.
+ *
+ * A boundary waiting to be answered is saved too: it is a run in progress that
+ * happens not to be counting, and losing it on a relaunch would drop the phase
+ * the user was about to start.
  */
 const decode = (raw: string): TimerState | null => {
   let parsed: unknown
@@ -44,14 +66,24 @@ const decode = (raw: string): TimerState | null => {
 
   if (!isRecord(parsed) || !isRecord(parsed.state)) return null
   const { state } = parsed
-  if (!isCandidate(state) || !inRange(state)) return null
 
-  return { status: 'running', ...state }
+  if (isRunningCandidate(state))
+    return indexInRange(state.preset, state.phaseIndex)
+      ? { status: 'running', ...state }
+      : null
+
+  if (isAwaitingCandidate(state))
+    return indexInRange(state.preset, state.phaseIndex) &&
+      indexInRange(state.preset, state.completedIndex)
+      ? { status: 'awaiting', ...state }
+      : null
+
+  return null
 }
 
 /**
- * The last state the running timer was in, so a restart can resume it instead
- * of losing it. Only a running state is ever written — see `SnapshotStore`.
+ * The last state the timer was in while a run existed, so a restart can resume
+ * it instead of losing it. Idle is never written — see `SnapshotStore`.
  */
 export type SnapshotStore = {
   readonly save: (state: TimerState) => void

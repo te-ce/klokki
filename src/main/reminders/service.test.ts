@@ -84,7 +84,59 @@ describe('createReminderService', () => {
     service.setDefinitions([water, pushupsAndSquats])
     elapse(minutes(60))
 
-    expect(seen.sort()).toEqual(['pushups', 'water', 'water'])
+    // Water is due twice over the hour but asks once: its first firing is still
+    // unanswered, so its second interval never started.
+    expect(seen.sort()).toEqual(['pushups', 'water'])
+    service.dispose()
+  })
+
+  it('starts the next interval only once the fired step is confirmed', () => {
+    const service = createReminderService(clock)
+    const seen: string[] = []
+    service.subscribe((due) => {
+      for (const event of due) seen.push(event.definitionId)
+    })
+
+    service.setDefinitions([water])
+    elapse(minutes(30))
+    expect(seen).toEqual(['water'])
+
+    // Answered ten minutes late: the interval that follows is a whole thirty
+    // minutes from the answer, not from the boundary.
+    elapse(minutes(10))
+    expect(service.confirm('water')).toBe(true)
+    elapse(minutes(29))
+    expect(seen).toEqual(['water'])
+    elapse(minutes(1))
+    expect(seen).toEqual(['water', 'water'])
+    service.dispose()
+  })
+
+  it('restarts a reminder on demand, whether or not it was scheduled', () => {
+    const service = createReminderService(clock)
+    const seen: string[] = []
+    service.subscribe((due) => {
+      for (const event of due) seen.push(event.definitionId)
+    })
+
+    service.setDefinitions([water])
+    elapse(minutes(20))
+    // What the tray's "Restart Drink water" does: a full interval from now, so
+    // the ten minutes it had left are not what the user gets.
+    expect(service.start('water')).toBe(true)
+    elapse(minutes(29))
+    expect(seen).toEqual([])
+    elapse(minutes(1))
+    expect(seen).toEqual(['water'])
+    service.dispose()
+  })
+
+  it('has nothing to start or confirm for an unknown reminder', () => {
+    const service = createReminderService(clock)
+    service.setDefinitions([water])
+
+    expect(service.start('nope')).toBe(false)
+    expect(service.confirm('nope')).toBe(false)
     service.dispose()
   })
 

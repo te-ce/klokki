@@ -29,6 +29,16 @@ export type PhaseView = {
 
 export type TimerView = {
   readonly running: boolean
+  /**
+   * Whether the run is holding at a boundary nobody has answered yet.
+   *
+   * A waiting run is still running — it has a preset, a phase list, and a phase
+   * about to start — but its countdown is not moving, and a view that drew it
+   * the same as a live one would be showing a frozen clock with no explanation.
+   * `phaseLabel` and `remainingMs` describe the phase that *will* start, at its
+   * full configured length, because that is what confirming the boundary gets.
+   */
+  readonly awaiting: boolean
   readonly presetName: string | null
   readonly phaseLabel: string | null
   /**

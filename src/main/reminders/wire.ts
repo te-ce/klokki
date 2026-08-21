@@ -10,6 +10,7 @@ type ReminderAlertSource = {
     listener: (due: readonly ReminderDue[]) => void,
   ) => () => void
   readonly snooze: (id: string, extraMs: number) => boolean
+  readonly confirm: (id: string) => boolean
 }
 
 export type ReminderAlertController = {
@@ -31,6 +32,10 @@ const toAlert = (due: ReminderDue): ReminderAlert => ({
  * reminder gets shown rather than only the last of a batch: each one is
  * something the user still has to answer, so it is queued instead of dropped
  * (see issues/open/09).
+ *
+ * Answering is also what starts the next interval — Done confirms it, Snooze
+ * defers the same step — because a reminder holds after it fires rather than
+ * counting down again unattended.
  */
 export const wireReminderAlerts = (
   source: ReminderAlertSource,
@@ -79,6 +84,9 @@ export const wireReminderAlerts = (
     complete: (quantity) => {
       const current = queue.current
       if (!current) return
+      // The interval that follows starts here, not at the boundary: the reminder
+      // waited for this answer, so the user gets a whole interval of it.
+      source.confirm(current.definitionId)
       record({
         loggedAt: clock.now(),
         reminderId: current.definitionId,

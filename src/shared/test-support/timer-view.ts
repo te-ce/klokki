@@ -11,6 +11,7 @@ import type { TimerView } from '../timer'
  */
 export const IDLE_VIEW: TimerView = {
   running: false,
+  awaiting: false,
   presetName: null,
   phaseLabel: null,
   nextPhaseLabel: null,
@@ -26,6 +27,7 @@ export const IDLE_VIEW: TimerView = {
 /** A Pomodoro a second into its Focus phase. */
 export const runningView = (overrides: Partial<TimerView> = {}): TimerView => ({
   running: true,
+  awaiting: false,
   presetName: 'Pomodoro',
   phaseLabel: 'Focus',
   nextPhaseLabel: 'Break',
@@ -41,3 +43,20 @@ export const runningView = (overrides: Partial<TimerView> = {}): TimerView => ({
   phaseProgress: 0.01,
   ...overrides,
 })
+
+/**
+ * The same Pomodoro, holding at the Focus/Break boundary until it is answered:
+ * Break named at its full length, with no time taken off it yet.
+ */
+export const awaitingView = (overrides: Partial<TimerView> = {}): TimerView =>
+  runningView({
+    awaiting: true,
+    phaseLabel: 'Break',
+    nextPhaseLabel: 'Focus',
+    nextPhaseMinutes: 25,
+    remainingMs: 300_000,
+    countdown: '05:00',
+    phaseIndex: 1,
+    phaseProgress: 0,
+    ...overrides,
+  })

@@ -7,8 +7,15 @@ Klokki lives in the menubar and counts down phases: 25 min work / 5 min break, o
 fires a notification and an overlay you have to acknowledge or snooze, because a
 health timer you can ignore is not a health timer.
 
+The next phase waits for that acknowledgement rather than starting behind it, so
+a break you answer five minutes late is still a whole break. Until then the
+menubar reads "Break ready", and the tray menu, the overlay and the Timer pane
+all offer to start it.
+
 Alongside the phase timer, standalone reminders cycle their own steps on an
 interval (e.g. "look 20ft away" every 20 minutes) independent of any preset.
+Reminders start from the tray menu like presets, and their next interval starts
+when you answer the one that fired.
 
 Settings window has four panes — Timer, Presets, Reminders, Stats — and a
 7-day history of every phase and reminder logged locally.

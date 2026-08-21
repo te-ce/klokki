@@ -6,6 +6,7 @@ import { formatRemaining } from './format'
 import {
   IDLE,
   addTime,
+  confirm,
   currentPhase,
   nextPhase,
   remainingMs,
@@ -43,6 +44,12 @@ export type TimerService = {
    */
   readonly skip: () => boolean
   /**
+   * Starts the phase an unanswered boundary is holding, because the user said
+   * they are ready. Answers whether anything moved: only a waiting run has a
+   * boundary to confirm.
+   */
+  readonly confirm: () => boolean
+  /**
    * Corrects the current phase's remaining time — for a timer started late, to
    * pull it back in sync. Answers whether anything moved: there is nothing to
    * correct while idle.
@@ -78,7 +85,7 @@ const IDLE_SHAPE: RunShape = {
 }
 
 const runShape = (state: TimerState): RunShape => {
-  if (state.status !== 'running') return IDLE_SHAPE
+  if (state.status === 'idle') return IDLE_SHAPE
 
   return {
     presetName: state.preset.name,
@@ -98,7 +105,8 @@ const toView = (state: TimerState, now: number): TimerView => {
   const upcoming = nextPhase(state)
 
   return {
-    running: state.status === 'running',
+    running: state.status !== 'idle',
+    awaiting: state.status === 'awaiting',
     phaseLabel: currentPhase(state)?.label ?? null,
     nextPhaseLabel: upcoming?.label ?? null,
     nextPhaseMinutes: upcoming?.minutes ?? null,
@@ -132,10 +140,18 @@ export const createTimerService = (
     for (const listener of listeners) listener(update)
   }
 
+  // Only a running phase has a countdown to advance: an idle timer and one
+  // holding at an unanswered boundary both sit still, so neither is worth a
+  // poll — and both become running again only through a call that syncs this.
+  const syncPolling = (): void => {
+    if (state.status === 'running') poller.start()
+    else poller.stop()
+  }
+
   const advance = (): void => {
     const result = tick(state, clock.now())
     state = result.state
-    if (state.status === 'idle') poller.stop()
+    syncPolling()
     emit(result.transitions)
   }
 
@@ -148,21 +164,29 @@ export const createTimerService = (
       poller.start()
       emit([])
     },
+    confirm: () => {
+      if (state.status !== 'awaiting') return false
+      state = confirm(state, clock.now())
+      syncPolling()
+      emit([])
+      return true
+    },
     snooze: () => {
       const result = snooze(state, clock.now(), SNOOZE_MS)
       // Nothing changed when the boundary is gone, so nothing is announced.
       if (result.snoozed === null) return false
       state = result.state
+      syncPolling()
       emit([], result.snoozed)
       return true
     },
     skip: () => {
-      if (state.status !== 'running') return false
+      if (state.status === 'idle') return false
       const result = skip(state, clock.now())
       state = result.state
       // The run can end on a skip — the last phase of a preset that does not
       // loop — and a poll with nothing left to advance is a leak.
-      if (state.status === 'idle') poller.stop()
+      syncPolling()
       emit(result.transitions)
       return true
     },
@@ -172,17 +196,17 @@ export const createTimerService = (
       state = result.state
       // A drained boundary can end a non-looping run before the correction is
       // even applied, same as a skip landing on the last phase.
-      if (state.status === 'idle') poller.stop()
+      syncPolling()
       emit(result.transitions)
       return true
     },
     addTime: (extraMs) => {
-      if (state.status !== 'running') return false
+      if (state.status === 'idle') return false
       const result = addTime(state, clock.now(), extraMs)
       state = result.state
       // A drained boundary can end a non-looping run before the extra time is
       // even applied, same as a skip landing on the last phase.
-      if (state.status === 'idle') poller.stop()
+      syncPolling()
       emit(result.transitions)
       return true
     },
@@ -194,8 +218,7 @@ export const createTimerService = (
     resume: (loaded) => {
       const result = tick(loaded, clock.now())
       state = result.state
-      poller.stop()
-      if (state.status === 'running') poller.start()
+      syncPolling()
       emit(result.transitions)
     },
     getView: () => toView(state, clock.now()),

@@ -63,7 +63,7 @@ describe('wireAlerts', () => {
 
   // The acceptance criterion for waking from sleep: three phases elapsed while
   // the lid was shut, and the user gets told where they are, once.
-  it('raises one alert after a sleep that drained several phases', () => {
+  it('raises one alert for the boundary a slept-through run is holding at', () => {
     const service = createTimerService(clock)
     const present = vi.fn()
     wireAlerts(service, present)
@@ -71,9 +71,11 @@ describe('wireAlerts', () => {
     service.startPreset(preset(true))
     elapse(60 * MS_PER_MINUTE)
 
+    // An hour asleep, and still the first boundary: the run stopped there
+    // waiting to be answered, so there is nothing else to announce.
     expect(present).toHaveBeenCalledExactlyOnceWith({
-      completedLabel: 'Break',
-      nextLabel: 'Focus',
+      completedLabel: 'Focus',
+      nextLabel: 'Break',
     })
     service.dispose()
   })

@@ -11,6 +11,11 @@ import { SNOOZE_MS } from '../../shared/timer'
  * is the other way out, because an alert that can only be acknowledged gets
  * turned off: it defers the boundary instead of skipping the phase.
  *
+ * The run is holding at this boundary until one of the two is clicked, which is
+ * why the acknowledgement is named after what it does — "Start Break", not
+ * "Dismiss". A phase that began while the overlay sat unread would be a phase
+ * the user never got.
+ *
  * With no phase following, there is no boundary to defer — the timer is simply
  * over — so the snooze is not offered at all rather than offered and ignored.
  */
@@ -40,7 +45,7 @@ export const TransitionOverlay = ({ alert }: { alert: Alert }) => (
         className="bg-ink text-ground h-9 rounded-lg px-5 font-medium"
         onClick={() => void window.klokki.dismissAlert()}
       >
-        Dismiss
+        {alert.nextLabel === null ? 'Dismiss' : `Start ${alert.nextLabel}`}
       </button>
     </div>
   </section>

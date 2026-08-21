@@ -97,15 +97,35 @@ waits for the seam to appear, because `electron.launch()` resolves before
   sharing a label both write without changing it. `usePresets` reads once and then
   subscribes, the same shape as the timer view, so a window is never blank while
   it waits for the first push.
+- **A boundary waits to be confirmed; nothing starts behind the user's back.**
+  A phase that elapses puts the machine in `awaiting` (`src/main/timer/machine.ts`):
+  the phase that ended is logged and announced, the phase that follows is chosen
+  but not started, and no time passes until `confirm` — dismissing the overlay
+  (`IPC.dismissAlert`), the tray's "Start <phase>", or `IPC.confirmNext` from the
+  Timer pane. The next phase then gets its full configured length from the moment
+  of the answer, because minutes spent noticing an overlay are not minutes of the
+  break it was announcing. Consequences worth knowing: one tick reports at most
+  one transition, a machine asleep for an hour comes back with one boundary to
+  answer rather than a night of phases already spent, and `TimerView.awaiting`
+  exists so no view draws a frozen countdown as a live one.
 - **A skip is a boundary the user asked for.** `skip` (tray menu and settings
   window, via `IPC.skipPhase`) ends the phase now and starts the next one at its
   full configured length — for standing up before the sitting phase is out. It
   raises no notification and no overlay, because the user just chose it, and it
   is logged as its own `skipped` outcome for the minutes that really passed:
   `Transition.cause` is what tells `alertFor` to stay quiet and `recordHistory`
-  which outcome to write. Elapsed boundaries are drained first, so a skip taken a
-  second after a boundary the poll had not reported yet ends the phase the user
-  was actually looking at rather than swallowing two.
+  which outcome to write. An elapsed boundary is drained first, so a skip taken a
+  second after one the poll had not reported yet lands on the phase the user was
+  actually looking at — and at a boundary still waiting to be answered, skipping
+  and confirming are the same move, so `skip` confirms rather than inventing a
+  phase to cut short.
+- **The tray starts reminders too.** Reminders sit under a `Reminders` heading in
+  the tray menu, one item each, and clicking one enables it and schedules it a
+  full interval from now (`src/main/reminders/start.ts`) — "Restart" for one
+  already scheduled, the same promise the preset items make. Acting without
+  opening a window is what the menubar is for, and half the app was missing from
+  it. The menubar therefore subscribes to the reminder view source, because
+  whether an item says Start or Restart is a fact about the live schedule.
 - **The settings window is a rail and one pane.** Four destinations — Timer,
   Presets, Stats, General — sit in a permanent left rail (`src/renderer/src/Rail.tsx`),
   and the pane on the right is the only one mounted. Which pane is open is the
@@ -153,21 +173,34 @@ waits for the seam to appear, because `electron.launch()` resolves before
   Settings cannot leave the checkbox lying (`src/main/login-item.ts`).
 - **Wall-clock timing.** The timer keeps running through sleep; the user restarts
   a preset manually if drift makes a phase meaningless. Likely to change.
-  Consequence: `tick()` must drain _every_ phase that elapsed since the last
-  call, not assume one tick is one phase, and each phase starts at the previous
-  phase's exact end so polling granularity cannot accumulate drift.
+  Consequence: `tick()` is asked about a `now` that may be hours past the phase it
+  is running, so it must end that phase at its own configured end rather than at
+  the moment the poll noticed — which is also why a confirmed phase starts at the
+  confirmation and a snoozed one at the boundary it deferred, never at a poll
+  tick. Nothing behind an unanswered boundary can have elapsed, so draining more
+  than one phase per tick is not a case that exists.
 - **Transitions are intrusive.** Native notification _plus_ a borderless
   always-on-top overlay that must be dismissed or snoozed. A notification alone
   is missed in Do Not Disturb and fullscreen — the exact moments it matters.
-- **Snooze defers a boundary; it never skips a phase.** The user answers the
-  overlay seconds after the boundary, by which time the machine has already
-  started the next phase, so `snooze` steps _back_ and re-ends the phase that
+- **Snooze defers a boundary; it never skips a phase.** The run is holding at the
+  boundary when the overlay is answered, so `snooze` re-ends the phase that
   finished five minutes after the boundary — not five minutes after the click,
   which would let click latency drift the rest of the sequence. The phase that
   follows keeps its full length, because its length is applied when it finally
-  starts. A snooze whose new end is already in the past is declined, and a second
-  click on one overlay extends the current snooze instead of stepping back twice:
-  a snooze must only ever move time forwards.
+  starts. `+5 min` at a waiting boundary is the same move under a different name
+  (`deferBoundary`), which is why the tray can offer it there. A snooze whose new
+  end is already in the past is declined, and a second click on one overlay
+  extends the current snooze instead of stepping back twice: a snooze must only
+  ever move time forwards.
+- **A reminder waits for its answer before starting the next interval.** A fired
+  step leaves its run with `nextFireAt: null` until Done (`withConfirmed`) or
+  Snooze answers it, so an interval is never spent ignoring an overlay and a
+  reminder whose interval passed six times while the app was closed asks once.
+  The engine's schedule therefore changes without anything coming due, which is
+  what `ReminderService.onScheduleChange` is for: persistence and the pushed list
+  follow the schedule, and only the overlay follows the firings. `ReminderView`
+  carries `awaiting` because "waiting for you" and "not scheduled" are different
+  things for a row to say.
 - **History is local and append-only** (`history.jsonl`). Append-only survives a
   kill mid-write; stats read the tail. Stats cover today + 7 days, which is why
   no query engine is needed. A line is written when a stretch of phase _ends_,

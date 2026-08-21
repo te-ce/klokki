@@ -52,23 +52,21 @@ describe('recordHistory', () => {
     service.dispose()
   })
 
-  it('records every phase that elapsed while the machine slept', () => {
+  it('records the one phase that ended while the machine slept', () => {
     const service = createTimerService(clock)
     const append = vi.fn()
     recordHistory(service, append)
 
     service.startPreset(sitStand)
-    // Wall-clock time moves while no poll fires — the lid was shut — so a single
-    // tick has to drain the phases that passed in the dark, and log all of them.
+    // Wall-clock time moves while no poll fires — the lid was shut. Sitting
+    // ended in the dark, and the run has been holding at that boundary since:
+    // Standing never started, so there is no stretch of it to log.
     current += 50 * MS_PER_MINUTE
     vi.advanceTimersByTime(1_000)
 
     expect(
       append.mock.calls.map(([event]) => [event.phaseLabel, event.durationMs]),
-    ).toEqual([
-      ['Sitting', 30 * MS_PER_MINUTE],
-      ['Standing', 15 * MS_PER_MINUTE],
-    ])
+    ).toEqual([['Sitting', 30 * MS_PER_MINUTE]])
     service.dispose()
   })
 

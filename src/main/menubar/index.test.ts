@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Preset } from '../../shared/preset'
-import { IDLE_VIEW, runningView } from '../../shared/test-support/timer-view'
+import type { ReminderView } from '../../shared/reminder'
+import {
+  awaitingView,
+  IDLE_VIEW,
+  runningView,
+} from '../../shared/test-support/timer-view'
 import type { TimerView } from '../../shared/timer'
 import { createMenubar } from './index'
 import type { MenubarAction, MenubarItem, MenubarSurface } from './surface'
@@ -10,6 +15,16 @@ const pomodoro: Preset = {
   name: 'Pomodoro',
   loop: true,
   phases: [{ label: 'Focus', minutes: 25, notify: true }],
+}
+
+const water: ReminderView = {
+  id: 'water',
+  name: 'Drink water',
+  intervalMinutes: 30,
+  steps: [{ label: 'Drink a glass' }],
+  enabled: true,
+  nextFireAt: null,
+  awaiting: false,
 }
 
 const IDLE = IDLE_VIEW
@@ -54,15 +69,18 @@ const fakeSurface = () => {
   return surface
 }
 
-/** A timer and a store, driven by hand rather than by a clock. */
+/** A timer, a store and a reminder list, driven by hand rather than by a clock. */
 const fakeSources = (
   view: TimerView,
   presets: readonly Preset[] = [pomodoro],
+  reminders: readonly ReminderView[] = [],
 ) => {
   const timerListeners = new Set<(update: { view: TimerView }) => void>()
   const presetListeners = new Set<() => void>()
+  const reminderListeners = new Set<() => void>()
   let current = view
   let list = presets
+  let reminderList = reminders
 
   return {
     sources: {
@@ -80,6 +98,13 @@ const fakeSources = (
           return () => presetListeners.delete(listener)
         },
       },
+      reminders: {
+        views: () => reminderList,
+        subscribe: (listener: () => void) => {
+          reminderListeners.add(listener)
+          return () => reminderListeners.delete(listener)
+        },
+      },
     },
     pushView: (next: TimerView) => {
       current = next
@@ -89,15 +114,22 @@ const fakeSources = (
       list = next
       for (const listener of presetListeners) listener()
     },
+    pushReminders: (next: readonly ReminderView[]) => {
+      reminderList = next
+      for (const listener of reminderListeners) listener()
+    },
     timerListenerCount: () => timerListeners.size,
     presetListenerCount: () => presetListeners.size,
+    reminderListenerCount: () => reminderListeners.size,
   }
 }
 
 const fakeActions = () => ({
   stop: vi.fn(),
   start: vi.fn(),
+  startReminder: vi.fn(),
   skip: vi.fn(),
+  confirm: vi.fn(),
   addTime: vi.fn(),
   openSettings: vi.fn(),
   quit: vi.fn(),
@@ -230,7 +262,43 @@ describe('the menubar', () => {
     expect(surface.clickMenuItem('Pomodoro — Focus')).toBe(false)
   })
 
-  it('lets go of both subscriptions when disposed', () => {
+  it('starts a reminder by id when its item is clicked', () => {
+    const surface = fakeSurface()
+    const { sources } = fakeSources(IDLE, [pomodoro], [water])
+    const actions = fakeActions()
+    createMenubar(surface, sources, actions)
+
+    expect(surface.clickMenuItem('Start Drink water')).toBe(true)
+
+    expect(actions.startReminder).toHaveBeenCalledWith('water')
+  })
+
+  it('picks up a reminder created or fired without a relaunch', () => {
+    const surface = fakeSurface()
+    const { sources, pushReminders } = fakeSources(IDLE)
+    createMenubar(surface, sources, fakeActions())
+
+    pushReminders([water])
+    expect(surface.menuLabels()).toContain('Start Drink water')
+
+    pushReminders([{ ...water, nextFireAt: 1_700_000_000_000 }])
+    expect(surface.menuLabels()).toContain('Restart Drink water')
+  })
+
+  it('confirms a waiting boundary from the menu', () => {
+    const surface = fakeSurface()
+    const { sources, pushView } = fakeSources(running('24:59'))
+    const actions = fakeActions()
+    createMenubar(surface, sources, actions)
+
+    pushView(awaitingView())
+
+    expect(surface.clickMenuItem('Start Break')).toBe(true)
+    expect(actions.confirm).toHaveBeenCalledOnce()
+    expect(actions.skip).not.toHaveBeenCalled()
+  })
+
+  it('lets go of every subscription when disposed', () => {
     const surface = fakeSurface()
     const sources = fakeSources(IDLE)
     const menubar = createMenubar(surface, sources.sources, fakeActions())
@@ -239,5 +307,6 @@ describe('the menubar', () => {
 
     expect(sources.timerListenerCount()).toBe(0)
     expect(sources.presetListenerCount()).toBe(0)
+    expect(sources.reminderListenerCount()).toBe(0)
   })
 })

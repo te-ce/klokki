@@ -150,11 +150,18 @@ export const registerIpc = (deps: IpcDeps): void => {
       loginItem.setEnabled(expect(enabled, isBoolean, 'a boolean')),
     stopTimer: () => service.stop(),
     skipPhase: () => service.skip(),
+    confirmNext: () => service.confirm(),
     setRemaining: (targetMs) =>
       service.setRemaining(expect(targetMs, isNumber, 'a duration in ms')),
     addTime: (extraMs) =>
       service.addTime(expect(extraMs, isNumber, 'a duration in ms')),
-    dismissAlert: () => overlay.close(),
+    // Dismissing the overlay is the confirmation the waiting run is holding for:
+    // the boundary was announced, the user answered it, and the phase it names
+    // starts now. Closing without starting anything would leave the run parked.
+    dismissAlert: () => {
+      service.confirm()
+      overlay.close()
+    },
     // The overlay closes whether or not the boundary moved: a snooze is declined
     // only when its new end has already gone by, and leaving an overlay up that
     // names a boundary long past is worse than closing it. The renderer is told

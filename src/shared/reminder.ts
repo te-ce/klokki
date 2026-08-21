@@ -30,6 +30,14 @@ export type ReminderDefinition = {
  */
 export type ReminderView = ReminderDefinition & {
   readonly nextFireAt: number | null
+  /**
+   * Whether the step that last fired is still unanswered, which is why there is
+   * no `nextFireAt`: the next interval starts when the user answers the overlay.
+   *
+   * Carried rather than inferred from a null `nextFireAt`, because "waiting for
+   * you" and "not scheduled at all" are two different things a row has to say.
+   */
+  readonly awaiting: boolean
 }
 
 export const isReminderStep = (value: unknown): value is ReminderStep =>

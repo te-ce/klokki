@@ -12,6 +12,7 @@ const water: ReminderView = {
   steps: [{ label: 'Drink a glass of water' }],
   enabled: true,
   nextFireAt: 1_800_000,
+  awaiting: false,
 }
 
 /**
@@ -28,7 +29,7 @@ const mockApi = (reminders: readonly ReminderView[] = [water]) => {
     saveReminder: (definition: ReminderDefinition): Promise<SaveResult> => {
       current = [
         ...current.filter((r) => r.id !== definition.id),
-        { ...definition, nextFireAt: null },
+        { ...definition, nextFireAt: null, awaiting: false },
       ]
       api.pushReminders(current)
       return Promise.resolve({ ok: true })
@@ -282,4 +283,12 @@ describe('when Save is worth offering', () => {
 
     expect(saveButton()).toBeDisabled()
   })
+})
+
+it('says a reminder is waiting for the user rather than not scheduled', async () => {
+  mockApi([{ ...water, nextFireAt: null, awaiting: true }])
+  render(<RemindersSection />)
+
+  // Its next interval has not started, and that is not the same as being off.
+  expect(await screen.findByText('Waiting for you')).toBeVisible()
 })

@@ -14,6 +14,7 @@ import type { LoginItem } from './login-item'
 import { createMenubar, type Menubar } from './menubar'
 import type { MenubarSurface } from './menubar/surface'
 import { startPresetById } from './presets/start'
+import { startReminderById } from './reminders/start'
 import type { PresetStore } from './presets/store'
 import type { RemindersState } from './reminders/engine'
 import {
@@ -113,7 +114,10 @@ export const wireApp = (ports: AppPorts): WiredApp => {
     ports.reminderService.setDefinitions(list)
     persistReminderRun()
   })
-  const unwireReminderTick = ports.reminderService.subscribe(() => {
+  // Every change to the schedule is worth saving, not only a firing: an
+  // answered reminder's next interval starts at the answer, and a restart from
+  // the tray moves it too.
+  const unwireReminderTick = ports.reminderService.onScheduleChange(() => {
     persistReminderRun()
   })
 
@@ -170,16 +174,25 @@ export const wireApp = (ports: AppPorts): WiredApp => {
 
   const menubar = createMenubar(
     ports.menubar,
-    { timer: ports.service, presets: ports.store },
+    {
+      timer: ports.service,
+      presets: ports.store,
+      reminders: reminderViewSource,
+    },
     {
       stop: () => ports.service.stop(),
       skip: () => {
         ports.service.skip()
       },
+      confirm: () => {
+        ports.service.confirm()
+      },
       addTime: () => {
         ports.service.addTime(ADD_TIME_MS)
       },
       start: (id) => startPresetById(ports.service, ports.store, id),
+      startReminder: (id) =>
+        startReminderById(ports.reminderStore, ports.reminderService, id),
       openSettings: ports.openSettings,
       quit: ports.quit,
     },

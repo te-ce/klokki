@@ -342,12 +342,31 @@ describe('a phase boundary, all the way out', () => {
     const wired = build()
     wired.invoke(IPC.startPreset, 'pomodoro')
     elapse(25 * MINUTE)
+    // The Focus boundary, confirmed: Break is running and is the last phase.
+    expect(wired.invoke(IPC.confirmNext)).toBe(true)
     elapse(MINUTE)
 
     expect(wired.invoke(IPC.skipPhase)).toBe(true)
 
     expect(wired.menubar.title()).toBe('')
     expect(wired.invoke(IPC.skipPhase)).toBe(false)
+  })
+
+  it('holds the tray at the boundary until it is confirmed', () => {
+    const wired = build()
+    wired.invoke(IPC.startPreset, 'pomodoro')
+
+    elapse(25 * MINUTE)
+    // Ten minutes of not noticing the overlay, and the break is still whole.
+    elapse(10 * MINUTE)
+    expect(wired.menubar.title()).toBe(' Break ready')
+    expect(wired.history.stats().today.minutesByLabel).toEqual([
+      { label: 'Focus', minutes: 25 },
+    ])
+
+    expect(wired.menubar.clickMenuItem('Start Break')).toBe(true)
+
+    expect(wired.menubar.title()).toBe(' Break 05:00')
   })
 
   it('declines a snooze whose new end has already gone by, and says so', () => {
@@ -373,12 +392,17 @@ describe('the running timer, saved for a restart', () => {
     })
 
     elapse(25 * MINUTE)
+    // A boundary waiting to be answered is a run in progress, so it is saved:
+    // a relaunch must not lose the phase the user was about to start.
     expect(wired.snapshot.load()).toMatchObject({
-      status: 'running',
+      status: 'awaiting',
       phaseIndex: 1,
+      completedIndex: 0,
     })
 
+    wired.invoke(IPC.confirmNext)
     elapse(5 * MINUTE)
+    wired.invoke(IPC.confirmNext)
     expect(wired.snapshot.load()).toBeNull()
   })
 
@@ -421,7 +445,27 @@ describe('the running timer, saved for a restart', () => {
       body: 'Break starting now',
     })
     expect(wired.history.stats().today.completed).toBe(1)
-    expect(wired.menubar.title()).toBe(' Break 04:00')
+    // Not one minute into Break: it has not started, and starting it is what
+    // the user is being asked about.
+    expect(wired.menubar.title()).toBe(' Break ready')
+    expect(wired.invoke(IPC.confirmNext)).toBe(true)
+    expect(wired.menubar.title()).toBe(' Break 05:00')
+  })
+
+  it('resumes a boundary that was still waiting when the app was closed', () => {
+    now = 40 * MINUTE
+    const wired = build({
+      status: 'awaiting',
+      preset: pomodoro,
+      phaseIndex: 1,
+      completedIndex: 0,
+      boundaryAt: 25 * MINUTE,
+    })
+
+    // Fifteen minutes of the app being shut is not fifteen minutes of Break.
+    expect(wired.menubar.title()).toBe(' Break ready')
+    expect(wired.invoke(IPC.confirmNext)).toBe(true)
+    expect(wired.menubar.title()).toBe(' Break 05:00')
   })
 })
 
@@ -456,7 +500,7 @@ describe('reminders, saved for a restart', () => {
     ])
   })
 
-  it('drains a due reminder from while the app was closed', () => {
+  it('fires a reminder that came due while the app was closed, and waits', () => {
     now = 31 * MINUTE
     const wired = build(null, {
       reminders: [water],
@@ -465,8 +509,51 @@ describe('reminders, saved for a restart', () => {
       ],
     })
 
+    // No next interval yet: the glass of water has not been answered for.
     expect(wired.reminderService.getState()).toEqual([
-      { definitionId: 'water', nextFireAt: 60 * MINUTE, stepIndex: 0 },
+      { definitionId: 'water', nextFireAt: null, stepIndex: 0 },
+    ])
+    expect(wired.reminderAlerts.showOverlay).toHaveBeenCalledOnce()
+  })
+
+  it('starts a reminder from the tray menu, interval running from the click', () => {
+    const wired = build(null, { reminders: [water] })
+    elapse(20 * MINUTE)
+
+    expect(wired.menubar.clickMenuItem('Restart Drink water')).toBe(true)
+
+    expect(wired.reminderService.getState()).toEqual([
+      { definitionId: 'water', nextFireAt: 50 * MINUTE, stepIndex: 0 },
+    ])
+    expect(wired.reminderRunStore.load()).toEqual([
+      { definitionId: 'water', nextFireAt: 50 * MINUTE, stepIndex: 0 },
+    ])
+  })
+
+  it('enables a disabled reminder started from the tray menu', () => {
+    const wired = build(null, {
+      reminders: [{ ...water, enabled: false }],
+    })
+
+    expect(wired.menubar.clickMenuItem('Start Drink water')).toBe(true)
+
+    expect(wired.reminderStore.list()).toEqual([water])
+    expect(wired.reminderService.getState()).toEqual([
+      { definitionId: 'water', nextFireAt: 30 * MINUTE, stepIndex: 0 },
+    ])
+  })
+
+  it('starts the next interval from the answer, not from the boundary', () => {
+    const wired = build(null, { reminders: [water] })
+    elapse(30 * MINUTE)
+    // Five minutes to get to the overlay: the next glass is thirty minutes
+    // after the answer, so the wait is not taken out of the interval.
+    elapse(5 * MINUTE)
+
+    wired.invoke(IPC.completeReminder, null)
+
+    expect(wired.reminderService.getState()).toEqual([
+      { definitionId: 'water', nextFireAt: 65 * MINUTE, stepIndex: 0 },
     ])
   })
 
@@ -498,7 +585,7 @@ describe('reminders, saved for a restart', () => {
     expect(window.on(PUSH.reminders)).toEqual([
       {
         channel: PUSH.reminders,
-        payload: [{ ...water, nextFireAt: 30 * MINUTE }],
+        payload: [{ ...water, nextFireAt: 30 * MINUTE, awaiting: false }],
       },
     ])
   })
@@ -511,7 +598,9 @@ describe('reminders, saved for a restart', () => {
 
     expect(window.on(PUSH.reminders).at(-1)).toEqual({
       channel: PUSH.reminders,
-      payload: [{ ...water, enabled: false, nextFireAt: null }],
+      payload: [
+        { ...water, enabled: false, nextFireAt: null, awaiting: false },
+      ],
     })
   })
 

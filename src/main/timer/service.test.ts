@@ -354,3 +354,55 @@ describe('createTimerService', () => {
     service.dispose()
   })
 })
+
+describe('a boundary waiting to be confirmed', () => {
+  it('pushes a view that names the phase about to start, at its full length', () => {
+    const service = createTimerService(clock)
+    service.startPreset(pomodoro)
+
+    elapse(25 * MS_PER_MINUTE)
+
+    expect(service.getView()).toMatchObject({
+      running: true,
+      awaiting: true,
+      phaseLabel: 'Break',
+      countdown: '05:00',
+      phaseIndex: 1,
+      phaseProgress: 0,
+    })
+    service.dispose()
+  })
+
+  it('stops polling while it waits, and starts again when confirmed', () => {
+    const service = createTimerService(clock)
+    const updates: TimerUpdate[] = []
+    service.startPreset(pomodoro)
+    elapse(25 * MS_PER_MINUTE)
+    service.subscribe((update) => updates.push(update))
+
+    // Nothing is counting, so there is nothing to poll for: a minute of waiting
+    // pushes no views at all.
+    elapse(MS_PER_MINUTE)
+    expect(updates).toHaveLength(0)
+
+    expect(service.confirm()).toBe(true)
+    elapse(2_000)
+
+    // The confirm itself, then a view a second.
+    expect(updates.length).toBeGreaterThan(2)
+    expect(service.getView()).toMatchObject({
+      awaiting: false,
+      phaseLabel: 'Break',
+      countdown: '04:58',
+    })
+    service.dispose()
+  })
+
+  it('has nothing to confirm while a phase is running', () => {
+    const service = createTimerService(clock)
+    service.startPreset(pomodoro)
+
+    expect(service.confirm()).toBe(false)
+    service.dispose()
+  })
+})

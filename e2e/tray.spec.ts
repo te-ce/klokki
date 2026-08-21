@@ -6,6 +6,7 @@ import {
   close,
   isRunning,
   launch,
+  menuLabels,
   phaseLabel,
   startPreset,
   stop,
@@ -109,6 +110,50 @@ test('@smoke skips to the next phase from the tray menu', async () => {
   expect(await phaseLabel(app)).toBe('Standing')
   // Standing runs its full fifteen minutes, starting now.
   expect(await trayTitle(app)).toMatch(/^\s*Standing 15:00$/)
+
+  await close(app)
+})
+
+/**
+ * A reminder with an interval no test would sit through: the point here is that
+ * the tray can start it at all, and that the item names what clicking it does.
+ */
+const seedReminder = (enabled: boolean) => (userDataDir: string) => {
+  writeFileSync(
+    join(userDataDir, 'reminders.json'),
+    JSON.stringify({
+      schemaVersion: 1,
+      reminders: [
+        {
+          id: 'water',
+          name: 'Drink water',
+          intervalMinutes: 30,
+          steps: [{ label: 'Drink a glass of water' }],
+          enabled,
+        },
+      ],
+    }),
+    'utf8',
+  )
+}
+
+test('@smoke starts a reminder from the tray menu', async () => {
+  const app = await launch(seedReminder(false))
+
+  // Off, so it offers to start it; the heading keeps it apart from the presets.
+  expect(await menuLabels(app)).toContain('Reminders')
+  expect(await menuLabels(app)).toContain('Start Drink water')
+
+  expect(await clickMenuItem(app, 'Start Drink water')).toBe(true)
+
+  // Scheduled now, which is what turns the item into a restart — and enabled in
+  // the file, so a relaunch keeps it.
+  await expect
+    .poll(() => menuLabels(app), { timeout: 5_000 })
+    .toContain('Restart Drink water')
+  expect(
+    JSON.parse(readFileSync(join(app.userDataDir, 'reminders.json'), 'utf8')),
+  ).toMatchObject({ reminders: [{ id: 'water', enabled: true }] })
 
   await close(app)
 })

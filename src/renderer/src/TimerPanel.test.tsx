@@ -3,6 +3,7 @@ import { beforeEach, expect, it, vi } from 'vitest'
 import { MS_PER_MINUTE, type Preset } from '../../shared/preset'
 import type { TimerView } from '../../shared/timer'
 import {
+  awaitingView,
   fakeKlokki,
   IDLE_VIEW as IDLE,
   runningView,
@@ -225,4 +226,25 @@ it('offers nothing to skip while idle', async () => {
   expect(
     screen.queryByRole('button', { name: /^Skip/ }),
   ).not.toBeInTheDocument()
+})
+
+it('starts the phase a waiting boundary is holding, instead of skipping it', async () => {
+  api = mockApi(awaitingView())
+  render(<TimerPanel />)
+
+  // Break has not begun, so there is nothing to skip: the button starts it.
+  expect(
+    screen.queryByRole('button', { name: /^Skip/ }),
+  ).not.toBeInTheDocument()
+  fireEvent.click(await screen.findByRole('button', { name: 'Start Break' }))
+
+  expect(api.confirmNext).toHaveBeenCalledOnce()
+  expect(api.skipPhase).not.toHaveBeenCalled()
+})
+
+it('says a waiting run is waiting, so its still countdown is not read as stuck', async () => {
+  api = mockApi(awaitingView())
+  render(<TimerPanel />)
+
+  expect(await screen.findByText('waiting to start')).toBeVisible()
 })

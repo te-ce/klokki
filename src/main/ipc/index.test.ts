@@ -20,7 +20,11 @@ const water: ReminderDefinition = {
   enabled: true,
 }
 
-const waterView: ReminderView = { ...water, nextFireAt: 1_800_000 }
+const waterView: ReminderView = {
+  ...water,
+  nextFireAt: 1_800_000,
+  awaiting: false,
+}
 
 const IDLE = IDLE_VIEW
 
@@ -49,6 +53,7 @@ const wire = (overrides: Partial<IpcDeps> = {}) => {
     stop: vi.fn(),
     snooze: vi.fn(() => true),
     skip: vi.fn(() => true),
+    confirm: vi.fn(() => true),
     setRemaining: vi.fn(() => true),
     addTime: vi.fn(() => true),
     getView: vi.fn(() => IDLE),
@@ -187,13 +192,25 @@ describe('what the handlers do', () => {
     })
   })
 
-  it('closes the overlay when the alert is dismissed', () => {
+  it('starts the waiting phase and closes the overlay when the alert is dismissed', () => {
     const app = wire()
 
     app.invoke(IPC.dismissAlert)
 
+    // Acknowledging the boundary is what starts the phase behind it: closing
+    // the window without confirming would leave the run parked for good.
+    expect(app.service.confirm).toHaveBeenCalledOnce()
     expect(app.overlay.close).toHaveBeenCalledOnce()
     expect(app.service.snooze).not.toHaveBeenCalled()
+  })
+
+  it('confirms a waiting boundary for a window that is not the overlay', () => {
+    const app = wire()
+
+    expect(app.invoke(IPC.confirmNext)).toBe(true)
+
+    expect(app.service.confirm).toHaveBeenCalledOnce()
+    expect(app.overlay.close).not.toHaveBeenCalled()
   })
 
   it('defers the boundary and closes the overlay on a snooze', () => {

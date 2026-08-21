@@ -7,6 +7,27 @@ import {
 
 export type TimerState =
   | { readonly status: 'idle' }
+  /**
+   * A boundary the user has not answered yet: the phase that ended is over, the
+   * one that follows is chosen but not started, and no time is passing.
+   *
+   * A phase list is a sequence of things the user is meant to *do*, so a
+   * boundary that starts the next phase on its own hands them a stretch they
+   * spent reading the overlay. Holding here instead means the next phase always
+   * gets its full length, measured from the moment the user says they are
+   * ready — and that a machine asleep for an hour comes back with one boundary
+   * to answer rather than twelve phases already spent.
+   */
+  | {
+      readonly status: 'awaiting'
+      readonly preset: Preset
+      /** The phase that starts once the boundary is confirmed. */
+      readonly phaseIndex: number
+      /** Which phase ended here — what a snooze extends. */
+      readonly completedIndex: number
+      /** When it ended. A snooze defers this, never the moment of the click. */
+      readonly boundaryAt: number
+    }
   | {
       readonly status: 'running'
       readonly preset: Preset
@@ -86,13 +107,29 @@ export const start = (preset: Preset, now: number): TimerState => {
   }
 }
 
+/**
+ * The phase the run is on: the one counting down, or — while a boundary waits to
+ * be answered — the one that is about to. Both are "the phase the user is
+ * looking at", which is what every caller here means by it.
+ */
 export const currentPhase = (state: TimerState): Phase | null =>
-  state.status === 'running'
-    ? (state.preset.phases[state.phaseIndex] ?? null)
+  state.status === 'idle'
+    ? null
+    : (state.preset.phases[state.phaseIndex] ?? null)
+
+/** The phase that ended at an unanswered boundary. */
+export const completedPhase = (state: TimerState): Phase | null =>
+  state.status === 'awaiting'
+    ? (state.preset.phases[state.completedIndex] ?? null)
     : null
 
 export const remainingMs = (state: TimerState, now: number): number => {
-  if (state.status !== 'running' || !currentPhase(state)) return 0
+  const phase = currentPhase(state)
+  if (!phase) return 0
+  // An unanswered boundary has a phase but no clock: what is left of it is all
+  // of it, which is what a paused countdown should read.
+  if (state.status === 'awaiting') return phaseDurationMs(phase)
+  if (state.status !== 'running') return 0
   return Math.max(0, state.phaseEndsAt - now)
 }
 
@@ -106,6 +143,8 @@ export const remainingMs = (state: TimerState, now: number): number => {
  * than as more than full.
  */
 export const stretchProgress = (state: TimerState, now: number): number => {
+  // A phase that has not started has run none of itself, however long the user
+  // takes to answer the boundary before it.
   if (state.status !== 'running' || !currentPhase(state)) return 0
   const length = state.phaseEndsAt - state.phaseStartedAt
   if (length <= 0) return 1
@@ -121,58 +160,109 @@ const nextIndex = (preset: Preset, index: number): number | null => {
 
 /** What starts when the current phase ends, or null when nothing will. */
 export const nextPhase = (state: TimerState): Phase | null => {
-  if (state.status !== 'running' || !currentPhase(state)) return null
+  if (state.status === 'idle' || !currentPhase(state)) return null
   const index = nextIndex(state.preset, state.phaseIndex)
   return index === null ? null : (state.preset.phases[index] ?? null)
 }
 
-/** Where the phase before `index` lives — the one whose end started `index`. */
-const previousIndex = (preset: Preset, index: number): number | null => {
-  if (index > 0) return index - 1
-  return preset.loop ? preset.phases.length - 1 : null
-}
-
 /**
- * Advances the timer to whichever phase contains `now`.
+ * Advances the timer as far as the clock allows, which is at most one boundary.
  *
- * Timing is wall-clock (see AGENTS.md), so after the machine has been asleep for
- * an hour several phases may have elapsed at once — this drains all of them and
- * reports every transition, rather than assuming one tick is one phase. Each
- * phase starts at the previous phase's exact end, so a 1s polling interval
- * cannot accumulate drift.
+ * Timing is wall-clock (see AGENTS.md), so the machine can be asked about a
+ * `now` an hour past the phase it was running — but a boundary holds the run
+ * until the user answers it, so nothing behind that boundary has elapsed. One
+ * tick therefore reports at most one transition, and a machine woken from sleep
+ * comes back asking about the phase that ended rather than about the twelve that
+ * would have gone by unattended.
+ *
+ * A run whose last phase ends, and that does not loop, goes idle instead of
+ * waiting: there is nothing left to start.
  */
 export const tick = (state: TimerState, now: number): TickResult => {
-  const transitions: Transition[] = []
-  let current = state
+  if (state.status !== 'running') return { state, transitions: [] }
 
-  for (;;) {
-    const phase = currentPhase(current)
-    if (current.status !== 'running' || !phase)
-      return { state: IDLE, transitions }
+  const phase = currentPhase(state)
+  if (!phase) return { state: IDLE, transitions: [] }
+  if (now < state.phaseEndsAt) return { state, transitions: [] }
 
-    const endsAt = current.phaseEndsAt
-    if (now < endsAt) return { state: current, transitions }
-
-    const index = nextIndex(current.preset, current.phaseIndex)
-    const upcoming =
-      index === null ? null : (current.preset.phases[index] ?? null)
-    transitions.push({
+  const endsAt = state.phaseEndsAt
+  const index = nextIndex(state.preset, state.phaseIndex)
+  const upcoming = index === null ? null : (state.preset.phases[index] ?? null)
+  const transitions: readonly Transition[] = [
+    {
       completed: phase,
       next: upcoming,
       cause: 'elapsed',
-      presetId: current.preset.id,
-      startedAt: current.phaseStartedAt,
+      presetId: state.preset.id,
+      startedAt: state.phaseStartedAt,
       at: endsAt,
-    })
+    },
+  ]
 
-    if (index === null || !upcoming) return { state: IDLE, transitions }
-    current = {
-      ...current,
+  if (index === null || !upcoming) return { state: IDLE, transitions }
+
+  return {
+    state: {
+      status: 'awaiting',
+      preset: state.preset,
       phaseIndex: index,
-      phaseStartedAt: endsAt,
-      phaseEndsAt: endsAt + phaseDurationMs(upcoming),
-      snoozedMs: 0,
-    }
+      completedIndex: state.phaseIndex,
+      boundaryAt: endsAt,
+    },
+    transitions,
+  }
+}
+
+/**
+ * Starts the phase an unanswered boundary is holding, because the user said they
+ * are ready.
+ *
+ * The phase gets its full configured length from `now`, not from the boundary:
+ * the point of waiting is that the minutes the user spent getting to the overlay
+ * are not minutes of the phase they were promised. Anything but a waiting
+ * machine is returned untouched — a confirm arriving after a Stop must not
+ * restart the run.
+ */
+export const confirm = (state: TimerState, now: number): TimerState => {
+  if (state.status !== 'awaiting') return state
+
+  const phase = currentPhase(state)
+  if (!phase) return IDLE
+
+  return {
+    status: 'running',
+    preset: state.preset,
+    phaseIndex: state.phaseIndex,
+    phaseStartedAt: now,
+    phaseEndsAt: now + phaseDurationMs(phase),
+    snoozedMs: 0,
+  }
+}
+
+/**
+ * Gives the phase that ended `extraMs` more of itself, from the boundary rather
+ * than from now — what both a snooze and "+5 min" at an unanswered boundary
+ * mean. Null when there is nothing to give it to, or when the extended end has
+ * already gone by: time only ever moves forwards.
+ */
+const deferBoundary = (
+  state: TimerState,
+  now: number,
+  extraMs: number,
+): TimerState | null => {
+  if (state.status !== 'awaiting') return null
+
+  const phase = completedPhase(state)
+  const endsAt = state.boundaryAt + extraMs
+  if (!phase || endsAt <= now) return null
+
+  return {
+    status: 'running',
+    preset: state.preset,
+    phaseIndex: state.completedIndex,
+    phaseStartedAt: state.boundaryAt,
+    phaseEndsAt: endsAt,
+    snoozedMs: extraMs,
   }
 }
 
@@ -188,10 +278,17 @@ export const tick = (state: TimerState, now: number): TickResult => {
  *
  * Skipping the last phase of a preset that does not loop ends the run, exactly
  * as letting it elapse would.
+ *
+ * At a boundary nobody has answered yet, skipping *is* confirming: the next
+ * phase is the one the user is being asked about, and there is no running phase
+ * left to cut short.
  */
 export const skip = (state: TimerState, now: number): TickResult => {
   const drained = tick(state, now)
   const current = drained.state
+  if (current.status === 'awaiting')
+    return { state: confirm(current, now), transitions: drained.transitions }
+
   const phase = currentPhase(current)
   if (current.status !== 'running' || !phase) return drained
 
@@ -257,6 +354,10 @@ export const setRemaining = (
  * the user is actually looking at, the same rule `setRemaining` follows. Unlike
  * `setRemaining` this is relative to wherever the countdown already is, which is
  * what lets the tray offer it with no input to read back.
+ *
+ * At an unanswered boundary the phase the user is looking at is the one that
+ * just ended, so this gives them more of *that* — the same move a snooze makes,
+ * without calling itself one.
  */
 export const addTime = (
   state: TimerState,
@@ -265,6 +366,8 @@ export const addTime = (
 ): TickResult => {
   const drained = tick(state, now)
   const current = drained.state
+  const deferred = deferBoundary(current, now, extraMs)
+  if (deferred) return { state: deferred, transitions: drained.transitions }
   if (current.status !== 'running' || !currentPhase(current)) return drained
 
   return {
@@ -276,53 +379,46 @@ export const addTime = (
 /**
  * Defers the boundary the user was just told about, by `extraMs`.
  *
- * By the time the overlay is answered the machine has already moved on, so a
- * snooze goes *back* to the phase that ended and re-ends it `extraMs` after the
- * boundary — not `extraMs` after the click, which would let click latency drift
- * the rest of the sequence. The phase that follows keeps its full length,
- * because its length is applied when it finally starts.
+ * The boundary is still there to defer — the run is holding at it until it is
+ * answered — so a snooze re-ends the phase that finished `extraMs` after the
+ * boundary itself, not after the click, which would let the seconds spent
+ * reaching the overlay drift the rest of the sequence. The phase that follows
+ * keeps its full length, because its length is applied when it finally starts.
  *
  * Snoozing an already-snoozed stretch extends that stretch instead of stepping
  * back a second phase: two clicks on one overlay must not rewind the timer.
  *
  * Nothing happens when the deferred boundary would land in the past — a snooze
- * only ever moves time forwards.
+ * only ever moves time forwards — and nothing happens when there is no boundary
+ * to defer at all.
  */
 export const snooze = (
   state: TimerState,
   now: number,
   extraMs: number,
 ): SnoozeResult => {
-  if (state.status !== 'running') return { state, snoozed: null }
-
-  if (state.snoozedMs > 0) {
-    const phase = currentPhase(state)
-    const endsAt = state.phaseEndsAt + extraMs
-    if (!phase || endsAt <= now) return { state, snoozed: null }
+  const deferred = deferBoundary(state, now, extraMs)
+  if (deferred) {
+    const phase = completedPhase(state)
+    if (state.status !== 'awaiting' || !phase) return { state, snoozed: null }
     return {
-      state: {
-        ...state,
-        phaseEndsAt: endsAt,
-        snoozedMs: state.snoozedMs + extraMs,
-      },
-      snoozed: { phase, at: state.phaseStartedAt, extendedByMs: extraMs },
+      state: deferred,
+      snoozed: { phase, at: state.boundaryAt, extendedByMs: extraMs },
     }
   }
 
-  const index = previousIndex(state.preset, state.phaseIndex)
-  const phase = index === null ? null : state.preset.phases[index]
-  const boundaryAt = state.phaseStartedAt
-  if (index === null || !phase || boundaryAt + extraMs <= now)
+  if (state.status !== 'running' || state.snoozedMs === 0)
     return { state, snoozed: null }
 
+  const phase = currentPhase(state)
+  const endsAt = state.phaseEndsAt + extraMs
+  if (!phase || endsAt <= now) return { state, snoozed: null }
   return {
     state: {
       ...state,
-      phaseIndex: index,
-      phaseStartedAt: boundaryAt,
-      phaseEndsAt: boundaryAt + extraMs,
-      snoozedMs: extraMs,
+      phaseEndsAt: endsAt,
+      snoozedMs: state.snoozedMs + extraMs,
     },
-    snoozed: { phase, at: boundaryAt, extendedByMs: extraMs },
+    snoozed: { phase, at: state.phaseStartedAt, extendedByMs: extraMs },
   }
 }

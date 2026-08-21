@@ -9,6 +9,8 @@ import { SEED_PRESETS } from '../../shared/presets'
 import {
   IDLE,
   addTime,
+  completedPhase,
+  confirm,
   currentPhase,
   nextPhase,
   remainingMs,
@@ -86,11 +88,40 @@ describe('tick', () => {
     expect(remainingMs(result.state, T0 + minutes(25))).toBe(minutes(5))
   })
 
-  it('wraps a looping preset back to the first phase', () => {
-    const result = tick(start(pomodoro, T0), T0 + minutes(30))
+  it('holds at the boundary instead of starting the next phase', () => {
+    const result = tick(start(pomodoro, T0), T0 + minutes(25))
 
-    expect(result.transitions).toHaveLength(2)
-    expect(currentPhase(result.state)?.label).toBe('Focus')
+    expect(result.state.status).toBe('awaiting')
+    expect(completedPhase(result.state)?.label).toBe('Focus')
+    // Break is chosen, and still whole: no part of it was spent waiting.
+    expect(currentPhase(result.state)?.label).toBe('Break')
+    expect(remainingMs(result.state, T0 + minutes(30))).toBe(minutes(5))
+    expect(stretchProgress(result.state, T0 + minutes(30))).toBe(0)
+  })
+
+  it('reports nothing more until the boundary is confirmed', () => {
+    const waiting = tick(start(pomodoro, T0), T0 + minutes(25)).state
+
+    // An hour later, still the same unanswered boundary: the phases behind it
+    // did not happen, because they never started.
+    expect(tick(waiting, T0 + minutes(85))).toEqual({
+      state: waiting,
+      transitions: [],
+    })
+  })
+
+  it('wraps a looping preset back to the first phase, one confirmation at a time', () => {
+    const onBreak = confirm(
+      tick(start(pomodoro, T0), T0 + minutes(25)).state,
+      T0 + minutes(25),
+    )
+    const wrapped = confirm(
+      tick(onBreak, T0 + minutes(30)).state,
+      T0 + minutes(30),
+    )
+
+    expect(currentPhase(wrapped)?.label).toBe('Focus')
+    expect(remainingMs(wrapped, T0 + minutes(30))).toBe(minutes(25))
   })
 
   it('goes idle when a non-looping preset runs out', () => {
@@ -118,7 +149,7 @@ describe('tick', () => {
 
   // Wall-clock timing: the machine gets no wake-up notification, so the first
   // tick after the lid opens has to account for everything that elapsed.
-  it('drains every phase that elapsed while the machine slept', () => {
+  it('reports one boundary however long the machine slept', () => {
     const timeline = tick(
       start(sitStand, T0),
       T0 + minutes(100),
@@ -127,25 +158,34 @@ describe('tick', () => {
         `+${(transition.at - T0) / MS_PER_MINUTE}m ${transition.completed.label} -> ${transition.next?.label}`,
     )
 
+    // Not four phases the user slept through: the first boundary is where the
+    // run stopped, and Standing is what they are being asked to start now.
     expect(timeline).toMatchInlineSnapshot(`
       [
         "+30m Sitting -> Standing",
-        "+45m Standing -> Sitting",
-        "+75m Sitting -> Standing",
-        "+90m Standing -> Sitting",
       ]
     `)
   })
 
   it('does not accumulate drift when polled irregularly', () => {
-    const irregular = [7, 13, 26, 31, 44, 46, 59, 61].reduce(
-      (state, minute) => tick(state, T0 + minutes(minute)).state,
-      start(pomodoro, T0),
-    )
+    // Each phase is confirmed the instant it is reported, which is the fastest
+    // a run can go: the boundaries still land on the configured minute, so a
+    // 1s poll cannot shave milliseconds off the sequence.
+    const boundaries: number[] = []
+    let state: ReturnType<typeof start> = start(pomodoro, T0)
+    for (const minute of [7, 13, 26, 31, 44, 46, 59, 61]) {
+      const result = tick(state, T0 + minutes(minute))
+      for (const transition of result.transitions)
+        boundaries.push((transition.at - T0) / MS_PER_MINUTE)
+      state = confirm(result.state, T0 + minutes(minute))
+    }
 
-    // Two full 30-minute cycles have passed, so minute 61 sits 1 minute into Focus.
-    expect(currentPhase(irregular)?.label).toBe('Focus')
-    expect(remainingMs(irregular, T0 + minutes(61))).toBe(minutes(24))
+    // Focus ends at 25, Break five minutes after it was confirmed at 26, Focus
+    // twenty-five after it was confirmed at 31: every boundary is its phase's
+    // full length past the start it was given, whenever the poll noticed.
+    expect(boundaries).toEqual([25, 31, 56])
+    expect(currentPhase(state)?.label).toBe('Break')
+    expect(remainingMs(state, T0 + minutes(61))).toBe(minutes(3))
   })
 })
 
@@ -166,7 +206,7 @@ describe('tick properties', () => {
 
   const elapsedMs = fc.integer({ min: 0, max: 24 * 60 * MS_PER_MINUTE })
 
-  it('always leaves the timer inside the phase containing now', () => {
+  it('never leaves a phase running past its end', () => {
     fc.assert(
       fc.property(runnablePreset, elapsedMs, (preset, elapsed) => {
         const now = T0 + elapsed
@@ -174,12 +214,18 @@ describe('tick properties', () => {
         const phase = currentPhase(state)
 
         expect(phase).not.toBeNull()
-        expect(state.status === 'running' && state.phaseStartedAt <= now).toBe(
-          true,
-        )
         const remaining = remainingMs(state, now)
         expect(remaining).toBeGreaterThan(0)
         expect(remaining).toBeLessThanOrEqual(phaseDurationMs(phase!))
+
+        // Either the phase still has time on it, or the run is holding at the
+        // boundary with the next phase whole — never a phase that has overrun.
+        if (state.status === 'awaiting')
+          expect(remaining).toBe(phaseDurationMs(phase!))
+        else
+          expect(
+            state.status === 'running' && state.phaseStartedAt <= now,
+          ).toBe(true)
       }),
     )
   })
@@ -432,7 +478,7 @@ describe('setRemaining', () => {
     expect(remainingMs(result.state, T0 + minutes(2))).toBe(0)
   })
 
-  it('drains a boundary the poll had not reported yet before correcting', () => {
+  it('reports a boundary the poll had not seen yet, and corrects nothing', () => {
     const at = T0 + minutes(25) + 1_000
     const result = setRemaining(start(pomodoro, T0), at, minutes(3))
 
@@ -446,8 +492,10 @@ describe('setRemaining', () => {
         at: T0 + minutes(25),
       },
     ])
-    expect(currentPhase(result.state)?.label).toBe('Break')
-    expect(remainingMs(result.state, at)).toBe(minutes(3))
+    // Break has not started, so there is no remaining time to pull into line —
+    // it will get its full five minutes whenever it is confirmed.
+    expect(result.state.status).toBe('awaiting')
+    expect(remainingMs(result.state, at)).toBe(minutes(5))
   })
 
   it('has nothing to correct while idle', () => {
@@ -469,7 +517,7 @@ describe('addTime', () => {
     )
   })
 
-  it('drains a boundary the poll had not reported yet before adding', () => {
+  it('gives the phase that ended more of itself at an unanswered boundary', () => {
     const at = T0 + minutes(25) + 1_000
     const result = addTime(start(pomodoro, T0), at, minutes(5))
 
@@ -483,8 +531,10 @@ describe('addTime', () => {
         at: T0 + minutes(25),
       },
     ])
-    expect(currentPhase(result.state)?.label).toBe('Break')
-    expect(remainingMs(result.state, at)).toBe(minutes(10) - 1_000)
+    // Five more minutes of Focus, measured from the boundary rather than from
+    // the click — the same anchor a snooze uses.
+    expect(currentPhase(result.state)?.label).toBe('Focus')
+    expect(remainingMs(result.state, at)).toBe(minutes(5) - 1_000)
   })
 
   it('has nothing to add to while idle', () => {
@@ -533,19 +583,19 @@ describe('skip', () => {
     expect(remainingMs(result.state, clicked)).toBe(minutes(5))
   })
 
-  it('drains a boundary the poll had not reported yet, then skips the phase the user saw', () => {
-    // A second past the Focus boundary, before the poll fired: the phase the
-    // user is looking at is Break, and that is the one the skip must end.
+  it('starts the phase an unanswered boundary is holding, and skips nothing', () => {
+    // A second past the Focus boundary, before the poll fired: Break has not
+    // begun, so there is nothing to cut short — skipping is starting it.
     const at = T0 + minutes(25) + 1_000
     const result = skip(start(pomodoro, T0), at)
 
     expect(result.transitions.map((transition) => transition.cause)).toEqual([
       'elapsed',
-      'skipped',
     ])
     expect(result.transitions[0]?.completed.label).toBe('Focus')
-    expect(result.transitions[1]?.completed.label).toBe('Break')
-    expect(currentPhase(result.state)?.label).toBe('Focus')
+    expect(result.state.status).toBe('running')
+    expect(currentPhase(result.state)?.label).toBe('Break')
+    expect(remainingMs(result.state, at)).toBe(minutes(5))
   })
 
   it('ends the run when the last phase of a non-looping preset is skipped', () => {
@@ -630,5 +680,27 @@ describe('stretchProgress', () => {
         },
       ),
     )
+  })
+})
+
+describe('confirm', () => {
+  it('starts the waiting phase in full, from the moment it was confirmed', () => {
+    const boundary = T0 + minutes(25)
+    const answered = boundary + minutes(3)
+    const state = confirm(tick(start(pomodoro, T0), boundary).state, answered)
+
+    // Three minutes went by getting to the overlay, and none of them came out
+    // of the break: that is the whole reason the run waited.
+    expect(state.status).toBe('running')
+    expect(currentPhase(state)?.label).toBe('Break')
+    expect(remainingMs(state, answered)).toBe(minutes(5))
+    expect(stretchProgress(state, answered)).toBe(0)
+  })
+
+  it('is a no-op with no boundary waiting', () => {
+    const running = start(pomodoro, T0)
+
+    expect(confirm(running, T0 + minutes(1))).toBe(running)
+    expect(confirm(IDLE, T0)).toBe(IDLE)
   })
 })

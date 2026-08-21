@@ -8,7 +8,11 @@ import type { ReminderHistoryStats } from '../../../shared/reminder-history'
 import { IDLE_VIEW } from '../../../shared/test-support/timer-view'
 import type { TimerView } from '../../../shared/timer'
 
-export { IDLE_VIEW, runningView } from '../../../shared/test-support/timer-view'
+export {
+  awaitingView,
+  IDLE_VIEW,
+  runningView,
+} from '../../../shared/test-support/timer-view'
 
 /** Fixed, so a test never depends on the day it runs on. */
 export const TODAY = '2026-08-20'
@@ -74,6 +78,7 @@ export const fakeKlokki = (overrides: Partial<KlokkiApi> = {}): FakeKlokki => {
     getReminderStats: () => Promise.resolve(emptyReminderStats),
     startPreset: () => Promise.resolve(),
     stopTimer: () => Promise.resolve(),
+    confirmNext: () => Promise.resolve(true),
     skipPhase: () => Promise.resolve(true),
     setRemaining: () => Promise.resolve(true),
     addTime: () => Promise.resolve(true),

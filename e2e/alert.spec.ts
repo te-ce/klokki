@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
+  clickMenuItem,
   close,
   dockVisible,
   launch,
@@ -9,6 +10,7 @@ import {
   phaseLabel,
   remaining,
   startPreset,
+  trayTitle,
   type KlokkiApp,
 } from './harness'
 
@@ -55,14 +57,19 @@ test('@smoke a phase ending raises an overlay that waits to be acknowledged', as
 
   await expect(page.getByTestId('transition-overlay')).toBeVisible()
   await expect(page.getByText('Tick finished')).toBeVisible()
-  await expect(page.getByText('Tock')).toBeVisible()
+  await expect(page.getByText('Tock', { exact: true })).toBeVisible()
 
   // Still there a few seconds later: acknowledgement is the only way out.
   await page.waitForTimeout(3_000)
   expect(await overlay(app)).toMatchObject({ open: true })
 
-  await page.getByRole('button', { name: 'Dismiss' }).click()
+  // Named by what it does: the run is holding at this boundary, so the click is
+  // what starts Tock — at its full five minutes, however long the overlay sat.
+  await page.getByRole('button', { name: 'Start Tock' }).click()
   await expect.poll(() => overlay(app), { timeout: 5_000 }).toBeNull()
+
+  expect(await phaseLabel(app)).toBe('Tock')
+  expect(await remaining(app)).toBeGreaterThan(4 * 60_000 + 55_000)
 
   await close(app)
 })
@@ -95,6 +102,23 @@ test('a phase with notify unset ends without an overlay', async () => {
   await new Promise((resolve) => setTimeout(resolve, 4_000))
 
   expect(await overlay(app)).toBeNull()
+
+  await close(app)
+})
+
+test('the tray holds the boundary until it is started from the menu', async () => {
+  const app = await launch(seedBlink(true))
+
+  await overlayPage(app)
+  // Tick is over and Tock has not begun: the title says what it is waiting for
+  // rather than a countdown that never moves.
+  await expect
+    .poll(() => trayTitle(app), { timeout: 5_000 })
+    .toMatch(/^\s*Tock ready$/)
+
+  expect(await clickMenuItem(app, 'Start Tock')).toBe(true)
+
+  expect(await trayTitle(app)).toMatch(/^\s*Tock 05:00$/)
 
   await close(app)
 })

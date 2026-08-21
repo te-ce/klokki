@@ -42,14 +42,19 @@ const summarise = (reminder: ReminderDefinition): string =>
     .map((step) => (step.unit ? `${step.label} (${step.unit})` : step.label))
     .join(' · ')
 
-/** "3:45 PM" for a scheduled reminder, or nothing for one that has no next fire. */
-const formatNextFire = (nextFireAt: number | null): string =>
-  nextFireAt === null
-    ? 'Not scheduled'
-    : `Next at ${new Date(nextFireAt).toLocaleTimeString([], {
-        hour: 'numeric',
-        minute: '2-digit',
-      })}`
+/**
+ * When the reminder next speaks: a clock time, "waiting for you" while its last
+ * step is unanswered — the interval after it does not start until then — or
+ * nothing scheduled at all.
+ */
+const formatNextFire = (reminder: ReminderView): string => {
+  if (reminder.awaiting) return 'Waiting for you'
+  if (reminder.nextFireAt === null) return 'Not scheduled'
+  return `Next at ${new Date(reminder.nextFireAt).toLocaleTimeString([], {
+    hour: 'numeric',
+    minute: '2-digit',
+  })}`
+}
 
 /**
  * The reminder editor. Its own list and its own create form, independent of
@@ -156,7 +161,7 @@ export const RemindersSection = () => {
                   every {reminder.intervalMinutes}m · {summarise(reminder)}
                 </span>
                 <span className="text-ink-hush ml-auto shrink-0 text-[11px] tabular-nums">
-                  {formatNextFire(reminder.nextFireAt)}
+                  {formatNextFire(reminder)}
                 </span>
                 <ChevronRightIcon className="text-ink-hush size-3.5 shrink-0" />
               </button>

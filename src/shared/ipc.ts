@@ -26,6 +26,7 @@ export const IPC = {
   setLaunchAtLogin: 'klokki:set-launch-at-login',
   stopTimer: 'klokki:stop-timer',
   skipPhase: 'klokki:skip-phase',
+  confirmNext: 'klokki:confirm-next',
   setRemaining: 'klokki:set-remaining',
   addTime: 'klokki:add-time',
   dismissAlert: 'klokki:dismiss-alert',
@@ -90,6 +91,14 @@ export interface KlokkiApi {
    * boundary. Resolves to whether anything moved; nothing does while idle.
    */
   skipPhase(): Promise<boolean>
+  /**
+   * Starts the phase a boundary is holding, because the user said they are
+   * ready — the same thing dismissing the transition overlay does, for a window
+   * that is looking at a waiting run instead. The phase gets its full length
+   * from now. Resolves to whether anything moved; nothing does unless the run is
+   * waiting.
+   */
+  confirmNext(): Promise<boolean>
   /**
    * Corrects the running phase's remaining time to `targetMs` — for a timer
    * started late, so the web UI can pull it back in sync with the wall clock.

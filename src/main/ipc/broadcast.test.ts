@@ -143,6 +143,7 @@ describe('createViewBroadcaster', () => {
       steps: [{ label: 'Drink a glass of water' }],
       enabled: true,
       nextFireAt: 1_800_000,
+      awaiting: false,
     }
 
     broadcaster.register(target)

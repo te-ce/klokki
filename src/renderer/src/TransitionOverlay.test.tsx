@@ -28,7 +28,7 @@ describe('TransitionOverlay', () => {
     expect(screen.getByText('Timer finished')).toBeVisible()
   })
 
-  it('dismisses only when the user acknowledges it', () => {
+  it('starts the phase that is waiting, named by what it starts', () => {
     const api = mockApi()
     render(
       <TransitionOverlay
@@ -36,7 +36,20 @@ describe('TransitionOverlay', () => {
       />,
     )
 
+    // The run is holding at this boundary until the click, so the button is
+    // named after what the click does rather than after closing a window.
     expect(api.dismissAlert).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Start Break' }))
+
+    expect(api.dismissAlert).toHaveBeenCalledOnce()
+  })
+
+  it('has only itself to dismiss when the run is over', () => {
+    const api = mockApi()
+    render(
+      <TransitionOverlay alert={{ completedLabel: 'Only', nextLabel: null }} />,
+    )
+
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
 
     expect(api.dismissAlert).toHaveBeenCalledOnce()
