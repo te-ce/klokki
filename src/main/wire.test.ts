@@ -5,7 +5,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { IPC, PUSH } from '../shared/ipc'
 import type { Preset } from '../shared/preset'
 import type { ReminderDefinition } from '../shared/reminder'
-import { createHistory, createReminderHistory } from './history'
+import type { SportSettings } from '../shared/sport'
+import {
+  createHistory,
+  createReminderHistory,
+  createSportsHistory,
+} from './history'
 import type { ViewTarget } from './ipc/broadcast'
 import type { MenubarAction, MenubarItem } from './menubar/surface'
 import type { PresetStore } from './presets/store'
@@ -13,6 +18,10 @@ import type { RemindersState } from './reminders/engine'
 import type { ReminderRunStore } from './reminders/run-store'
 import { createReminderService } from './reminders/service'
 import type { ReminderStore } from './reminders/store'
+import type { SportRunState } from './sports/engine'
+import type { SportRunStore } from './sports/run-store'
+import { createSportsService } from './sports/service'
+import type { SportStore } from './sports/store'
 import type { TimerState } from './timer/machine'
 import { createTimerService } from './timer/service'
 import type { SnapshotStore } from './timer/snapshot'
@@ -159,6 +168,46 @@ const fakeReminderRunStore = (
   }
 }
 
+/** A Sports store with no file behind it. */
+const fakeSportsStore = (
+  initial: SportSettings = {
+    intervalMinutes: 60,
+    activities: [{ id: 'situps', name: 'Situps' }],
+    enabled: false,
+  },
+): SportStore => {
+  let settings = initial
+  const listeners = new Set<(next: SportSettings) => void>()
+  return {
+    get: () => settings,
+    save: (next) => {
+      settings = next
+      for (const listener of listeners) listener(next)
+      return { ok: true }
+    },
+    subscribe: (listener) => {
+      listeners.add(listener)
+      return () => listeners.delete(listener)
+    },
+  }
+}
+
+/** A Sports run store with no file behind it, seeded with an optional saved run. */
+const fakeSportsRunStore = (
+  initial: SportRunState = { scheduled: false, nextFireAt: null },
+): SportRunStore & { load: () => SportRunState } => {
+  let saved = initial
+  return {
+    save: (state) => {
+      saved = state
+    },
+    clear: () => {
+      saved = { scheduled: false, nextFireAt: null }
+    },
+    load: () => saved,
+  }
+}
+
 let now = 0
 const clock = { now: () => now }
 
@@ -167,6 +216,8 @@ const build = (
   options: {
     reminders?: readonly ReminderDefinition[]
     reminderRun?: RemindersState
+    sports?: SportSettings
+    sportsRun?: SportRunState
   } = {},
 ) => {
   const store = fakeStore()
@@ -178,16 +229,25 @@ const build = (
     mkdtempSync(join(tmpdir(), 'klokki-wire-reminder-history-')),
     clock,
   )
+  const sportsHistory = createSportsHistory(
+    mkdtempSync(join(tmpdir(), 'klokki-wire-sports-history-')),
+    clock,
+  )
   const service = createTimerService(clock)
   const snapshot = fakeSnapshot(initialSnapshot)
   const reminderStore = fakeReminderStore(options.reminders)
   const reminderService = createReminderService(clock)
   const reminderRunStore = fakeReminderRunStore(options.reminderRun)
+  const sportsStore = fakeSportsStore(options.sports)
+  const sportsService = createSportsService(clock)
+  const sportsRunStore = fakeSportsRunStore(options.sportsRun)
   const menubar = fakeMenubar()
   const alerts = { notify: vi.fn(), showOverlay: vi.fn() }
   const overlay = { close: vi.fn() }
   const reminderAlerts = { notify: vi.fn(), showOverlay: vi.fn() }
   const reminderOverlay = { close: vi.fn() }
+  const sportsAlerts = { notify: vi.fn(), showOverlay: vi.fn() }
+  const sportsOverlay = { close: vi.fn() }
   const requests = new Map<string, (...args: readonly unknown[]) => unknown>()
   let onOpened: (window: WindowHandle) => void = () => {}
 
@@ -200,6 +260,10 @@ const build = (
     reminderStore,
     reminderService,
     reminderRunStore,
+    sportsHistory,
+    sportsStore,
+    sportsService,
+    sportsRunStore,
     loginItem: { isEnabled: () => false, setEnabled: () => true },
     requests: {
       handle: (channel, handler) => requests.set(channel, handler),
@@ -210,6 +274,8 @@ const build = (
     overlay,
     reminderAlerts,
     reminderOverlay,
+    sportsAlerts,
+    sportsOverlay,
     windows: {
       onOpened: (listener) => {
         onOpened = listener
@@ -227,16 +293,22 @@ const build = (
     store,
     history,
     reminderHistory,
+    sportsHistory,
     service,
     snapshot,
     reminderStore,
     reminderService,
     reminderRunStore,
+    sportsStore,
+    sportsService,
+    sportsRunStore,
     menubar,
     alerts,
     overlay,
     reminderAlerts,
     reminderOverlay,
+    sportsAlerts,
+    sportsOverlay,
     openWindow: () => {
       const window = fakeWindow()
       onOpened(window.handle)
@@ -690,6 +762,185 @@ describe('reminders, saved for a restart', () => {
     // A snoozed step logs no quantity, but the line was written — the same
     // re-read cue as any other stretch landing in a log.
     expect(window.on(PUSH.historyChanged).length).toBeGreaterThan(0)
+  })
+})
+
+describe('Sports, all the way out', () => {
+  const settings: SportSettings = {
+    intervalMinutes: 60,
+    activities: [
+      { id: 'situps', name: 'Situps' },
+      { id: 'squats', name: 'Squats' },
+    ],
+    enabled: true,
+  }
+
+  it('schedules Sports from the store on launch and persists it', () => {
+    const wired = build(null, { sports: settings })
+
+    expect(wired.sportsRunStore.load()).toEqual({
+      scheduled: true,
+      nextFireAt: 60 * MINUTE,
+    })
+  })
+
+  it('resumes a saved schedule instead of scheduling fresh', () => {
+    now = 10 * MINUTE
+    const wired = build(null, {
+      sports: settings,
+      sportsRun: { scheduled: true, nextFireAt: 20 * MINUTE },
+    })
+
+    expect(wired.sportsService.getState()).toEqual({
+      scheduled: true,
+      nextFireAt: 20 * MINUTE,
+    })
+  })
+
+  it('fires Sports that came due while the app was closed, and waits', () => {
+    now = 61 * MINUTE
+    const wired = build(null, {
+      sports: settings,
+      sportsRun: { scheduled: true, nextFireAt: 60 * MINUTE },
+    })
+
+    expect(wired.sportsService.getState()).toEqual({
+      scheduled: true,
+      nextFireAt: null,
+    })
+    expect(wired.sportsAlerts.showOverlay).toHaveBeenCalledWith({
+      activities: settings.activities,
+    })
+  })
+
+  it('starts Sports from the tray menu, interval running from the click', () => {
+    const wired = build(null, { sports: settings })
+    elapse(20 * MINUTE)
+
+    expect(wired.menubar.clickMenuItem('Restart Sports')).toBe(true)
+
+    expect(wired.sportsService.getState()).toEqual({
+      scheduled: true,
+      nextFireAt: 80 * MINUTE,
+    })
+    expect(wired.sportsRunStore.load()).toEqual({
+      scheduled: true,
+      nextFireAt: 80 * MINUTE,
+    })
+  })
+
+  it('enables Sports that was off, started from the tray menu', () => {
+    const wired = build(null, { sports: { ...settings, enabled: false } })
+
+    expect(wired.menubar.clickMenuItem('Start Sports')).toBe(true)
+
+    expect(wired.sportsStore.get().enabled).toBe(true)
+    expect(wired.sportsService.getState()).toEqual({
+      scheduled: true,
+      nextFireAt: 60 * MINUTE,
+    })
+  })
+
+  it('starts the next interval from the answer, not from the boundary', () => {
+    const wired = build(null, { sports: settings })
+    elapse(60 * MINUTE)
+    elapse(5 * MINUTE)
+
+    wired.invoke(IPC.confirmSports, { situps: 10, squats: 5 })
+
+    expect(wired.sportsService.getState()).toEqual({
+      scheduled: true,
+      nextFireAt: 125 * MINUTE,
+    })
+  })
+
+  it('drops the schedule when Sports is disabled', () => {
+    const wired = build(null, { sports: settings })
+
+    wired.sportsStore.save({ ...settings, enabled: false })
+
+    expect(wired.sportsRunStore.load()).toEqual({
+      scheduled: false,
+      nextFireAt: null,
+    })
+    expect(wired.sportsService.getState()).toEqual({
+      scheduled: false,
+      nextFireAt: null,
+    })
+  })
+
+  it('pushes the Sports view, joined with its schedule, to every open window', () => {
+    const wired = build(null, { sports: { ...settings, enabled: false } })
+    const window = wired.openWindow()
+
+    wired.sportsStore.save(settings)
+
+    expect(window.on(PUSH.sports).at(-1)).toEqual({
+      channel: PUSH.sports,
+      payload: { ...settings, nextFireAt: 60 * MINUTE, awaiting: false },
+    })
+  })
+
+  it('shows both halves of the alert when Sports comes due', () => {
+    const wired = build(null, { sports: settings })
+
+    elapse(60 * MINUTE)
+
+    expect(wired.sportsAlerts.notify).toHaveBeenCalledOnce()
+    expect(wired.sportsAlerts.showOverlay).toHaveBeenCalledWith({
+      activities: settings.activities,
+    })
+  })
+
+  it('reschedules by extraMs on snooze', () => {
+    const wired = build(null, { sports: settings })
+    elapse(60 * MINUTE)
+
+    expect(wired.invoke(IPC.snoozeSports, 10 * MINUTE)).toBe(true)
+
+    expect(wired.sportsOverlay.close).toHaveBeenCalledOnce()
+    expect(wired.sportsService.getState()).toEqual({
+      scheduled: true,
+      nextFireAt: 70 * MINUTE,
+    })
+  })
+
+  it('closes the overlay and lets the engine advance on Done', () => {
+    const wired = build(null, { sports: settings })
+    elapse(60 * MINUTE)
+
+    wired.invoke(IPC.confirmSports, { situps: 10, squats: 5 })
+
+    expect(wired.sportsOverlay.close).toHaveBeenCalledOnce()
+  })
+
+  it('logs a Done answer to Sports history, one line per activity, and tells every open window', () => {
+    const wired = build(null, { sports: settings })
+    const window = wired.openWindow()
+    elapse(60 * MINUTE)
+
+    wired.invoke(IPC.confirmSports, { situps: 20, squats: 15 })
+
+    expect(wired.sportsHistory.stats().today.quantityByLabel).toEqual([
+      { label: 'Situps', quantity: 20 },
+      { label: 'Squats', quantity: 15 },
+    ])
+    expect(window.on(PUSH.historyChanged).length).toBeGreaterThan(0)
+  })
+
+  it('logs Sports activity from the tab without touching the running schedule', () => {
+    const wired = build(null, { sports: settings })
+
+    wired.invoke(IPC.logSports, { situps: 30 })
+
+    expect(wired.sportsHistory.stats().today.quantityByLabel).toEqual([
+      { label: 'Situps', quantity: 30 },
+    ])
+    // The schedule set on launch is untouched: a manual log never restarts it.
+    expect(wired.sportsService.getState()).toEqual({
+      scheduled: true,
+      nextFireAt: 60 * MINUTE,
+    })
   })
 })
 

@@ -63,6 +63,14 @@ exports[`what the menubar says > matches its snapshot while running 1`] = `
       "label": "Start Drink water",
     },
     {
+      "action": {
+        "kind": "stopReminder",
+        "reminderId": "water",
+      },
+      "kind": "command",
+      "label": "Stop Drink water",
+    },
+    {
       "kind": "separator",
     },
     {

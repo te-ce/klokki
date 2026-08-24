@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { IPC, PUSH, type KlokkiApi } from '../shared/ipc'
 import type { Preset } from '../shared/preset'
 import type { ReminderView } from '../shared/reminder'
+import type { SportsView } from '../shared/sport'
 import type { TimerView } from '../shared/timer'
 
 /**
@@ -48,11 +49,22 @@ const api: KlokkiApi = {
   snoozeReminder: (extraMs) => ipcRenderer.invoke(IPC.snoozeReminder, extraMs),
   completeReminder: (quantity) =>
     ipcRenderer.invoke(IPC.completeReminder, quantity),
+  getSportsSettings: () => ipcRenderer.invoke(IPC.getSportsSettings),
+  saveSportsSettings: (settings) =>
+    ipcRenderer.invoke(IPC.saveSportsSettings, settings),
+  startSports: () => ipcRenderer.invoke(IPC.startSports),
+  stopSports: () => ipcRenderer.invoke(IPC.stopSports),
+  snoozeSports: (extraMs) => ipcRenderer.invoke(IPC.snoozeSports, extraMs),
+  confirmSports: (quantities) =>
+    ipcRenderer.invoke(IPC.confirmSports, quantities),
+  logSports: (quantities) => ipcRenderer.invoke(IPC.logSports, quantities),
+  getSportsStats: () => ipcRenderer.invoke(IPC.getSportsStats),
   onTimerView: (listener) => on<TimerView>(PUSH.timerView, listener),
   onPresets: (listener) => on<readonly Preset[]>(PUSH.presets, listener),
   onHistoryChanged: (listener) => on(PUSH.historyChanged, listener),
   onReminders: (listener) =>
     on<readonly ReminderView[]>(PUSH.reminders, listener),
+  onSports: (listener) => on<SportsView>(PUSH.sports, listener),
 }
 
 contextBridge.exposeInMainWorld('klokki', api)

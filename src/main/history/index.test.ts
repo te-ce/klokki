@@ -3,7 +3,11 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import type { Clock } from '../timer/clock'
-import { createHistory, createReminderHistory } from './index'
+import {
+  createHistory,
+  createReminderHistory,
+  createSportsHistory,
+} from './index'
 
 /** 2026-08-20 12:00 UTC. */
 const NOW = Date.UTC(2026, 7, 20, 12, 0)
@@ -63,6 +67,36 @@ describe('createReminderHistory', () => {
   it('serves empty stats when nothing has ever been recorded', () => {
     const history = createReminderHistory(
       mkdtempSync(join(tmpdir(), 'klokki-reminder-history-')),
+      clock,
+      'UTC',
+    )
+
+    expect(history.stats().days).toHaveLength(7)
+    expect(history.stats().today.quantityByLabel).toEqual([])
+  })
+})
+
+describe('createSportsHistory', () => {
+  it('reads back what it recorded as the stats of the day', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'klokki-sports-history-'))
+    const history = createSportsHistory(dir, clock, 'UTC')
+
+    history.append({
+      loggedAt: NOW - 60_000,
+      activityId: 'situps',
+      activityLabel: 'Situps',
+      quantity: 20,
+    })
+
+    expect(history.stats().today).toEqual({
+      date: '2026-08-20',
+      quantityByLabel: [{ label: 'Situps', quantity: 20 }],
+    })
+  })
+
+  it('serves empty stats when nothing has ever been recorded', () => {
+    const history = createSportsHistory(
+      mkdtempSync(join(tmpdir(), 'klokki-sports-history-')),
       clock,
       'UTC',
     )

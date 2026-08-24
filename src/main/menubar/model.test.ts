@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Preset } from '../../shared/preset'
 import type { ReminderView } from '../../shared/reminder'
+import type { SportsView } from '../../shared/sport'
 import {
   awaitingView,
   IDLE_VIEW,
@@ -28,6 +29,14 @@ const water: ReminderView = {
   name: 'Drink water',
   intervalMinutes: 30,
   steps: [{ label: 'Drink a glass' }],
+  enabled: true,
+  nextFireAt: null,
+  awaiting: false,
+}
+
+const sports: SportsView = {
+  intervalMinutes: 60,
+  activities: [{ id: 'situps', name: 'Situps' }],
   enabled: true,
   nextFireAt: null,
   awaiting: false,
@@ -142,12 +151,13 @@ describe('what the menubar says', () => {
     })
   })
 
-  it('offers every reminder under a heading of its own', () => {
+  it('offers every reminder under a heading of its own, with Stop for one that is on', () => {
     expect(labels(IDLE, [pomodoro], [water])).toEqual([
       'Start Pomodoro',
       '—',
       'Reminders',
       'Start Drink water',
+      'Stop Drink water',
       '—',
       'Settings…',
       'Quit Klokki',
@@ -160,6 +170,13 @@ describe('what the menubar says', () => {
     expect(labels(IDLE, [], [scheduled])).toContain('Restart Drink water')
   })
 
+  it('offers to stop a reminder that is on, and not one that is off', () => {
+    expect(labels(IDLE, [], [water])).toContain('Stop Drink water')
+    expect(labels(IDLE, [], [{ ...water, enabled: false }])).not.toContain(
+      'Stop Drink water',
+    )
+  })
+
   it('starts a reminder by id, the same as a preset', () => {
     const items = menubarModel(IDLE, [], [water]).items
 
@@ -167,6 +184,16 @@ describe('what the menubar says', () => {
       kind: 'command',
       label: 'Start Drink water',
       action: { kind: 'startReminder', reminderId: 'water' },
+    })
+  })
+
+  it('stops a reminder by id, from the same row it started on', () => {
+    const items = menubarModel(IDLE, [], [water]).items
+
+    expect(items[3]).toEqual({
+      kind: 'command',
+      label: 'Stop Drink water',
+      action: { kind: 'stopReminder', reminderId: 'water' },
     })
   })
 
@@ -178,6 +205,63 @@ describe('what the menubar says', () => {
     expect(
       menubarModel(running('24:59'), [pomodoro, sitStand], [water]),
     ).toMatchSnapshot()
+  })
+
+  it('offers a single Start/Restart Sports entry under its own heading', () => {
+    expect(
+      menubarModel(IDLE, [], [], sports).items.map((item) =>
+        item.kind === 'separator' ? '—' : item.label,
+      ),
+    ).toEqual([
+      '—',
+      'Sports',
+      'Start Sports',
+      'Stop Sports',
+      '—',
+      'Settings…',
+      'Quit Klokki',
+    ])
+  })
+
+  it('offers to start Sports that has not been scheduled yet', () => {
+    const items = menubarModel(IDLE, [], [], sports).items
+    expect(items[2]).toEqual({
+      kind: 'command',
+      label: 'Start Sports',
+      action: { kind: 'startSports' },
+    })
+  })
+
+  it('offers Restart once Sports is scheduled, Start otherwise', () => {
+    const unscheduled = { ...sports, nextFireAt: null }
+    expect(
+      menubarModel(IDLE, [], [], unscheduled).items.map((item) =>
+        item.kind === 'separator' ? '—' : item.label,
+      ),
+    ).toContain('Start Sports')
+
+    const scheduled = { ...sports, nextFireAt: 1_700_000_000_000 }
+    expect(
+      menubarModel(IDLE, [], [], scheduled).items.map((item) =>
+        item.kind === 'separator' ? '—' : item.label,
+      ),
+    ).toContain('Restart Sports')
+  })
+
+  it('offers to stop Sports only when it is on', () => {
+    expect(
+      menubarModel(IDLE, [], [], { ...sports, enabled: false }).items.map(
+        (item) => (item.kind === 'separator' ? '—' : item.label),
+      ),
+    ).not.toContain('Stop Sports')
+  })
+
+  it('says nothing about Sports when there are no activities', () => {
+    expect(
+      menubarModel(IDLE, [], [], { ...sports, activities: [] }).items.map(
+        (item) => (item.kind === 'separator' ? '—' : item.label),
+      ),
+    ).not.toContain('Sports')
   })
 })
 

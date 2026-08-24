@@ -4,16 +4,19 @@ import {
   MarkIcon,
   PresetsIcon,
   RemindersIcon,
+  SportsIcon,
   StatsIcon,
   TimerIcon,
 } from './icons'
 
-export type Section = 'timer' | 'presets' | 'reminders' | 'stats' | 'general'
+export type Section =
+  'timer' | 'presets' | 'reminders' | 'sports' | 'stats' | 'general'
 
 const SECTIONS = [
   { id: 'timer', label: 'Timer', Icon: TimerIcon },
   { id: 'presets', label: 'Presets', Icon: PresetsIcon },
   { id: 'reminders', label: 'Reminders', Icon: RemindersIcon },
+  { id: 'sports', label: 'Sports', Icon: SportsIcon },
   { id: 'stats', label: 'Stats', Icon: StatsIcon },
   { id: 'general', label: 'General', Icon: GeneralIcon },
 ] as const satisfies readonly { id: Section; label: string; Icon: unknown }[]

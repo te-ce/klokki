@@ -2,6 +2,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import type { HistoryStats } from '../../shared/history'
 import type { ReminderHistoryStats } from '../../shared/reminder-history'
+import type { SportsHistoryStats } from '../../shared/sports-history'
 import { StatsSection } from './StatsSection'
 import { fakeKlokki, runningView, TODAY } from './test-support/fake-klokki'
 
@@ -60,13 +61,37 @@ const reminderStats = (
     ...overrides,
   }) as ReminderHistoryStats
 
+const sportsDay = (date: string, quantityByLabel: unknown[] = []) => ({
+  date,
+  quantityByLabel,
+})
+
+const sportsStats = (
+  overrides: Partial<SportsHistoryStats> = {},
+): SportsHistoryStats =>
+  ({
+    today: sportsDay(TODAY, [{ label: 'Situps', quantity: 20 }]),
+    days: [
+      sportsDay(TODAY, [{ label: 'Situps', quantity: 20 }]),
+      sportsDay('2026-08-19'),
+      sportsDay('2026-08-18', [{ label: 'Squats', quantity: 15 }]),
+      sportsDay('2026-08-17'),
+      sportsDay('2026-08-16'),
+      sportsDay('2026-08-15'),
+      sportsDay('2026-08-14'),
+    ],
+    ...overrides,
+  }) as SportsHistoryStats
+
 const mockApi = (
   value: HistoryStats = stats(),
   reminderValue: ReminderHistoryStats = reminderStats(),
+  sportsValue: SportsHistoryStats = sportsStats(),
 ) =>
   fakeKlokki({
     getStats: () => Promise.resolve(value),
     getReminderStats: () => Promise.resolve(reminderValue),
+    getSportsStats: () => Promise.resolve(sportsValue),
   })
 
 describe('StatsSection', () => {
@@ -187,5 +212,37 @@ describe('StatsSection', () => {
 
     api.pushHistoryChanged()
     await waitFor(() => expect(api.getReminderStats).toHaveBeenCalledTimes(2))
+  })
+
+  it("shows today's total quantity per Sports activity", async () => {
+    mockApi()
+    render(<StatsSection />)
+
+    const today = await screen.findByRole('group', { name: /Sports today/ })
+    expect(today).toHaveTextContent('Situps')
+    expect(today).toHaveTextContent('20')
+  })
+
+  it('lists the last seven days of Sports totals, newest first', async () => {
+    mockApi()
+    render(<StatsSection />)
+
+    const list = await screen.findByRole('list', {
+      name: /^sports, last 7 days$/i,
+    })
+    const rows = within(list).getAllByRole('listitem')
+    expect(rows).toHaveLength(7)
+    expect(rows[0]).toHaveTextContent('2026-08-20')
+    expect(rows[6]).toHaveTextContent('2026-08-14')
+  })
+
+  it('re-reads the Sports log when the main process says a line was written', async () => {
+    const api = mockApi()
+    render(<StatsSection />)
+
+    await waitFor(() => expect(api.getSportsStats).toHaveBeenCalledTimes(1))
+
+    api.pushHistoryChanged()
+    await waitFor(() => expect(api.getSportsStats).toHaveBeenCalledTimes(2))
   })
 })

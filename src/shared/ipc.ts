@@ -10,6 +10,8 @@ import type { HistoryStats } from './history'
 import type { Preset, SaveResult } from './preset'
 import type { ReminderDefinition, ReminderView } from './reminder'
 import type { ReminderHistoryStats } from './reminder-history'
+import type { SportSettings, SportsView } from './sport'
+import type { SportsHistoryStats } from './sports-history'
 import type { TimerView } from './timer'
 
 /** Renderer → main. Every one of these has a handler in src/main/ipc. */
@@ -37,6 +39,14 @@ export const IPC = {
   setReminderEnabled: 'klokki:set-reminder-enabled',
   snoozeReminder: 'klokki:snooze-reminder',
   completeReminder: 'klokki:complete-reminder',
+  getSportsSettings: 'klokki:get-sports-settings',
+  saveSportsSettings: 'klokki:save-sports-settings',
+  startSports: 'klokki:start-sports',
+  stopSports: 'klokki:stop-sports',
+  snoozeSports: 'klokki:snooze-sports',
+  confirmSports: 'klokki:confirm-sports',
+  logSports: 'klokki:log-sports',
+  getSportsStats: 'klokki:get-sports-stats',
 } as const
 
 /**
@@ -57,6 +67,8 @@ export const PUSH = {
   historyChanged: 'klokki:history-changed',
   /** The saved reminder list, whenever it changes — mirrors `presets`. */
   reminders: 'klokki:reminders',
+  /** The Sports settings joined with its live schedule, whenever either changes. */
+  sports: 'klokki:sports',
 } as const
 
 export type AppInfo = {
@@ -172,4 +184,33 @@ export interface KlokkiApi {
   onReminders(
     listener: (reminders: readonly ReminderView[]) => void,
   ): () => void
+  /** Read once for a window that has just opened, then kept fresh by `onSports`. */
+  getSportsSettings(): Promise<SportsView>
+  /** Upsert whole: there is only ever one Sports schedule to save. */
+  saveSportsSettings(settings: SportSettings): Promise<SaveResult>
+  /** Enables Sports and schedules it a full interval from now — Start/Restart. */
+  startSports(): Promise<void>
+  stopSports(): Promise<void>
+  /**
+   * Defers the current Sports firing by `extraMs` — one of the fixed
+   * +5/+10/+15 options, matching `snoozeReminder`'s convention. Resolves to
+   * whether it was actually deferred.
+   */
+  snoozeSports(extraMs: number): Promise<boolean>
+  /**
+   * Answers the current Sports firing as done, with a quantity per activity
+   * id. Closes the overlay and starts the next interval.
+   */
+  confirmSports(quantities: Readonly<Record<string, number>>): Promise<void>
+  /**
+   * Logs Sports activity from the Sports tab, independent of the running
+   * schedule — it never restarts the interval, unlike `confirmSports`.
+   */
+  logSports(quantities: Readonly<Record<string, number>>): Promise<void>
+  /**
+   * Today plus the last seven days of logged Sports activity, derived from
+   * the tail of sports-history.jsonl on every call.
+   */
+  getSportsStats(): Promise<SportsHistoryStats>
+  onSports(listener: (view: SportsView) => void): () => void
 }

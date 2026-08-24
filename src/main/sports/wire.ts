@@ -1,0 +1,85 @@
+import type { SportSettings } from '../../shared/sport'
+import type { SportsAlert } from '../../shared/sports-alert'
+import type { SportsHistoryEvent } from '../../shared/sports-history'
+import { systemClock, type Clock } from '../timer/clock'
+
+/** The slice of the Sports service and store the overlay needs. */
+type SportsAlertSource = {
+  readonly subscribe: (listener: () => void) => () => void
+  readonly snooze: (extraMs: number) => boolean
+  readonly confirm: () => boolean
+}
+
+type SportsAlertStore = {
+  readonly get: () => SportSettings
+}
+
+export type SportsAlertController = {
+  /** Defers Sports' current firing. False when nothing is showing. */
+  readonly snooze: (extraMs: number) => boolean
+  /**
+   * Answers the current firing as done, with a quantity per activity id.
+   * No-op when nothing is showing.
+   */
+  readonly confirm: (quantities: Readonly<Record<string, number>>) => void
+  readonly dispose: () => void
+}
+
+const toAlert = (settings: SportSettings): SportsAlert => ({
+  activities: settings.activities.map(({ id, name }) => ({ id, name })),
+})
+
+/**
+ * Turns the Sports service's firings into overlays — the single-schedule
+ * counterpart to `wireReminderAlerts`. There is no queue: one schedule can
+ * never have a second firing due while the first is still unanswered.
+ *
+ * Answering is also what starts the next interval — Done confirms it,
+ * Snooze defers the same firing — the same "holds until answered" shape a
+ * reminder gives its cycling steps.
+ */
+export const wireSportsAlerts = (
+  source: SportsAlertSource,
+  store: SportsAlertStore,
+  present: (alert: SportsAlert) => void,
+  close: () => void,
+  /** Appends one line per activity for every completed answer. */
+  record: (event: SportsHistoryEvent) => void = () => {},
+  clock: Clock = systemClock,
+): SportsAlertController => {
+  let showing = false
+
+  const unsubscribe = source.subscribe(() => {
+    showing = true
+    present(toAlert(store.get()))
+  })
+
+  return {
+    snooze: (extraMs) => {
+      if (!showing) return false
+      const snoozed = source.snooze(extraMs)
+      showing = false
+      close()
+      return snoozed
+    },
+    confirm: (quantities) => {
+      if (!showing) return
+      const activities = store.get().activities
+      // The interval that follows starts here, not at the boundary: Sports
+      // waited for this answer, so the user gets a whole interval of it.
+      source.confirm()
+      const loggedAt = clock.now()
+      for (const activity of activities) {
+        record({
+          loggedAt,
+          activityId: activity.id,
+          activityLabel: activity.name,
+          quantity: quantities[activity.id] ?? 0,
+        })
+      }
+      showing = false
+      close()
+    },
+    dispose: unsubscribe,
+  }
+}

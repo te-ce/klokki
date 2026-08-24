@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Preset } from '../../shared/preset'
 import type { ReminderView } from '../../shared/reminder'
+import type { SportsView } from '../../shared/sport'
 import { runningView } from '../../shared/test-support/timer-view'
 import type { TimerView } from '../../shared/timer'
 import type { TimerUpdate } from '../timer/service'
@@ -27,6 +28,8 @@ const fakeSources = () => {
   const history = new Set<() => void>()
   const reminderHistory = new Set<() => void>()
   const reminders = new Set<(reminders: readonly ReminderView[]) => void>()
+  const sportsHistory = new Set<() => void>()
+  const sports = new Set<(view: SportsView) => void>()
 
   const subscriber =
     <T>(set: Set<T>) =>
@@ -42,6 +45,8 @@ const fakeSources = () => {
       history: { subscribe: subscriber(history) },
       reminderHistory: { subscribe: subscriber(reminderHistory) },
       reminders: { subscribe: subscriber(reminders) },
+      sportsHistory: { subscribe: subscriber(sportsHistory) },
+      sports: { subscribe: subscriber(sports) },
     } satisfies BroadcastSources,
     pushView: (countdown: string) => {
       for (const listener of timer)
@@ -59,12 +64,20 @@ const fakeSources = () => {
     pushReminders: (next: readonly ReminderView[]) => {
       for (const listener of reminders) listener(next)
     },
+    pushSportsHistory: () => {
+      for (const listener of sportsHistory) listener()
+    },
+    pushSports: (next: SportsView) => {
+      for (const listener of sports) listener(next)
+    },
     listenerCount: () =>
       timer.size +
       presets.size +
       history.size +
       reminderHistory.size +
-      reminders.size,
+      reminders.size +
+      sportsHistory.size +
+      sports.size,
   }
 }
 
@@ -152,6 +165,36 @@ describe('createViewBroadcaster', () => {
     expect(target.send).toHaveBeenCalledWith('klokki:reminders', [water])
   })
 
+  it('announces a line written to the sports log, on the same channel as history', () => {
+    const broadcaster = createViewBroadcaster(source.sources)
+    const target = fakeTarget()
+
+    broadcaster.register(target)
+    source.pushSportsHistory()
+
+    expect(target.send).toHaveBeenCalledWith(
+      'klokki:history-changed',
+      undefined,
+    )
+  })
+
+  it('pushes the Sports view, so no window has to re-ask for it', () => {
+    const broadcaster = createViewBroadcaster(source.sources)
+    const target = fakeTarget()
+    const sports: SportsView = {
+      intervalMinutes: 60,
+      activities: [{ id: 'situps', name: 'Situps' }],
+      enabled: true,
+      nextFireAt: 1_800_000,
+      awaiting: false,
+    }
+
+    broadcaster.register(target)
+    source.pushSports(sports)
+
+    expect(target.send).toHaveBeenCalledWith('klokki:sports', sports)
+  })
+
   it('sends nothing to a target that has been unregistered', () => {
     const broadcaster = createViewBroadcaster(source.sources)
     const target = fakeTarget()
@@ -204,7 +247,7 @@ describe('createViewBroadcaster', () => {
 
   it('subscribes to each source once and releases them all on dispose', () => {
     const broadcaster = createViewBroadcaster(source.sources)
-    expect(source.listenerCount()).toBe(5)
+    expect(source.listenerCount()).toBe(7)
 
     broadcaster.dispose()
 

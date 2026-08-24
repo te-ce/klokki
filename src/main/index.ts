@@ -1,6 +1,10 @@
 import { BrowserWindow, app } from 'electron'
 import { electronAlertSurface } from './alert/surface'
-import { createHistory, createReminderHistory } from './history'
+import {
+  createHistory,
+  createReminderHistory,
+  createSportsHistory,
+} from './history'
 import { electronAppInfo, electronRequestSink } from './ipc/sink'
 import { createLoginItem } from './login-item'
 import { electronMenubarSurface } from './menubar/surface'
@@ -10,12 +14,17 @@ import { createReminderRunStore } from './reminders/run-store'
 import { createReminderService } from './reminders/service'
 import { electronReminderAlertSurface } from './reminders/surface'
 import { createReminderStore } from './reminders/store'
+import { createSportRunStore } from './sports/run-store'
+import { createSportsService } from './sports/service'
+import { electronSportsAlertSurface } from './sports/surface'
+import { createSportStore } from './sports/store'
 import { createTimerService, type TimerService } from './timer/service'
 import { createSnapshotStore } from './timer/snapshot'
 import { wireApp, type WiredApp } from './wire'
 import {
   closeOverlayWindow,
   closeReminderOverlayWindow,
+  closeSportsOverlayWindow,
   openSettingsWindow,
   overlayState,
 } from './windows'
@@ -60,6 +69,10 @@ const bootstrap = (): void => {
     const reminderStore = createReminderStore(app.getPath('userData'))
     const reminderService = createReminderService()
     const reminderRunStore = createReminderRunStore(app.getPath('userData'))
+    const sportsHistory = createSportsHistory(app.getPath('userData'))
+    const sportsStore = createSportStore(app.getPath('userData'))
+    const sportsService = createSportsService()
+    const sportsRunStore = createSportRunStore(app.getPath('userData'))
 
     const wired = wireApp({
       service,
@@ -70,6 +83,10 @@ const bootstrap = (): void => {
       reminderStore,
       reminderService,
       reminderRunStore,
+      sportsHistory,
+      sportsStore,
+      sportsService,
+      sportsRunStore,
       loginItem: createLoginItem(app),
       requests: electronRequestSink(),
       appInfo: electronAppInfo,
@@ -78,6 +95,8 @@ const bootstrap = (): void => {
       overlay: { close: closeOverlayWindow },
       reminderAlerts: electronReminderAlertSurface(),
       reminderOverlay: { close: closeReminderOverlayWindow },
+      sportsAlerts: electronSportsAlertSurface(),
+      sportsOverlay: { close: closeSportsOverlayWindow },
       windows: {
         onOpened: (listener) => {
           app.on('browser-window-created', (_event, window) => {

@@ -1,11 +1,13 @@
 import { IPC, type AppInfo } from '../../shared/ipc'
 import type { Phase, Preset } from '../../shared/preset'
 import { isReminderDefinition, type ReminderView } from '../../shared/reminder'
-import type { History, ReminderHistory } from '../history'
+import { isSportSettings, type SportsView } from '../../shared/sport'
+import type { History, ReminderHistory, SportsHistory } from '../history'
 import type { LoginItem } from '../login-item'
 import { startPresetById } from '../presets/start'
 import type { PresetStore } from '../presets/store'
 import type { ReminderStore } from '../reminders/store'
+import type { SportStore } from '../sports/store'
 import type { TimerService } from '../timer/service'
 
 /**
@@ -31,6 +33,18 @@ export type ReminderAnswers = {
   readonly complete: (quantity: number | null) => void
 }
 
+/** Answering the Sports overlay currently showing — see sports/wire.ts. */
+export type SportsAnswers = {
+  readonly snooze: (extraMs: number) => boolean
+  readonly confirm: (quantities: Readonly<Record<string, number>>) => void
+}
+
+/**
+ * Logging Sports activity from the tab, independent of the overlay and the
+ * running schedule — see wire.ts's `logSports` closure.
+ */
+export type SportsLog = (quantities: Readonly<Record<string, number>>) => void
+
 export type IpcDeps = {
   readonly requests: RequestSink
   readonly service: TimerService
@@ -43,6 +57,14 @@ export type IpcDeps = {
   /** The reminder list joined with the engine's live schedule — see wire.ts. */
   readonly reminderViews: () => readonly ReminderView[]
   readonly reminderAnswers: ReminderAnswers
+  readonly sportsHistory: SportsHistory
+  readonly sportsStore: SportStore
+  /** The Sports settings joined with the engine's live schedule — see wire.ts. */
+  readonly sportsViews: () => SportsView
+  readonly sportsAnswers: SportsAnswers
+  readonly startSports: () => void
+  readonly stopSports: () => void
+  readonly logSports: SportsLog
   readonly appInfo: () => AppInfo
 }
 
@@ -107,6 +129,14 @@ const isBoolean = (value: unknown): value is boolean =>
 const isNumberOrNull = (value: unknown): value is number | null =>
   value === null || typeof value === 'number'
 
+/** Quantities keyed by activity id, as the Sports overlay and tab both send them. */
+const isQuantities = (
+  value: unknown,
+): value is Readonly<Record<string, number>> =>
+  typeof value === 'object' &&
+  value !== null &&
+  Object.values(value).every((quantity) => typeof quantity === 'number')
+
 /** The channel a handler name registers on. */
 const channelFor = (name: string): string => {
   const channel: string | undefined = Object.hasOwn(IPC, name)
@@ -129,6 +159,10 @@ export const registerIpc = (deps: IpcDeps): void => {
     reminderStore,
     reminderViews,
     reminderAnswers,
+    sportsHistory,
+    sportsStore,
+    sportsViews,
+    sportsAnswers,
   } = deps
 
   const handlers: Handlers = {
@@ -189,6 +223,18 @@ export const registerIpc = (deps: IpcDeps): void => {
       reminderAnswers.complete(
         expect(quantity, isNumberOrNull, 'a quantity or null'),
       ),
+    getSportsStats: () => sportsHistory.stats(),
+    getSportsSettings: () => sportsViews(),
+    saveSportsSettings: (settings) =>
+      sportsStore.save(expect(settings, isSportSettings, 'Sports settings')),
+    startSports: () => deps.startSports(),
+    stopSports: () => deps.stopSports(),
+    snoozeSports: (extraMs) =>
+      sportsAnswers.snooze(expect(extraMs, isNumber, 'a duration in ms')),
+    confirmSports: (quantities) =>
+      sportsAnswers.confirm(expect(quantities, isQuantities, 'quantities')),
+    logSports: (quantities) =>
+      deps.logSports(expect(quantities, isQuantities, 'quantities')),
   }
 
   for (const [name, handler] of Object.entries(handlers))

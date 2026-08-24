@@ -23,3 +23,17 @@ export const startReminderById = (
   if (!definition.enabled) store.setEnabled(id, true)
   service.start(id)
 }
+
+/**
+ * Stopping a reminder from the tray, the other half of "start or restart" —
+ * disabling is enough on its own: the store's subscriber in wire.ts already
+ * feeds every save through `service.setDefinitions`, which drops a disabled
+ * reminder's schedule the same way it would a deleted one. An id already off,
+ * or unknown, is a no-op rather than an error, for the same reason a start is.
+ */
+export const stopReminderById = (store: ReminderStore, id: string): void => {
+  const definition = store.list().find((candidate) => candidate.id === id)
+  if (!definition || !definition.enabled) return
+
+  store.setEnabled(id, false)
+}

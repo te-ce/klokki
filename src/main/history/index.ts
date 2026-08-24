@@ -3,10 +3,16 @@ import type {
   ReminderHistoryEvent,
   ReminderHistoryStats,
 } from '../../shared/reminder-history'
+import type {
+  SportsHistoryEvent,
+  SportsHistoryStats,
+} from '../../shared/sports-history'
 import { systemClock, type Clock } from '../timer/clock'
 import { createHistoryLog } from './log'
 import { createReminderHistoryLog } from './reminder-log'
 import { summariseReminders } from './reminder-stats'
+import { createSportsHistoryLog } from './sports-log'
+import { summariseSports } from './sports-stats'
 import { summarise } from './stats'
 
 /**
@@ -74,6 +80,37 @@ export const createReminderHistory = (
       for (const listener of listeners) listener()
     },
     stats: () => summariseReminders(log.readRecent(), clock.now(), timeZone),
+    subscribe: (listener) => {
+      listeners.add(listener)
+      return () => listeners.delete(listener)
+    },
+  }
+}
+
+/**
+ * The Sports counterpart to `ReminderHistory` — same log-plus-summary shape,
+ * over the Sports log instead of the reminder one.
+ */
+export type SportsHistory = {
+  readonly append: (event: SportsHistoryEvent) => void
+  readonly stats: () => SportsHistoryStats
+  readonly subscribe: (listener: () => void) => () => void
+}
+
+export const createSportsHistory = (
+  dir: string,
+  clock: Clock = systemClock,
+  timeZone?: string,
+): SportsHistory => {
+  const log = createSportsHistoryLog(dir)
+  const listeners = new Set<() => void>()
+
+  return {
+    append: (event) => {
+      log.append(event)
+      for (const listener of listeners) listener()
+    },
+    stats: () => summariseSports(log.readRecent(), clock.now(), timeZone),
     subscribe: (listener) => {
       listeners.add(listener)
       return () => listeners.delete(listener)

@@ -1,6 +1,7 @@
 import { skipLabel, startLabel } from '../../shared/labels'
 import type { Preset } from '../../shared/preset'
 import type { ReminderView } from '../../shared/reminder'
+import type { SportsView } from '../../shared/sport'
 import type { TimerView } from '../../shared/timer'
 
 /**
@@ -18,6 +19,9 @@ export type MenubarAction =
   | { readonly kind: 'addTime' }
   | { readonly kind: 'start'; readonly presetId: string }
   | { readonly kind: 'startReminder'; readonly reminderId: string }
+  | { readonly kind: 'stopReminder'; readonly reminderId: string }
+  | { readonly kind: 'startSports' }
+  | { readonly kind: 'stopSports' }
   | { readonly kind: 'settings' }
   | { readonly kind: 'quit' }
 
@@ -100,6 +104,13 @@ const runItems = (view: TimerView): readonly MenubarItem[] => {
  * offered for a reminder already scheduled, because a start pushes its next
  * firing a full interval out, which is a real thing to want.
  *
+ * "Stop" sits beside it for a reminder that is on — turning one off is the
+ * other half of the same promise, and it should not need the settings window
+ * either. It is offered on `enabled` rather than `nextFireAt`, because a
+ * reminder waiting on an unanswered step has no `nextFireAt` but is very much
+ * on, and disabling it is exactly what stops that wait — unlike Start/Restart,
+ * which name what a click does to the schedule and so still read by it.
+ *
  * The heading is there because "Start Water" reads as a preset otherwise, and a
  * menu of two lists with nothing between them names neither.
  */
@@ -111,11 +122,52 @@ const reminderItems = (
   return [
     { kind: 'separator' },
     { kind: 'label', label: 'Reminders' },
-    ...reminders.map((reminder): MenubarItem => ({
+    ...reminders.flatMap((reminder): readonly MenubarItem[] => [
+      {
+        kind: 'command',
+        label: startLabel(reminder.name, reminder.nextFireAt !== null),
+        action: { kind: 'startReminder', reminderId: reminder.id },
+      },
+      ...(reminder.enabled
+        ? [
+            {
+              kind: 'command',
+              label: `Stop ${reminder.name}`,
+              action: { kind: 'stopReminder', reminderId: reminder.id },
+            } as const,
+          ]
+        : []),
+    ]),
+  ]
+}
+
+/**
+ * Starting or stopping Sports from the tray — the single-schedule
+ * counterpart to `reminderItems`. There is only ever one Sports schedule, so
+ * there is one Start/Restart command rather than a list, and the heading
+ * only appears once Sports actually has an activity to ask about — a
+ * settings window opened but never filled in shows nothing here.
+ */
+const sportsItems = (sports: SportsView): readonly MenubarItem[] => {
+  if (sports.activities.length === 0) return []
+
+  return [
+    { kind: 'separator' },
+    { kind: 'label', label: 'Sports' },
+    {
       kind: 'command',
-      label: startLabel(reminder.name, reminder.nextFireAt !== null),
-      action: { kind: 'startReminder', reminderId: reminder.id },
-    })),
+      label: startLabel('Sports', sports.nextFireAt !== null),
+      action: { kind: 'startSports' },
+    },
+    ...(sports.enabled
+      ? [
+          {
+            kind: 'command',
+            label: 'Stop Sports',
+            action: { kind: 'stopSports' },
+          } as const,
+        ]
+      : []),
   ]
 }
 
@@ -130,10 +182,20 @@ const reminderItems = (
  * path into the timer — and so an item clicked after the preset was edited runs
  * the saved version.
  */
+/** No Sports schedule at all — the default for a caller that has nothing to say about it. */
+const NO_SPORTS: SportsView = {
+  intervalMinutes: 0,
+  activities: [],
+  enabled: false,
+  nextFireAt: null,
+  awaiting: false,
+}
+
 export const menubarModel = (
   view: TimerView,
   presets: readonly Preset[],
   reminders: readonly ReminderView[],
+  sports: SportsView = NO_SPORTS,
 ): MenubarModel => ({
   title: view.running ? trayTitle(view) : '',
   tooltip: view.running ? `Klokki — ${view.phaseLabel}` : 'Klokki',
@@ -145,6 +207,7 @@ export const menubarModel = (
       action: { kind: 'start', presetId: preset.id },
     })),
     ...reminderItems(reminders),
+    ...sportsItems(sports),
     { kind: 'separator' },
     { kind: 'command', label: 'Settings…', action: { kind: 'settings' } },
     { kind: 'command', label: 'Quit Klokki', action: { kind: 'quit' } },

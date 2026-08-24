@@ -2,7 +2,7 @@ import type { AppInfo } from '../shared/ipc'
 import { ADD_TIME_MS } from '../shared/timer'
 import { createAlertPresenter, type AlertSurface } from './alert/present'
 import { wireAlerts } from './alert/wire'
-import type { History, ReminderHistory } from './history'
+import type { History, ReminderHistory, SportsHistory } from './history'
 import { recordHistory } from './history/record'
 import {
   createViewBroadcaster,
@@ -14,7 +14,7 @@ import type { LoginItem } from './login-item'
 import { createMenubar, type Menubar } from './menubar'
 import type { MenubarSurface } from './menubar/surface'
 import { startPresetById } from './presets/start'
-import { startReminderById } from './reminders/start'
+import { startReminderById, stopReminderById } from './reminders/start'
 import type { PresetStore } from './presets/store'
 import type { RemindersState } from './reminders/engine'
 import {
@@ -26,6 +26,17 @@ import type { ReminderService } from './reminders/service'
 import type { ReminderStore } from './reminders/store'
 import { createReminderViewSource } from './reminders/view-source'
 import { wireReminderAlerts } from './reminders/wire'
+import { startSports, stopSports } from './sports/start'
+import type { SportRunState } from './sports/engine'
+import {
+  createSportsAlertPresenter,
+  type SportsAlertSurface,
+} from './sports/present'
+import type { SportRunStore } from './sports/run-store'
+import type { SportsService } from './sports/service'
+import type { SportStore } from './sports/store'
+import { createSportsViewSource } from './sports/view-source'
+import { wireSportsAlerts } from './sports/wire'
 import { systemClock, type Clock } from './timer/clock'
 import type { TimerState } from './timer/machine'
 import { persistSnapshot } from './timer/persist'
@@ -56,6 +67,12 @@ export type AppPorts = {
   readonly reminderRunStore: ReminderRunStore & {
     readonly load: () => RemindersState
   }
+  readonly sportsHistory: SportsHistory
+  readonly sportsStore: SportStore
+  readonly sportsService: SportsService
+  readonly sportsRunStore: SportRunStore & {
+    readonly load: () => SportRunState
+  }
   readonly loginItem: LoginItem
   readonly requests: RequestSink
   readonly appInfo: () => AppInfo
@@ -64,6 +81,8 @@ export type AppPorts = {
   readonly overlay: OverlayControl
   readonly reminderAlerts: ReminderAlertSurface
   readonly reminderOverlay: OverlayControl
+  readonly sportsAlerts: SportsAlertSurface
+  readonly sportsOverlay: OverlayControl
   readonly windows: {
     readonly onOpened: (listener: (window: WindowHandle) => void) => void
   }
@@ -129,12 +148,48 @@ export const wireApp = (ports: AppPorts): WiredApp => {
     ports.reminderService,
   )
 
+  const sportsAlerts = wireSportsAlerts(
+    ports.sportsService,
+    ports.sportsStore,
+    createSportsAlertPresenter(ports.sportsAlerts),
+    ports.sportsOverlay.close,
+    ports.sportsHistory.append,
+    ports.clock ?? systemClock,
+  )
+
+  const persistSportsRun = (): void =>
+    ports.sportsRunStore.save(ports.sportsService.getState())
+
+  // Restores what was scheduled before the restart, then reconciles against
+  // the store — same reasoning as the reminder resume above.
+  ports.sportsService.resume(
+    ports.sportsRunStore.load(),
+    ports.sportsStore.get(),
+  )
+  ports.sportsService.setSettings(ports.sportsStore.get())
+  persistSportsRun()
+
+  const unwireSportsStore = ports.sportsStore.subscribe((settings) => {
+    ports.sportsService.setSettings(settings)
+    persistSportsRun()
+  })
+  const unwireSportsTick = ports.sportsService.onScheduleChange(() => {
+    persistSportsRun()
+  })
+
+  const sportsViewSource = createSportsViewSource(
+    ports.sportsStore,
+    ports.sportsService,
+  )
+
   const broadcaster = createViewBroadcaster({
     timer: ports.service,
     presets: ports.store,
     history: ports.history,
     reminderHistory: ports.reminderHistory,
     reminders: reminderViewSource,
+    sportsHistory: ports.sportsHistory,
+    sports: sportsViewSource,
   })
 
   // Every window is a subscriber for as long as it exists, and stops being one
@@ -156,6 +211,28 @@ export const wireApp = (ports: AppPorts): WiredApp => {
     reminderStore: ports.reminderStore,
     reminderViews: reminderViewSource.views,
     reminderAnswers: reminderAlerts,
+    sportsHistory: ports.sportsHistory,
+    sportsStore: ports.sportsStore,
+    sportsViews: sportsViewSource.view,
+    sportsAnswers: sportsAlerts,
+    startSports: () => startSports(ports.sportsStore, ports.sportsService),
+    stopSports: () => stopSports(ports.sportsStore),
+    // Only the activities the tab's form actually had a number for — unlike
+    // the overlay's confirm, a manual log is not a full round, so an activity
+    // left blank is not "zero of it", it is "not logged this time".
+    logSports: (quantities) => {
+      const loggedAt = (ports.clock ?? systemClock).now()
+      for (const activity of ports.sportsStore.get().activities) {
+        const quantity = quantities[activity.id]
+        if (quantity === undefined) continue
+        ports.sportsHistory.append({
+          loggedAt,
+          activityId: activity.id,
+          activityLabel: activity.name,
+          quantity,
+        })
+      }
+    },
     appInfo: ports.appInfo,
   })
 
@@ -178,6 +255,7 @@ export const wireApp = (ports: AppPorts): WiredApp => {
       timer: ports.service,
       presets: ports.store,
       reminders: reminderViewSource,
+      sports: sportsViewSource,
     },
     {
       stop: () => ports.service.stop(),
@@ -193,6 +271,9 @@ export const wireApp = (ports: AppPorts): WiredApp => {
       start: (id) => startPresetById(ports.service, ports.store, id),
       startReminder: (id) =>
         startReminderById(ports.reminderStore, ports.reminderService, id),
+      stopReminder: (id) => stopReminderById(ports.reminderStore, id),
+      startSports: () => startSports(ports.sportsStore, ports.sportsService),
+      stopSports: () => stopSports(ports.sportsStore),
       openSettings: ports.openSettings,
       quit: ports.quit,
     },
@@ -209,10 +290,15 @@ export const wireApp = (ports: AppPorts): WiredApp => {
       unwireReminderTick()
       reminderViewSource.dispose()
       reminderAlerts.dispose()
+      unwireSportsStore()
+      unwireSportsTick()
+      sportsViewSource.dispose()
+      sportsAlerts.dispose()
       menubar.dispose()
       broadcaster.dispose()
       ports.service.dispose()
       ports.reminderService.dispose()
+      ports.sportsService.dispose()
     },
   }
 }

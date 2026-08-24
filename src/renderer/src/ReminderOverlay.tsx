@@ -17,6 +17,13 @@ export const ReminderOverlay = ({ alert }: { alert: ReminderAlert }) => {
   const [quantity, setQuantity] = useState('')
   const canComplete = alert.unit === null || quantity.trim() !== ''
 
+  const complete = (): void => {
+    if (!canComplete) return
+    void window.klokki.completeReminder(
+      alert.unit === null ? null : Number(quantity),
+    )
+  }
+
   return (
     <section
       data-testid="reminder-overlay"
@@ -30,16 +37,20 @@ export const ReminderOverlay = ({ alert }: { alert: ReminderAlert }) => {
           type="number"
           placeholder={alert.unit}
           value={quantity}
+          autoFocus
           onChange={(event) => setQuantity(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') complete()
+          }}
           className="border-edge h-9 w-32 rounded-lg border px-3 text-center"
         />
       )}
-      <div className="flex items-center gap-2.5">
+      <div className="flex flex-wrap items-center justify-center gap-2">
         {REMINDER_SNOOZE_MINUTES_OPTIONS.map((minutes) => (
           <button
             key={minutes}
             type="button"
-            className="border-edge text-ink-soft hover:bg-panel h-9 rounded-lg border px-5"
+            className="border-edge text-ink-soft hover:bg-panel h-9 rounded-lg border px-3 whitespace-nowrap"
             onClick={() =>
               void window.klokki.snoozeReminder(minutes * MS_PER_MINUTE)
             }
@@ -51,11 +62,7 @@ export const ReminderOverlay = ({ alert }: { alert: ReminderAlert }) => {
           type="button"
           disabled={!canComplete}
           className="bg-ink text-ground h-9 rounded-lg px-5 font-medium disabled:opacity-40"
-          onClick={() =>
-            void window.klokki.completeReminder(
-              alert.unit === null ? null : Number(quantity),
-            )
-          }
+          onClick={complete}
         >
           Done
         </button>

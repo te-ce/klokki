@@ -5,6 +5,7 @@ import {
   reminderAlertRoute,
   type ReminderAlert,
 } from '../shared/reminder-alert'
+import { sportsAlertRoute, type SportsAlert } from '../shared/sports-alert'
 
 const PRELOAD = join(import.meta.dirname, '../preload/index.js')
 const RENDERER_HTML = join(import.meta.dirname, '../renderer/index.html')
@@ -82,14 +83,20 @@ type OverlayState = {
  *   Space is active, rather than politely waiting on the one it was created on.
  * - `focusable: false` plus `showInactive()` keep the user's keystrokes going to
  *   whatever they were typing in. Mouse clicks still land, so Dismiss works.
+ *   The reminder overlay opts out of this (`focusable: true`, shown with
+ *   `show()`) because it is the one overlay that asks for typed input — a
+ *   quantity — and a window that can never become key can never receive it.
  * - `skipTaskbar`, with the Dock already hidden, keeps Klokki a menubar app: an
  *   overlay must not put it in the app switcher.
  */
-const createOverlay = (): {
+const createOverlay = (
+  options: { focusable?: boolean } = {},
+): {
   readonly open: (route: string) => void
   readonly close: () => void
   readonly state: () => OverlayState | null
 } => {
+  const focusable = options.focusable ?? false
   let window: BrowserWindow | null = null
 
   const close = (): void => {
@@ -113,7 +120,7 @@ const createOverlay = (): {
       minimizable: false,
       maximizable: false,
       fullscreenable: false,
-      focusable: false,
+      focusable,
       skipTaskbar: true,
       alwaysOnTop: true,
       webPreferences: HARDENED_WEB_PREFERENCES,
@@ -122,7 +129,11 @@ const createOverlay = (): {
     window.setAlwaysOnTop(true, 'screen-saver')
     window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
 
-    if (!HEADLESS) window.on('ready-to-show', () => window?.showInactive())
+    if (!HEADLESS) {
+      window.on('ready-to-show', () =>
+        focusable ? window?.show() : window?.showInactive(),
+      )
+    }
     window.on('closed', () => {
       window = null
     })
@@ -154,7 +165,7 @@ export const closeOverlayWindow = (): void => phaseOverlay.close()
 /** The e2e suite's view of the overlay — the platform config is the feature. */
 export const overlayState = (): OverlayState | null => phaseOverlay.state()
 
-const reminderOverlay = createOverlay()
+const reminderOverlay = createOverlay({ focusable: true })
 
 /**
  * The reminder overlay — same intrusive-alert platform config as the phase
@@ -166,3 +177,17 @@ export const openReminderOverlayWindow = (alert: ReminderAlert): void =>
 
 /** Answering the overlay is the only thing that closes it; there is no timer. */
 export const closeReminderOverlayWindow = (): void => reminderOverlay.close()
+
+const sportsOverlay = createOverlay({ focusable: true })
+
+/**
+ * The Sports overlay — same intrusive-alert platform config, kept as its own
+ * window so a Sports firing mid-transition never fights the phase or
+ * reminder overlay for the same window. Focusable for the same reason the
+ * reminder overlay is: it asks for typed input, a quantity per activity.
+ */
+export const openSportsOverlayWindow = (alert: SportsAlert): void =>
+  sportsOverlay.open(sportsAlertRoute(alert))
+
+/** Answering the overlay is the only thing that closes it; there is no timer. */
+export const closeSportsOverlayWindow = (): void => sportsOverlay.close()

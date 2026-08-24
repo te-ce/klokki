@@ -1,7 +1,9 @@
 import { alertFromRoute } from '../../shared/alert'
 import { reminderAlertFromRoute } from '../../shared/reminder-alert'
+import { sportsAlertFromRoute } from '../../shared/sports-alert'
 import { App } from './App'
 import { ReminderOverlay } from './ReminderOverlay'
+import { SportsOverlay } from './SportsOverlay'
 import { TransitionOverlay } from './TransitionOverlay'
 
 /**
@@ -15,6 +17,9 @@ export const Root = () => {
 
   const reminderAlert = reminderAlertFromRoute(window.location.hash)
   if (reminderAlert) return <ReminderOverlay alert={reminderAlert} />
+
+  const sportsAlert = sportsAlertFromRoute(window.location.hash)
+  if (sportsAlert) return <SportsOverlay alert={sportsAlert} />
 
   return <App />
 }

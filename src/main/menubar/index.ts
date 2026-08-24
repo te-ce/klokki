@@ -1,5 +1,6 @@
 import type { Preset } from '../../shared/preset'
 import type { ReminderView } from '../../shared/reminder'
+import type { SportsView } from '../../shared/sport'
 import type { TimerView } from '../../shared/timer'
 import { menuKey, menubarModel, type MenubarAction } from './model'
 import type { MenubarSurface } from './surface'
@@ -24,6 +25,11 @@ export type MenubarSources = {
     readonly views: () => readonly ReminderView[]
     readonly subscribe: (listener: () => void) => () => void
   }
+  /** The same joined view the Sports tab is pushed, so the menu says "Restart" consistently. */
+  readonly sports: {
+    readonly view: () => SportsView
+    readonly subscribe: (listener: () => void) => () => void
+  }
 }
 
 /** What the menubar can ask the app to do. Starting is by id, as everywhere. */
@@ -35,6 +41,9 @@ export type MenubarActions = {
   readonly addTime: () => void
   readonly start: (presetId: string) => void
   readonly startReminder: (reminderId: string) => void
+  readonly stopReminder: (reminderId: string) => void
+  readonly startSports: () => void
+  readonly stopSports: () => void
   readonly openSettings: () => void
   readonly quit: () => void
 }
@@ -64,20 +73,52 @@ export const createMenubar = (
 ): Menubar => {
   let applied: string | null = null
 
-  const perform = (action: MenubarAction): void => {
+  /** The run and preset actions — split out so `perform` stays under the complexity limit. */
+  const performTimer = (action: MenubarAction): boolean => {
     switch (action.kind) {
       case 'stop':
-        return actions.stop()
+        actions.stop()
+        return true
       case 'skip':
-        return actions.skip()
+        actions.skip()
+        return true
       case 'confirm':
-        return actions.confirm()
+        actions.confirm()
+        return true
       case 'addTime':
-        return actions.addTime()
+        actions.addTime()
+        return true
       case 'start':
-        return actions.start(action.presetId)
+        actions.start(action.presetId)
+        return true
+      default:
+        return false
+    }
+  }
+
+  /** The reminder and Sports actions — the other half of `perform`. */
+  const performSchedules = (action: MenubarAction): boolean => {
+    switch (action.kind) {
       case 'startReminder':
-        return actions.startReminder(action.reminderId)
+        actions.startReminder(action.reminderId)
+        return true
+      case 'stopReminder':
+        actions.stopReminder(action.reminderId)
+        return true
+      case 'startSports':
+        actions.startSports()
+        return true
+      case 'stopSports':
+        actions.stopSports()
+        return true
+      default:
+        return false
+    }
+  }
+
+  const perform = (action: MenubarAction): void => {
+    if (performTimer(action) || performSchedules(action)) return
+    switch (action.kind) {
       case 'settings':
         return actions.openSettings()
       case 'quit':
@@ -90,6 +131,7 @@ export const createMenubar = (
       view,
       sources.presets.list(),
       sources.reminders.views(),
+      sources.sports.view(),
     )
     surface.setTitle(model.title)
     surface.setToolTip(model.tooltip)
@@ -109,6 +151,11 @@ export const createMenubar = (
   const unsubscribeReminders = sources.reminders.subscribe(() =>
     render(sources.timer.getView()),
   )
+  // A Sports firing or edit changes what this menu offers, for the same
+  // reason a reminder does.
+  const unsubscribeSports = sources.sports.subscribe(() =>
+    render(sources.timer.getView()),
+  )
   render(sources.timer.getView())
 
   return {
@@ -119,6 +166,7 @@ export const createMenubar = (
       unsubscribeTimer()
       unsubscribePresets()
       unsubscribeReminders()
+      unsubscribeSports()
     },
   }
 }

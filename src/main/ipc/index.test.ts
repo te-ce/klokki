@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { IPC, PUSH } from '../../shared/ipc'
 import type { Preset } from '../../shared/preset'
 import type { ReminderDefinition, ReminderView } from '../../shared/reminder'
+import type { SportSettings, SportsView } from '../../shared/sport'
 import { IDLE_VIEW } from '../../shared/test-support/timer-view'
 import { registerIpc, type IpcDeps, type RequestSink } from './index'
 
@@ -23,6 +24,18 @@ const water: ReminderDefinition = {
 const waterView: ReminderView = {
   ...water,
   nextFireAt: 1_800_000,
+  awaiting: false,
+}
+
+const sportsSettings: SportSettings = {
+  intervalMinutes: 60,
+  activities: [{ id: 'situps', name: 'Situps' }],
+  enabled: true,
+}
+
+const sportsView: SportsView = {
+  ...sportsSettings,
+  nextFireAt: 3_600_000,
   awaiting: false,
 }
 
@@ -101,6 +114,27 @@ const wire = (overrides: Partial<IpcDeps> = {}) => {
     subscribe: vi.fn(() => () => {}),
   }
   const reminderViews = vi.fn((): readonly ReminderView[] => [waterView])
+  const sportsHistory = {
+    append: vi.fn(),
+    stats: vi.fn(() => ({
+      today: { date: '2026-08-20', quantityByLabel: [] },
+      days: [],
+    })),
+    subscribe: vi.fn(() => () => {}),
+  }
+  const sportsStore = {
+    get: vi.fn((): SportSettings => sportsSettings),
+    save: vi.fn(() => ({ ok: true }) as const),
+    subscribe: vi.fn(() => () => {}),
+  }
+  const sportsViews = vi.fn((): SportsView => sportsView)
+  const sportsAnswers = {
+    snooze: vi.fn(() => true),
+    confirm: vi.fn(),
+  }
+  const startSports = vi.fn()
+  const stopSports = vi.fn()
+  const logSports = vi.fn()
   const deps: IpcDeps = {
     requests: sink.sink,
     service,
@@ -112,6 +146,13 @@ const wire = (overrides: Partial<IpcDeps> = {}) => {
     reminderStore,
     reminderViews,
     reminderAnswers,
+    sportsHistory,
+    sportsStore,
+    sportsViews,
+    sportsAnswers,
+    startSports,
+    stopSports,
+    logSports,
     appInfo: () => ({ version: '1.2.3', electron: '43.0.0' }),
     ...overrides,
   }
@@ -128,6 +169,13 @@ const wire = (overrides: Partial<IpcDeps> = {}) => {
     reminderStore,
     reminderViews,
     reminderAnswers,
+    sportsHistory,
+    sportsStore,
+    sportsViews,
+    sportsAnswers,
+    startSports,
+    stopSports,
+    logSports,
   }
 }
 
@@ -368,5 +416,83 @@ describe('what the handlers do', () => {
     app.invoke(IPC.getReminderStats)
 
     expect(app.reminderHistory.stats).toHaveBeenCalledTimes(2)
+  })
+
+  it('reads the Sports view per call, joined with its schedule', () => {
+    const app = wire()
+
+    expect(app.invoke(IPC.getSportsSettings)).toEqual(sportsView)
+    expect(app.sportsViews).toHaveBeenCalledTimes(1)
+  })
+
+  it('saves Sports settings, upserting the one schedule', () => {
+    const app = wire()
+
+    expect(app.invoke(IPC.saveSportsSettings, sportsSettings)).toEqual({
+      ok: true,
+    })
+    expect(app.sportsStore.save).toHaveBeenCalledWith(sportsSettings)
+  })
+
+  it('returns the reasons Sports settings were rejected rather than throwing', () => {
+    const app = wire()
+    app.sportsStore.save.mockReturnValue({
+      ok: false,
+      problems: ['Sports needs at least one activity.'],
+    } as never)
+
+    expect(app.invoke(IPC.saveSportsSettings, sportsSettings)).toEqual({
+      ok: false,
+      problems: ['Sports needs at least one activity.'],
+    })
+  })
+
+  it('starts Sports from the tray', () => {
+    const app = wire()
+
+    app.invoke(IPC.startSports)
+
+    expect(app.startSports).toHaveBeenCalledOnce()
+  })
+
+  it('stops Sports from the tray', () => {
+    const app = wire()
+
+    app.invoke(IPC.stopSports)
+
+    expect(app.stopSports).toHaveBeenCalledOnce()
+  })
+
+  it('defers Sports currently showing, and says whether it moved', () => {
+    const app = wire()
+
+    expect(app.invoke(IPC.snoozeSports, 600_000)).toBe(true)
+
+    expect(app.sportsAnswers.snooze).toHaveBeenCalledWith(600_000)
+  })
+
+  it('answers Sports currently showing as done, with quantities per activity', () => {
+    const app = wire()
+
+    app.invoke(IPC.confirmSports, { situps: 20 })
+
+    expect(app.sportsAnswers.confirm).toHaveBeenCalledWith({ situps: 20 })
+  })
+
+  it('logs Sports activity from the tab, independent of the overlay', () => {
+    const app = wire()
+
+    app.invoke(IPC.logSports, { situps: 15 })
+
+    expect(app.logSports).toHaveBeenCalledWith({ situps: 15 })
+  })
+
+  it('summarises the Sports log per call, never from a cache', () => {
+    const app = wire()
+
+    app.invoke(IPC.getSportsStats)
+    app.invoke(IPC.getSportsStats)
+
+    expect(app.sportsHistory.stats).toHaveBeenCalledTimes(2)
   })
 })

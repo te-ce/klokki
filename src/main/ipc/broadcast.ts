@@ -1,6 +1,7 @@
 import { PUSH } from '../../shared/ipc'
 import type { Preset } from '../../shared/preset'
 import type { ReminderView } from '../../shared/reminder'
+import type { SportsView } from '../../shared/sport'
 import type { TimerUpdate } from '../timer/service'
 
 /** The slice of a window's webContents the broadcaster needs. */
@@ -36,6 +37,13 @@ export type BroadcastSources = {
     readonly subscribe: (
       listener: (reminders: readonly ReminderView[]) => void,
     ) => () => void
+  }
+  /** Another log, another "a line landed, re-read" cue — see `reminderHistory`. */
+  readonly sportsHistory: {
+    readonly subscribe: (listener: () => void) => () => void
+  }
+  readonly sports: {
+    readonly subscribe: (listener: (view: SportsView) => void) => () => void
   }
 }
 
@@ -76,6 +84,8 @@ export const createViewBroadcaster = (
     sources.history.subscribe(() => push(PUSH.historyChanged)),
     sources.reminderHistory.subscribe(() => push(PUSH.historyChanged)),
     sources.reminders.subscribe((reminders) => push(PUSH.reminders, reminders)),
+    sources.sportsHistory.subscribe(() => push(PUSH.historyChanged)),
+    sources.sports.subscribe((view) => push(PUSH.sports, view)),
   ]
 
   return {

@@ -4,6 +4,8 @@ import type { KlokkiApi } from '../../../shared/ipc'
 import type { Preset } from '../../../shared/preset'
 import type { ReminderView } from '../../../shared/reminder'
 import type { ReminderHistoryStats } from '../../../shared/reminder-history'
+import type { SportsView } from '../../../shared/sport'
+import type { SportsHistoryStats } from '../../../shared/sports-history'
 // One owner, shared with the main-process suite: see src/shared/test-support.
 import { IDLE_VIEW } from '../../../shared/test-support/timer-view'
 import type { TimerView } from '../../../shared/timer'
@@ -27,6 +29,19 @@ export const emptyReminderStats: ReminderHistoryStats = {
   days: [{ date: TODAY, quantityByLabel: [] }],
 }
 
+export const emptySportsStats: SportsHistoryStats = {
+  today: { date: TODAY, quantityByLabel: [] },
+  days: [{ date: TODAY, quantityByLabel: [] }],
+}
+
+export const IDLE_SPORTS_VIEW: SportsView = {
+  intervalMinutes: 60,
+  activities: [],
+  enabled: false,
+  nextFireAt: null,
+  awaiting: false,
+}
+
 type Mocked = { readonly [K in keyof KlokkiApi]: Mock<KlokkiApi[K]> }
 
 export type FakeKlokki = Mocked & {
@@ -38,6 +53,8 @@ export type FakeKlokki = Mocked & {
   readonly pushHistoryChanged: () => void
   /** Pushes the saved reminder list, the way the store does after a save. */
   readonly pushReminders: (reminders: readonly ReminderView[]) => void
+  /** Pushes the Sports view, the way the store does after a save. */
+  readonly pushSports: (view: SportsView) => void
   /** How many listeners are still registered — unmount should leave none. */
   readonly listenerCount: () => number
 }
@@ -60,6 +77,7 @@ export const fakeKlokki = (overrides: Partial<KlokkiApi> = {}): FakeKlokki => {
   const presets = new Set<(presets: readonly Preset[]) => void>()
   const history = new Set<() => void>()
   const reminders = new Set<(reminders: readonly ReminderView[]) => void>()
+  const sports = new Set<(view: SportsView) => void>()
 
   const subscriber =
     <T>(set: Set<T>) =>
@@ -94,10 +112,19 @@ export const fakeKlokki = (overrides: Partial<KlokkiApi> = {}): FakeKlokki => {
     setReminderEnabled: () => Promise.resolve(),
     snoozeReminder: () => Promise.resolve(true),
     completeReminder: () => Promise.resolve(),
+    getSportsSettings: () => Promise.resolve(IDLE_SPORTS_VIEW),
+    saveSportsSettings: () => Promise.resolve({ ok: true }),
+    startSports: () => Promise.resolve(),
+    stopSports: () => Promise.resolve(),
+    snoozeSports: () => Promise.resolve(true),
+    confirmSports: () => Promise.resolve(),
+    logSports: () => Promise.resolve(),
+    getSportsStats: () => Promise.resolve(emptySportsStats),
     onTimerView: subscriber(views),
     onPresets: subscriber(presets),
     onHistoryChanged: subscriber(history),
     onReminders: subscriber(reminders),
+    onSports: subscriber(sports),
   }
 
   const api = Object.fromEntries(
@@ -120,8 +147,11 @@ export const fakeKlokki = (overrides: Partial<KlokkiApi> = {}): FakeKlokki => {
     pushReminders: (next: readonly ReminderView[]) => {
       for (const listener of reminders) listener(next)
     },
+    pushSports: (next: SportsView) => {
+      for (const listener of sports) listener(next)
+    },
     listenerCount: () =>
-      views.size + presets.size + history.size + reminders.size,
+      views.size + presets.size + history.size + reminders.size + sports.size,
   })
 
   window.klokki = fake
