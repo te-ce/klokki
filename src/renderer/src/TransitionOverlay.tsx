@@ -1,6 +1,5 @@
 import type { Alert } from '../../shared/alert'
-import { MS_PER_MINUTE } from '../../shared/preset'
-import { SNOOZE_MS } from '../../shared/timer'
+import { TIMER_SNOOZE_MINUTES_OPTIONS } from '../../shared/timer'
 import { SnoozeChoice } from './SnoozeChoice'
 
 /**
@@ -20,9 +19,9 @@ import { SnoozeChoice } from './SnoozeChoice'
  * With no phase following, there is no boundary to defer — the timer is simply
  * over — so the snooze is not offered at all rather than offered and ignored.
  *
- * The snooze is `SnoozeChoice` with the one increment the main process offers
- * (`SNOOZE_MS`), so the footer is the footer of the other two overlays even
- * though only this one has a single amount to choose from.
+ * The snooze is `SnoozeChoice` with the same fixed +5/+10/+15/+30 options the
+ * reminder and Sports overlays offer (`TIMER_SNOOZE_MINUTES_OPTIONS`), so the
+ * footer is the footer of the other two overlays.
  */
 export const TransitionOverlay = ({ alert }: { alert: Alert }) => (
   <section
@@ -38,8 +37,8 @@ export const TransitionOverlay = ({ alert }: { alert: Alert }) => (
     <div className="mt-auto flex items-center justify-between gap-3">
       {alert.nextLabel !== null ? (
         <SnoozeChoice
-          options={[SNOOZE_MS / MS_PER_MINUTE]}
-          onSnooze={() => void window.klokki.snoozeAlert()}
+          options={TIMER_SNOOZE_MINUTES_OPTIONS}
+          onSnooze={(extraMs) => void window.klokki.snoozeAlert(extraMs)}
         />
       ) : (
         <span />

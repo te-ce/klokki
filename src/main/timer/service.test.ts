@@ -3,11 +3,12 @@ import { MS_PER_MINUTE } from '../../shared/preset'
 import { SEED_PRESETS } from '../../shared/presets'
 import { IDLE_VIEW } from '../../shared/test-support/timer-view'
 import type { Clock } from './clock'
-import { SNOOZE_MS } from '../../shared/timer'
 import { createTimerService, type TimerUpdate } from './service'
 
 const T0 = 1_700_000_000_000
 const pomodoro = SEED_PRESETS[0]!
+const minutes = (count: number): number => count * MS_PER_MINUTE
+const SNOOZE_MS = minutes(5)
 
 /** Fake timers move the event loop; this moves the clock the service reads. */
 const createTestClock = (): Clock & { advance: (ms: number) => void } => {
@@ -110,7 +111,7 @@ describe('createTimerService', () => {
 
     service.startPreset(pomodoro)
     elapse(25 * MS_PER_MINUTE)
-    service.snooze()
+    service.snooze(SNOOZE_MS)
 
     expect(service.getView().phaseLabel).toBe('Focus')
     expect(service.getView().countdown).toBe('05:00')
@@ -130,7 +131,7 @@ describe('createTimerService', () => {
     const updates: TimerUpdate[] = []
     service.subscribe((update) => updates.push(update))
 
-    service.snooze()
+    service.snooze(SNOOZE_MS)
 
     expect(updates).toEqual([])
     expect(service.getView().running).toBe(false)
@@ -141,12 +142,25 @@ describe('createTimerService', () => {
     const service = createTimerService(clock)
     service.startPreset(pomodoro)
     elapse(25 * MS_PER_MINUTE)
-    service.snooze()
+    service.snooze(SNOOZE_MS)
 
     elapse(SNOOZE_MS)
 
     expect(service.getView().phaseLabel).toBe('Break')
     expect(service.getView().countdown).toBe('05:00')
+    service.dispose()
+  })
+
+  it('defers a boundary by whatever amount the caller asks for', () => {
+    const service = createTimerService(clock)
+    service.startPreset(pomodoro)
+    elapse(25 * MS_PER_MINUTE)
+
+    expect(service.snooze(minutes(15))).toBe(true)
+
+    expect(service.getView().phaseLabel).toBe('Focus')
+    elapse(minutes(15))
+    expect(service.getView().phaseLabel).toBe('Break')
     service.dispose()
   })
 

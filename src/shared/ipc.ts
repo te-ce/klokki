@@ -128,15 +128,15 @@ export interface KlokkiApi {
   /** Closes the transition overlay. The only way out of it — it never times out. */
   dismissAlert(): Promise<void>
   /**
-   * Defers the boundary the overlay is showing and closes it. The length of the
-   * snooze is the main process's to decide (`SNOOZE_MS`): a renderer must not be
-   * able to name an amount of time the timer then honours.
+   * Defers the boundary the overlay is showing and closes it, by `extraMs` —
+   * one of the fixed +5/+10/+15/+30 options, matching `snoozeReminder`'s
+   * convention of the renderer picking among fixed increments.
    *
    * Resolves to whether the boundary was actually deferred. A snooze whose new
    * end has already gone by is declined, and the overlay closes either way — but
    * the two are different events, so they do not answer the same.
    */
-  snoozeAlert(): Promise<boolean>
+  snoozeAlert(extraMs: number): Promise<boolean>
   /**
    * Upsert by id. The main process validates again — it owns presets.json — so a
    * rejected preset comes back with the reasons instead of throwing.

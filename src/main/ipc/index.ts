@@ -203,8 +203,10 @@ export const registerIpc = (deps: IpcDeps): void => {
     // only when its new end has already gone by, and leaving an overlay up that
     // names a boundary long past is worse than closing it. The renderer is told
     // which of the two happened rather than being left to assume the first.
-    snoozeAlert: () => {
-      const snoozed = service.snooze()
+    snoozeAlert: (extraMs) => {
+      const snoozed = service.snooze(
+        expect(extraMs, isNumber, 'a duration in ms'),
+      )
       overlay.close()
       return snoozed
     },

@@ -65,8 +65,21 @@ describe('TransitionOverlay', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Snooze 5 minutes' }))
 
-    expect(api.snoozeAlert).toHaveBeenCalledOnce()
+    expect(api.snoozeAlert).toHaveBeenCalledWith(5 * 60_000)
     expect(api.dismissAlert).not.toHaveBeenCalled()
+  })
+
+  it('also offers 10, 15 and 30 minute increments, matching the other overlays', () => {
+    const api = mockApi()
+    render(
+      <TransitionOverlay
+        alert={{ completedLabel: 'Focus', nextLabel: 'Break' }}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Snooze 30 minutes' }))
+
+    expect(api.snoozeAlert).toHaveBeenCalledWith(30 * 60_000)
   })
 
   it('offers no snooze when there is no phase left to push back', () => {

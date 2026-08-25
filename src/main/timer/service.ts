@@ -1,5 +1,5 @@
 import type { Preset } from '../../shared/preset'
-import { SNOOZE_MS, type TimerView } from '../../shared/timer'
+import type { TimerView } from '../../shared/timer'
 import { createPoller } from '../polling'
 import { systemClock, type Clock } from './clock'
 import { formatRemaining } from './format'
@@ -34,10 +34,11 @@ export type TimerService = {
   readonly startPreset: (preset: Preset) => void
   readonly stop: () => void
   /**
-   * Defers the boundary the overlay is showing. Answers whether it moved: there
-   * may be no boundary to defer, or the deferred end may already have gone by.
+   * Defers the boundary the overlay is showing, by `extraMs`. Answers whether it
+   * moved: there may be no boundary to defer, or the deferred end may already
+   * have gone by.
    */
-  readonly snooze: () => boolean
+  readonly snooze: (extraMs: number) => boolean
   /**
    * Ends the current phase now and starts the next. Answers whether anything
    * moved: there is nothing to skip while the timer is idle.
@@ -171,8 +172,8 @@ export const createTimerService = (
       emit([])
       return true
     },
-    snooze: () => {
-      const result = snooze(state, clock.now(), SNOOZE_MS)
+    snooze: (extraMs) => {
+      const result = snooze(state, clock.now(), extraMs)
       // Nothing changed when the boundary is gone, so nothing is announced.
       if (result.snoozed === null) return false
       state = result.state

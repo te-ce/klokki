@@ -91,7 +91,7 @@ describe('recordHistory', () => {
     elapse(30 * MS_PER_MINUTE)
     // The user answers the overlay a couple of seconds after the boundary.
     elapse(2_000)
-    service.snooze()
+    service.snooze(5 * MS_PER_MINUTE)
     elapse(5 * MS_PER_MINUTE)
 
     expect(append.mock.calls.map(([event]) => event)).toEqual([
@@ -143,7 +143,7 @@ describe('recordHistory', () => {
     service.startPreset(sitStand)
     elapse(30 * MS_PER_MINUTE)
     elapse(2_000)
-    service.snooze()
+    service.snooze(5 * MS_PER_MINUTE)
     elapse(60_000)
     service.skip()
 

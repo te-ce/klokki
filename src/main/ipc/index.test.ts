@@ -281,9 +281,9 @@ describe('what the handlers do', () => {
   it('defers the boundary and closes the overlay on a snooze', () => {
     const app = wire()
 
-    expect(app.invoke(IPC.snoozeAlert)).toBe(true)
+    expect(app.invoke(IPC.snoozeAlert, 600_000)).toBe(true)
 
-    expect(app.service.snooze).toHaveBeenCalledOnce()
+    expect(app.service.snooze).toHaveBeenCalledWith(600_000)
     expect(app.overlay.close).toHaveBeenCalledOnce()
   })
 
@@ -293,7 +293,7 @@ describe('what the handlers do', () => {
     // so the deferred end has already gone by and the machine declines it.
     app.service.snooze.mockReturnValue(false)
 
-    expect(app.invoke(IPC.snoozeAlert)).toBe(false)
+    expect(app.invoke(IPC.snoozeAlert, 300_000)).toBe(false)
 
     expect(app.overlay.close).toHaveBeenCalledOnce()
   })

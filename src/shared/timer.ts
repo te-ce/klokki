@@ -5,11 +5,8 @@ import { MS_PER_MINUTE } from './preset'
  * main process owns the countdown and pushes this snapshot, so a renderer never
  * needs the phase list or a clock of its own (see AGENTS.md).
  */
-/**
- * How long Snooze defers a boundary. Fixed rather than configurable: the point
- * of the overlay is a decision the user makes in a second, not a dialog.
- */
-export const SNOOZE_MS = 5 * MS_PER_MINUTE
+/** The fixed snooze increments the overlay offers, matching the reminder and Sports overlays' convention. */
+export const TIMER_SNOOZE_MINUTES_OPTIONS = [5, 10, 15, 30] as const
 
 /** How much time "+5 min" adds to the running phase, in the tray and the webui. */
 export const ADD_TIME_MS = 5 * MS_PER_MINUTE

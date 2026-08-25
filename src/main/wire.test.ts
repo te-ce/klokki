@@ -369,7 +369,7 @@ describe('a phase boundary, all the way out', () => {
     elapse(25 * MINUTE)
 
     // The user answers the overlay a moment after the boundary.
-    expect(wired.invoke(IPC.snoozeAlert)).toBe(true)
+    expect(wired.invoke(IPC.snoozeAlert, 5 * MINUTE)).toBe(true)
     expect(wired.overlay.close).toHaveBeenCalledOnce()
     elapse(5 * MINUTE)
 
@@ -448,7 +448,7 @@ describe('a phase boundary, all the way out', () => {
     // The overlay sat unanswered for longer than the snooze it was offering.
     elapse(6 * MINUTE)
 
-    expect(wired.invoke(IPC.snoozeAlert)).toBe(false)
+    expect(wired.invoke(IPC.snoozeAlert, 5 * MINUTE)).toBe(false)
     expect(wired.overlay.close).toHaveBeenCalledOnce()
   })
 })
