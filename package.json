@@ -24,7 +24,8 @@
     "e2e:smoke": "playwright test --grep @smoke",
     "knip": "knip",
     "prepare": "husky",
-    "icons": "node scripts/generate-icons.ts"
+    "icons": "node scripts/generate-icons.ts",
+    "screenshots": "node scripts/screenshots.ts"
   },
   "lint-staged": {
     "*.{ts,tsx}": [

@@ -48,12 +48,14 @@ export type KlokkiApp = ElectronApplication & { userDataDir: string }
  */
 export const launch = async (
   seed?: (userDataDir: string) => void,
+  /** Extra Chromium switches; the screenshot script asks for a retina scale. */
+  extraArgs: readonly string[] = [],
 ): Promise<KlokkiApp> => {
   const userDataDir = mkdtempSync(join(tmpdir(), 'klokki-e2e-'))
   seed?.(userDataDir)
 
   const app = await electron.launch({
-    args: [APP_ENTRY, `--user-data-dir=${userDataDir}`],
+    args: [APP_ENTRY, `--user-data-dir=${userDataDir}`, ...extraArgs],
     env: { ...process.env, KLOKKI_E2E: '1' },
   })
 

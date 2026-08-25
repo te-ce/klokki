@@ -1,36 +1,93 @@
 # Klokki
 
-Menubar interval timer for macOS — Pomodoro, sit/stand, and custom phase sequences.
+Klokki is a menubar interval timer for macOS. It counts down a list of phases:
+Focus 25 minutes and Break 5 minutes, or Sitting 30 minutes and Standing 15
+minutes, or a sequence that you write.
 
-Klokki lives in the menubar and counts down phases: 25 min work / 5 min break, or
-30 min sitting / 15 min standing, or whatever sequence you define. Each transition
-fires a notification and an overlay you have to acknowledge or snooze, because a
-health timer you can ignore is not a health timer.
+![The Timer pane, with a Pomodoro preset in its Focus phase](docs/screenshots/timer.png)
 
-The next phase waits for that acknowledgement rather than starting behind it, so
-a break you answer five minutes late is still a whole break. Until then the
-menubar reads "Break ready", and the tray menu, the overlay and the Timer pane
-all offer to start it.
+## What Klokki does
 
-Alongside the phase timer, standalone reminders cycle their own steps on an
-interval (e.g. "look 20ft away" every 20 minutes) independent of any preset.
-Reminders start from the tray menu like presets, and their next interval starts
-when you answer the one that fired.
+The timer and the clock live in the menubar. The menubar title gives the name of
+the phase and the time that is left, for example `Focus 24:31`.
 
-Settings window has four panes — Timer, Presets, Reminders, Stats — and a
-7-day history of every phase and reminder logged locally.
+At the end of a phase, Klokki gives a macOS notification and an overlay. The
+overlay stays in front of all other windows, and above a fullscreen app. You
+must answer it. A phase with **Notify** off ends without a notification and
+without an overlay.
+
+![The transition overlay: Focus finished, Snooze 5 minutes or Start Break](docs/screenshots/overlay.png)
+
+The next phase does not start until you answer. Until then the menubar reads
+`Break ready`. A break that you start five minutes late is still a full break.
+The overlay, the menubar menu and the Timer pane all offer to start it.
+
+Klokki has two more schedules that are independent of the phase timer:
+
+- Reminders. Each reminder has its own interval and its own list of steps. One
+  step fires per interval, then the list repeats. An example is `Look 20ft away`
+  every 20 minutes.
+- Sports. One interval asks about all activities at the same time, and records
+  the quantity that you enter. The default activities are situps, squats and
+  pushups.
+
+You can start a preset, a reminder or Sports from the menubar menu. The next
+interval starts when you answer the overlay that fired.
+
+## The settings window
+
+The window has a rail with six panes. Only the pane that you select is mounted,
+and it reads the current state from the main process each time you open it.
+
+**Presets** — the list of presets, and the editor for the selected preset. The
+label of a phase is the text that the menubar shows.
+
+![The Presets pane, with the Pomodoro preset open in the editor](docs/screenshots/presets.png)
+
+**Reminders** — one row per reminder, with the interval, the steps and the next
+fire time.
+
+![The Reminders pane, with two reminders](docs/screenshots/reminders.png)
+
+**Sports** — the countdown to the next request, the interval and the list of
+activities.
+
+![The Sports pane, with a countdown and three activities](docs/screenshots/sports.png)
+
+**Stats** — the last 7 days. Klokki keeps a local log of each phase, each
+reminder step and each Sports entry. The pane joins the three logs on the
+calendar day and shows one row per day.
+
+![The Stats pane, with today and the last 7 days](docs/screenshots/stats.png)
+
+The other two panes are Timer, which shows the run in progress, and General,
+which has the launch-at-login option.
 
 ## Requirements
 
 - macOS on Apple Silicon
-- Node 24+, pnpm 11+
+- Node 24 or later
+- pnpm 11 or later
 
 ## Development
 
+Install the dependencies:
+
 ```sh
 pnpm install
-pnpm icons     # regenerate the menubar template images
-pnpm dev       # electron-vite dev, with HMR on main and renderer
+```
+
+Draw the menubar images. The repository holds no artwork, so this command makes
+the images from code:
+
+```sh
+pnpm icons
+```
+
+Start the app with hot reload on the main process and the renderer:
+
+```sh
+pnpm dev
 ```
 
 ## Checks
@@ -38,29 +95,56 @@ pnpm dev       # electron-vite dev, with HMR on main and renderer
 ```sh
 pnpm lint        # oxlint, type-aware
 pnpm typecheck   # tsc -b
-pnpm vitest run  # main-process logic + renderer views
-pnpm e2e         # Playwright against the real app (needs pnpm build first)
-pnpm knip        # unused files, exports, dependencies
+pnpm vitest run  # main-process logic and renderer views
+pnpm e2e         # Playwright against the real app
+pnpm knip        # unused files, exports and dependencies
 ```
 
-## Install locally
+`pnpm e2e` operates the bundles in `out/`. Run `pnpm build` first, or the suite
+grades the previous build.
+
+## Screenshots
+
+The images in this file come from the real app. To make them again after a
+change to the interface:
+
+```sh
+pnpm build
+pnpm screenshots
+```
+
+The script starts the bundle in `out/` with its own user-data directory, writes
+a week of history into it, and captures each pane into `docs/screenshots/`. Your
+own presets, reminders and history are not read and not changed.
+
+## Install on your machine
 
 ```sh
 pnpm build:mac
 ```
 
-Produces an unsigned `.dmg` in `dist/`. It is unsigned on purpose (local-only
-distribution), so the first launch needs right-click → Open.
+This command makes an unsigned `.dmg` in `dist/`. The app is unsigned on
+purpose, because distribution is local only.
+
+macOS refuses to open an unsigned app on the first attempt. To open it, hold
+Control, click the app, and select **Open**. macOS remembers this answer.
 
 ## Status
 
-Feature-complete for v0: presets, the preset editor, transition notification +
-overlay with snooze, interval reminders with their own settings pane,
-`history.jsonl` with the 7-day stats view, launch-at-login, and a drawn app icon.
-Work is tracked as markdown files in [`issues/`](./issues) — `open/` for what's
-next, `done/` for what's shipped.
+Version 0 is feature-complete. It has these parts:
+
+- Presets, and the editor for them
+- The notification and the overlay, with snooze
+- Reminders and Sports, each with its own schedule
+- The local log, and the 7-day stats pane that reads it
+- Launch at login
+- An app icon that is drawn by code
+
+Work is tracked as markdown files in [`issues/`](./issues). The `open/`
+directory holds what is next. The `done/` directory holds what is complete.
 
 ## Architecture
 
-State and time live in the Electron main process; the renderer is a sandboxed
-view that talks through one typed bridge. See [AGENTS.md](./AGENTS.md).
+The state and the clock live in the Electron main process. The renderer is a
+sandboxed view that talks through one typed bridge. For the full design, read
+[AGENTS.md](./AGENTS.md).
