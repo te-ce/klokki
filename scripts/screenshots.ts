@@ -172,16 +172,11 @@ const shoot = async (page: Page, name: string): Promise<void> => {
 }
 
 /**
- * The panes worth a picture, in rail order. Presets is shown with a preset
- * opened: the list says what a preset is called, the editor says what one is.
+ * The three panes the README shows, in rail order: a run in progress, a second
+ * schedule beside it, and what both of them wrote down. Nothing else is
+ * captured, because an image no page shows is an image nothing keeps true.
  */
-const PANES: readonly { pane: string; open?: string }[] = [
-  { pane: 'Timer' },
-  { pane: 'Presets', open: 'Pomodoro' },
-  { pane: 'Reminders' },
-  { pane: 'Sports' },
-  { pane: 'Stats' },
-]
+const PANES: readonly string[] = ['Timer', 'Sports', 'Stats']
 
 /** Every pane, with a Pomodoro running so the Timer pane has a countdown. */
 const settingsPanes = async (): Promise<void> => {
@@ -194,55 +189,14 @@ const settingsPanes = async (): Promise<void> => {
   await page.waitForLoadState('domcontentloaded')
   await show(app)
 
-  for (const { pane, open } of PANES) {
+  for (const pane of PANES) {
     await page.getByRole('button', { name: pane, exact: true }).click()
     // The pane subscribes on mount; a moment later it is showing real values.
     await page.waitForTimeout(500)
-    if (open) await page.getByRole('button', { name: open }).click()
     await shoot(page, pane.toLowerCase())
   }
 
   await close(app)
 }
 
-/** The overlay, raised by a phase short enough to end while this runs. */
-const overlay = async (): Promise<void> => {
-  const app = await launch((dir) => {
-    seed(dir)
-    writeFileSync(
-      join(dir, 'presets.json'),
-      `${JSON.stringify(
-        {
-          schemaVersion: 1,
-          presets: [
-            {
-              id: 'pomodoro',
-              name: 'Pomodoro',
-              loop: true,
-              phases: [
-                { label: 'Focus', minutes: 0.02, notify: true },
-                { label: 'Break', minutes: 5, notify: true },
-              ],
-            },
-          ],
-        },
-        null,
-        2,
-      )}\n`,
-      'utf8',
-    )
-  }, RETINA)
-
-  const opening = app.waitForEvent('window')
-  void startPreset(app, 'pomodoro')
-  const page = await opening
-  await page.waitForLoadState('domcontentloaded')
-  await show(app)
-  await page.getByTestId('transition-overlay').waitFor()
-  await shoot(page, 'overlay')
-
-  await close(app)
-}
-
 await settingsPanes()
-await overlay()
