@@ -1,4 +1,3 @@
-import { execFileSync } from 'node:child_process'
 import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -6,6 +5,7 @@ import { inflateSync } from 'node:zlib'
 import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
 import { encodeGrayAlphaPng, encodeRgbaPng } from './png.ts'
+import { hasSips, sipsProperties } from './test-support/macos.ts'
 
 const SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
 
@@ -43,14 +43,7 @@ const parse = (png: Buffer) => {
 const sipsAccepts = (png: Buffer) => {
   const path = join(mkdtempSync(join(tmpdir(), 'klokki-png-')), 'probe.png')
   writeFileSync(path, png)
-  const out = execFileSync(
-    '/usr/bin/sips',
-    ['-g', 'pixelWidth', '-g', 'pixelHeight', path],
-    {
-      encoding: 'utf8',
-    },
-  )
-  return out
+  return sipsProperties(path, 'pixelWidth', 'pixelHeight')
 }
 
 describe('encodeGrayAlphaPng', () => {
@@ -73,13 +66,16 @@ describe('encodeGrayAlphaPng', () => {
     expect([...parse(png).raw]).toEqual([0, 0, 0, 0, 64, 0, 0, 128, 0, 255])
   })
 
-  it('produces a file an external decoder reads back at the right size', () => {
-    const out = sipsAccepts(
-      encodeGrayAlphaPng(22, new Uint8Array(484).fill(180)),
-    )
-    expect(out).toMatch(/pixelWidth: 22/)
-    expect(out).toMatch(/pixelHeight: 22/)
-  })
+  it.skipIf(!hasSips)(
+    'produces a file an external decoder reads back at the right size',
+    () => {
+      const out = sipsAccepts(
+        encodeGrayAlphaPng(22, new Uint8Array(484).fill(180)),
+      )
+      expect(out).toMatch(/pixelWidth: 22/)
+      expect(out).toMatch(/pixelHeight: 22/)
+    },
+  )
 })
 
 describe('encodeRgbaPng', () => {
@@ -103,19 +99,22 @@ describe('encodeRgbaPng', () => {
     ])
   })
 
-  it('round-trips any size and any pixels through an external decoder', () => {
-    fc.assert(
-      fc.property(
-        fc.integer({ min: 1, max: 40 }),
-        fc.nat({ max: 255 }),
-        (size, fill) => {
-          const out = sipsAccepts(
-            encodeRgbaPng(size, new Uint8Array(size * size * 4).fill(fill)),
-          )
-          expect(out).toMatch(new RegExp(`pixelWidth: ${size}`))
-        },
-      ),
-      { numRuns: 6 },
-    )
-  })
+  it.skipIf(!hasSips)(
+    'round-trips any size and any pixels through an external decoder',
+    () => {
+      fc.assert(
+        fc.property(
+          fc.integer({ min: 1, max: 40 }),
+          fc.nat({ max: 255 }),
+          (size, fill) => {
+            const out = sipsAccepts(
+              encodeRgbaPng(size, new Uint8Array(size * size * 4).fill(fill)),
+            )
+            expect(out).toMatch(new RegExp(`pixelWidth: ${size}`))
+          },
+        ),
+        { numRuns: 6 },
+      )
+    },
+  )
 })

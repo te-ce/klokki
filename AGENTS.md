@@ -229,7 +229,11 @@ waits for the seam to appear, because `electron.launch()` resolves before
   notches — a long work arc and a short break arc — on an Ink squircle. The PNG
   and `.icns` encoders are written out in `scripts/icon/` rather than shelled out
   to `iconutil` or pulled from an image library, which is what keeps the format
-  under test and the repo free of opaque binaries. The menubar templates in
+  under test and the repo free of opaque binaries. The tests still ask `sips` and
+  `iconutil` whether the bytes are a file the platform accepts — the one check an
+  encoder cannot make about itself — and skip that question where those binaries
+  do not exist (`scripts/icon/test-support/macos.ts`), because CI runs everything
+  platform-independent on Linux and a missing oracle is not a failing encoder. The menubar templates in
   `resources/` are committed because they are loaded at runtime; `build/icon.icns`
   is generated at package time and ignored.
 - **A dial with hands names no timer; the K does.** Two hands on a ring is what
