@@ -1,6 +1,6 @@
 // Composites the mark onto its ground: an alpha-only glyph for the menubar,
 // and a full-colour squircle for the app icon.
-import { RING_RADIUS, clockMark, squircle } from './mark.ts'
+import { arcK, squircle } from './mark.ts'
 import { appStrokeRatio } from './optical.ts'
 import { coverage } from './raster.ts'
 
@@ -8,11 +8,18 @@ import { coverage } from './raster.ts'
  * The menubar glyph's weight. Nothing about it is optical: it is the weight
  * that survives 22 pixels, and the app icon deliberately does not share it.
  * At 22px this is a 2px stroke — heavy enough to hold its colour against the
- * menubar, thin enough that the ring and the K inside it stay separate shapes
- * rather than closing into a filled disc.
+ * menubar, thin enough that the wedge the two arms open stays open rather than
+ * silting up into a filled triangle.
  */
-const TRAY_RING_RADIUS = 0.42
-const TRAY_STROKE_RATIO = 0.045
+const TRAY_STROKE_RATIO = 0.05
+
+/**
+ * How much of the app icon's canvas the letter is drawn across. macOS artwork
+ * is already inset from its own image by the squircle; the letter is inset
+ * again inside that, or its stem and arm tips sit against the rounded edge at
+ * the small slots where the squircle is fattest relative to the mark.
+ */
+const APP_MARK_SCALE = 0.78
 
 export type Palette = {
   /** Top and bottom of the ground's vertical fall, as [r, g, b]. */
@@ -34,18 +41,11 @@ export const INK: Palette = {
  * light or dark menubar. Only the alpha channel carries the shape, which is
  * why this returns one byte per pixel.
  *
- * The ring is unbroken here. At 22px a notch is narrower than the stroke around
- * it, so it would read as a smudge rather than a gap.
+ * Same geometry as the app icon, heavier stroke: the mark is one letter, so
+ * there is no detail for the small slot to drop.
  */
 export const drawTemplate = (size: number): Uint8Array =>
-  coverage(
-    clockMark(size, {
-      notched: false,
-      ringRadius: TRAY_RING_RADIUS,
-      strokeRatio: TRAY_STROKE_RATIO,
-    }),
-    size,
-  )
+  coverage(arcK(size, { strokeRatio: TRAY_STROKE_RATIO }), size)
 
 /**
  * One row of the background gradient, as RGB.
@@ -95,9 +95,9 @@ export const drawAppIcon = (
 ): Uint8Array => {
   const ground = coverage(squircle(pixels), pixels)
   const mark = coverage(
-    clockMark(pixels, {
-      ringRadius: RING_RADIUS,
+    arcK(pixels, {
       strokeRatio: appStrokeRatio(points),
+      scale: APP_MARK_SCALE,
     }),
     pixels,
   )

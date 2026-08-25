@@ -239,8 +239,8 @@ waits for the seam to appear, because `electron.launch()` resolves before
   day 23 or 25 hours long; `summarise` takes both the clock and the zone as
   parameters so every boundary case is a test, not a wait.
 - **Every icon is drawn by code**, never committed as artwork (`pnpm icons`).
-  The mark is a clock ring with a K inside it; the app icon breaks the ring with two
-  notches — a long work arc and a short break arc — on an Ink squircle. The PNG
+  The mark is the letter K with its two arms struck as arcs rather than straight
+  strokes; the app icon sets it in white on an Ink squircle. The PNG
   and `.icns` encoders are written out in `scripts/icon/` rather than shelled out
   to `iconutil` or pulled from an image library, which is what keeps the format
   under test and the repo free of opaque binaries. The tests still ask `sips` and
@@ -250,21 +250,24 @@ waits for the seam to appear, because `electron.launch()` resolves before
   platform-independent on Linux and a missing oracle is not a failing encoder. The menubar templates in
   `resources/` are committed because they are loaded at runtime; `build/icon.icns`
   is generated at package time and ignored.
-- **A dial with hands names no timer; the K does.** Two hands on a ring is what
-  every interval timer's menubar glyph is, so it identifies nothing — and at 22px
-  two strokes of equal weight leaving the centre merge into a wedge whatever the
-  pose. The mark is the letter inside the dial instead, which reads by shape
-  rather than by the angle between two lines, and is the only part of the icon
-  that is Klokki's.
+- **A dial names no timer; the K does.** A ring, a pie, an hourglass, two hands
+  — every interval timer's glyph is one of them, so none of them identifies this
+  one. The mark is the letter alone, bowed: the arms are arcs of a circle struck
+  through their own two ends (`ARM_BOW` in `scripts/icon/mark.ts`), which
+  is the only part of it that could not have been anyone else's K. There is no
+  ring, which is also what lets the menubar glyph and the app icon share the
+  geometry exactly.
 - **The menubar glyph and the app icon share geometry, not weight.** A hairline
   that looks right at 1024px is invisible at 22px, so the app icon's stroke is
   optically sized — each slot drawn at the weight its _point_ size wants, which
-  is why a 16pt @2x slot is not just the 32pt one. The glyph pays for its heavier
-  stroke with detail: it drops the notches, which need a gap wider than the
-  stroke around them and have no room at 22px, and it widens the dial so the
-  letter inside still clears the ring. Both proportions live in `draw.ts`; the
-  gap between letter and ring is the thing the tests pin, because a stroke heavy
-  enough to close it turns the glyph into a blob.
+  is why a 16pt @2x slot is not just the 32pt one. The glyph takes a single
+  heavy weight instead, and the mark has no detail to drop for it: one letter is
+  one letter at either size. What does differ is inset — the menubar pads its
+  own 22px, so the glyph is drawn across the whole canvas while the app icon
+  scales the letter down inside its squircle. Both proportions live in
+  `draw.ts`. The tests pin the counter between the two arms, because a stroke
+  heavy enough to close it turns the glyph into a blob, and the bow itself,
+  because an arm that straightens is just a K.
 - **oxlint only**, `--type-aware`. No typescript-eslint: the second linter is
   config surface and CI seconds for no coverage this project misses.
 - **Local-only distribution.** arm64, unsigned, no notarization. macOS will warn

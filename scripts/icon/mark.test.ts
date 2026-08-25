@@ -1,76 +1,64 @@
 import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
-import { clockMark, squircle } from './mark.ts'
+import { arcK, squircle } from './mark.ts'
 
 const SIZE = 512
-const RING = SIZE * 0.29
+const CENTRE = SIZE / 2
 
-/** A point on the ring's centre line at a bearing clockwise from 12 o'clock. */
-const onRing = (deg: number, radius = RING): [number, number] => [
-  SIZE / 2 + radius * Math.sin((deg * Math.PI) / 180),
-  SIZE / 2 - radius * Math.cos((deg * Math.PI) / 180),
+/** A point given as fractions of the canvas from its centre. */
+const at = (fx: number, fy: number): [number, number] => [
+  CENTRE + fx * SIZE,
+  CENTRE + fy * SIZE,
 ]
 
-describe('clockMark', () => {
-  const mark = clockMark(SIZE)
+describe('arcK', () => {
+  const mark = arcK(SIZE)
 
-  it('breaks the ring in exactly two places', () => {
-    // Walk the ring a degree at a time and count runs of empty bearings. The
-    // count is the whole point of the mark: one long work arc, one short break
-    // arc. Where the gaps sit is a taste call; that there are two is the spec.
-    const covered = Array.from({ length: 360 }, (_, deg) =>
-      mark(...onRing(deg)),
-    )
-    const gaps = covered.filter((here, i) => !here && covered.at(i - 1)).length
-    expect(gaps).toBe(2)
+  it('draws the stem from top to bottom', () => {
+    expect(mark(...at(-0.21, -0.3))).toBe(true)
+    expect(mark(...at(-0.21, 0))).toBe(true)
+    expect(mark(...at(-0.21, 0.3))).toBe(true)
+    // And it stops: the stem is a letter's height, not the whole canvas.
+    expect(mark(...at(-0.21, -0.38))).toBe(false)
   })
 
-  it('leaves the long work arc and the short break arc different lengths', () => {
-    const runs: number[] = []
-    let run = 0
-    for (let deg = 0; deg < 360; deg++) {
-      if (mark(...onRing(deg))) run++
-      else if (run > 0) {
-        runs.push(run)
-        run = 0
-      }
-    }
-    if (run > 0) runs[0] = (runs[0] ?? 0) + run // the run wrapping past 0°
-    const [long, short] = runs.sort((a, b) => b - a)
-    expect(long).toBeGreaterThan(200)
-    expect(short).toBeLessThan(90)
-    expect(short).toBeGreaterThan(30)
+  it('reaches both arm tips', () => {
+    expect(mark(...at(0.21, -0.295))).toBe(true)
+    expect(mark(...at(0.21, 0.295))).toBe(true)
   })
 
-  it('draws a K in the dial, not a pair of hands', () => {
-    const stem = SIZE / 2 - RING * 0.3
-    const reach = SIZE / 2 + RING * 0.3
-    const half = RING * 0.55
-    // The stem, top to bottom.
-    expect(mark(stem, SIZE / 2 - half * 0.8)).toBe(true)
-    expect(mark(stem, SIZE / 2 + half * 0.8)).toBe(true)
-    // Both arms, half way along their own length.
-    expect(mark((stem + reach) / 2, SIZE / 2 - half / 2)).toBe(true)
-    expect(mark((stem + reach) / 2, SIZE / 2 + half / 2)).toBe(true)
-    // The wedge the two arms open is empty — a K read as a filled triangle is
-    // the failure a heavier stroke or a bigger letter would cause first.
-    expect(mark(reach - RING * 0.05, SIZE / 2)).toBe(false)
-    // And nothing hangs off the left of the stem.
-    expect(mark(stem - RING * 0.12, SIZE / 2)).toBe(false)
+  it('bows the arms off the straight line a K would use', () => {
+    // The whole idea of the mark: an arm that is an arc is inked where its own
+    // curve runs and empty where the chord between its ends does. A straight-
+    // armed K passes every other test in this file and fails this one.
+    expect(mark(...at(0.04, -0.09))).toBe(true)
+    expect(mark(...at(0, -0.1475))).toBe(false)
+    expect(mark(...at(0.04, 0.09))).toBe(true)
+    expect(mark(...at(0, 0.1475))).toBe(false)
   })
 
-  it('leaves the letter clear of the ring it sits in', () => {
-    // The K's furthest point is an arm tip; it must not touch the dial, or the
-    // letter and the ring read as one closed shape at small sizes.
-    const tip = Math.hypot(RING * 0.3, RING * 0.55)
-    expect(tip + SIZE * 0.0165).toBeLessThan(RING - SIZE * 0.0165)
+  it('keeps the wedge between the arms open', () => {
+    // A K read as a filled triangle is the failure a heavier stroke or a
+    // shallower bow would cause first.
+    expect(mark(...at(0.1, 0))).toBe(false)
+    expect(mark(...at(0.15, 0))).toBe(false)
   })
 
-  it('draws nothing beyond the ring', () => {
+  it('hangs nothing off the left of the stem', () => {
+    expect(mark(...at(-0.28, 0))).toBe(false)
+  })
+
+  it('is symmetric about its own waist', () => {
+    // The two arms are one arc and its mirror, so any pixel and its reflection
+    // answer alike. A sign slipped into the bow shows up here first.
     fc.assert(
-      fc.property(fc.integer({ min: 0, max: 359 }), (deg) => {
-        expect(mark(...onRing(deg, RING * 1.3))).toBe(false)
-      }),
+      fc.property(
+        fc.integer({ min: 0, max: SIZE - 1 }),
+        fc.integer({ min: 0, max: SIZE - 1 }),
+        (x, y) => {
+          expect(mark(x, y)).toBe(mark(x, SIZE - y))
+        },
+      ),
     )
   })
 })
@@ -107,15 +95,15 @@ describe('squircle', () => {
 
 describe('the mark inside the squircle', () => {
   it('never touches the squircle it sits in', () => {
-    // The regression this guards: a mark drawn too large, or with decoration
-    // outside the ring, gets clipped by the squircle edge at render time and
-    // the icon looks broken only once it is packed.
+    // The regression this guards: a mark drawn too large, or an arm bowed far
+    // enough to leave the letter, gets clipped by the squircle edge at render
+    // time and the icon looks broken only once it is packed.
     fc.assert(
       fc.property(
         fc.integer({ min: 0, max: SIZE - 1 }),
         fc.integer({ min: 0, max: SIZE - 1 }),
         (x, y) => {
-          if (!clockMark(SIZE)(x, y)) return
+          if (!arcK(SIZE, { strokeRatio: 0.05 })(x, y)) return
           expect(squircle(SIZE)(x, y)).toBe(true)
         },
       ),
