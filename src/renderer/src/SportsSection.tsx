@@ -1,11 +1,11 @@
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import {
   sameSportSettings,
   validateSportSettings,
   type SportActivity,
   type SportSettings,
 } from '../../shared/sport'
-import { PlusIcon } from './icons'
+import { MarkIcon, PlusIcon } from './icons'
 import { FIELD } from './PhaseRow'
 import { SportsActivityRow } from './SportsActivityRow'
 import { SportsCountdown } from './SportsCountdown'
@@ -22,18 +22,6 @@ const swap = <T,>(items: readonly T[], a: number, b: number): T[] => {
   next[a] = bt
   next[b] = at
   return next
-}
-
-const formatNextFire = (
-  awaiting: boolean,
-  nextFireAt: number | null,
-): string => {
-  if (awaiting) return 'Waiting for you'
-  if (nextFireAt === null) return 'Not scheduled'
-  return `Next at ${new Date(nextFireAt).toLocaleTimeString([], {
-    hour: 'numeric',
-    minute: '2-digit',
-  })}`
 }
 
 /**
@@ -101,145 +89,149 @@ export const SportsSection = () => {
   }
 
   return (
-    <section className="flex flex-1 flex-col gap-4">
-      <div className="flex items-center">
-        <h2 className="text-ink-faint text-[11px] tracking-[0.08em] uppercase">
-          Sports
-        </h2>
-        <span className="text-ink-hush ml-auto text-[11px] tabular-nums">
-          {formatNextFire(sports.awaiting, sports.nextFireAt)}
-        </span>
-      </div>
-
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          className="bg-ink text-ground flex h-7 items-center rounded-md px-3.5 font-medium"
-          onClick={() =>
-            void (sports.enabled
-              ? window.klokki.stopSports()
-              : window.klokki.startSports())
-          }
-        >
-          {sports.enabled ? 'Stop' : 'Start'}
-        </button>
-      </div>
-
-      {sports.enabled && <SportsCountdown sports={sports} />}
-
-      <form
-        className="bg-panel border-line flex flex-col gap-3.5 rounded-[9px] border p-3.5"
-        onSubmit={(event) => {
-          event.preventDefault()
-          void submit()
-        }}
-      >
-        <div className="flex flex-col gap-1.5">
-          <label
-            className="text-ink-faint text-[11px]"
-            htmlFor="sports-interval"
+    <section className="flex flex-1 flex-col gap-5.5">
+      {sports.enabled ? (
+        <SportsCountdown sports={sports} />
+      ) : (
+        <div className="flex flex-col items-start gap-3 py-6">
+          <MarkIcon className="text-edge size-8" />
+          <p className="text-ink-dim">Not scheduled</p>
+          <button
+            type="button"
+            className="bg-ink text-ground flex h-7.5 items-center rounded-[7px] px-3.5 font-medium"
+            onClick={() => void window.klokki.startSports()}
           >
-            Interval
-          </label>
-          <div className="flex items-center">
-            <input
-              id="sports-interval"
-              type="number"
-              className={`${FIELD} w-16 rounded-r-none border-r-0 tabular-nums`}
-              value={draft.intervalMinutes}
-              onChange={(event) =>
-                setDraft({
-                  ...draft,
-                  intervalMinutes: Number(event.target.value),
-                })
-              }
-            />
-            <span className="bg-rail border-edge text-ink-ghost flex h-7 items-center rounded-r-md border border-l-0 pr-2 text-[11px]">
-              minutes
-            </span>
-          </div>
+            Start
+          </button>
         </div>
+      )}
 
-        <div className="flex flex-col gap-2">
-          <p className="text-ink-faint text-[11px]">Activities</p>
-          <ul className="flex flex-col gap-2">
-            {draft.activities.map((activity, index) => (
-              <SportsActivityRow
-                key={index}
-                activity={activity}
-                index={index}
-                count={draft.activities.length}
-                onChange={(next) =>
-                  editActivities(replaceAt(draft.activities, index, next))
-                }
-                onMove={(to) =>
-                  editActivities(swap(draft.activities, index, to))
-                }
-                onDelete={() =>
-                  editActivities(
-                    draft.activities.filter((_, at) => at !== index),
-                  )
+      <div className="flex flex-col gap-2">
+        <h2 className="text-ink-faint text-[11px] tracking-[0.08em] uppercase">
+          Schedule
+        </h2>
+        <form
+          className="bg-panel border-line flex flex-col gap-3.5 rounded-[9px] border p-3.5"
+          onSubmit={(event) => {
+            event.preventDefault()
+            void submit()
+          }}
+        >
+          <div className="flex flex-col gap-1.5">
+            <label
+              className="text-ink-faint text-[11px]"
+              htmlFor="sports-interval"
+            >
+              Interval
+            </label>
+            <div className="flex items-center">
+              <input
+                id="sports-interval"
+                type="number"
+                className={`${FIELD} w-16 rounded-r-none border-r-0 tabular-nums`}
+                value={draft.intervalMinutes}
+                onChange={(event) =>
+                  setDraft({
+                    ...draft,
+                    intervalMinutes: Number(event.target.value),
+                  })
                 }
               />
-            ))}
-          </ul>
-        </div>
+              <span className="bg-rail border-edge text-ink-ghost flex h-7 items-center rounded-r-md border border-l-0 pr-2 text-[11px]">
+                minutes
+              </span>
+            </div>
+          </div>
 
-        <button
-          type="button"
-          className="border-edge text-ink-dim hover:bg-raised flex h-7 items-center gap-1.5 self-start rounded-md border border-dashed px-2.5 text-xs"
-          onClick={addActivity}
-        >
-          <PlusIcon className="size-3.25" />
-          Add activity
-        </button>
+          <div className="flex flex-col gap-2">
+            <p className="text-ink-faint text-[11px]">Activities</p>
+            <ul className="flex flex-col gap-2">
+              {draft.activities.map((activity, index) => (
+                <SportsActivityRow
+                  key={index}
+                  activity={activity}
+                  index={index}
+                  count={draft.activities.length}
+                  onChange={(next) =>
+                    editActivities(replaceAt(draft.activities, index, next))
+                  }
+                  onMove={(to) =>
+                    editActivities(swap(draft.activities, index, to))
+                  }
+                  onDelete={() =>
+                    editActivities(
+                      draft.activities.filter((_, at) => at !== index),
+                    )
+                  }
+                />
+              ))}
+            </ul>
+          </div>
 
-        {problems.length > 0 ? (
-          <ul
-            role="alert"
-            className="text-alarm flex flex-col gap-1 text-[11px]"
+          <button
+            type="button"
+            className="border-edge text-ink-dim hover:bg-raised flex h-7 items-center gap-1.5 self-start rounded-md border border-dashed px-2.5 text-xs"
+            onClick={addActivity}
           >
-            {problems.map((problem) => (
-              <li key={problem}>{problem}</li>
-            ))}
-          </ul>
-        ) : null}
+            <PlusIcon className="size-3.25" />
+            Add activity
+          </button>
 
-        <button
-          type="submit"
-          disabled={!dirty}
-          className="bg-ink text-ground flex h-7 items-center self-start rounded-md px-3.5 font-medium disabled:opacity-40"
-        >
-          Save
-        </button>
-      </form>
+          {problems.length > 0 ? (
+            <ul
+              role="alert"
+              className="text-alarm flex flex-col gap-1 text-[11px]"
+            >
+              {problems.map((problem) => (
+                <li key={problem}>{problem}</li>
+              ))}
+            </ul>
+          ) : null}
+
+          <button
+            type="submit"
+            disabled={!dirty}
+            className="bg-ink text-ground flex h-7 items-center self-start rounded-md px-3.5 font-medium disabled:opacity-40"
+          >
+            Save
+          </button>
+        </form>
+      </div>
 
       <div className="flex flex-col gap-2">
         <h2 className="text-ink-faint text-[11px] tracking-[0.08em] uppercase">
           Log now
         </h2>
-        <div className="bg-panel border-line flex flex-wrap items-end gap-3 rounded-[9px] border p-3.5">
-          {sports.activities.map((activity) => (
-            <label
-              key={activity.id}
-              className="flex flex-col gap-1.5 text-[11px]"
-            >
-              {activity.name}
-              <input
-                type="number"
-                placeholder="0"
-                value={logged[activity.id] ?? ''}
-                onChange={(event) =>
-                  setLogged({ ...logged, [activity.id]: event.target.value })
-                }
-                className={`${FIELD} w-20 tabular-nums`}
-              />
-            </label>
-          ))}
+        {/* One column of labels beside one of fields, rather than a wrapping
+            row of stacked pairs: activity names are any length, and a row
+            that wraps puts a field under a label it does not belong to. */}
+        <div className="bg-panel border-line flex flex-col gap-3.5 rounded-[9px] border p-3.5">
+          <div className="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-2">
+            {sports.activities.map((activity) => (
+              <Fragment key={activity.id}>
+                <label
+                  className="text-ink-dim truncate text-[11px]"
+                  htmlFor={`log-${activity.id}`}
+                >
+                  {activity.name}
+                </label>
+                <input
+                  id={`log-${activity.id}`}
+                  type="number"
+                  placeholder="0"
+                  value={logged[activity.id] ?? ''}
+                  onChange={(event) =>
+                    setLogged({ ...logged, [activity.id]: event.target.value })
+                  }
+                  className={`${FIELD} w-20 tabular-nums`}
+                />
+              </Fragment>
+            ))}
+          </div>
           <button
             type="button"
             disabled={sports.activities.length === 0}
-            className="bg-ink text-ground flex h-7 items-center rounded-md px-3.5 font-medium disabled:opacity-40"
+            className="bg-ink text-ground flex h-7 items-center self-start rounded-md px-3.5 font-medium disabled:opacity-40"
             onClick={() => void logQuantities()}
           >
             Log
