@@ -155,7 +155,7 @@ export interface KlokkiApi {
   setReminderEnabled(id: string, enabled: boolean): Promise<void>
   /**
    * Defers the reminder the overlay is currently showing, by `extraMs` — one of
-   * the fixed +5/+10/+15 options, matching `snoozeAlert`'s convention of the
+   * the fixed +5/+10/+15/+30 options, matching `snoozeAlert`'s convention of the
    * main process owning the amount. Resolves to whether it was actually
    * deferred; declined the same way a phase snooze is when its new time has
    * already passed.
@@ -195,7 +195,7 @@ export interface KlokkiApi {
   stopSports(): Promise<void>
   /**
    * Defers the current Sports firing by `extraMs` — one of the fixed
-   * +5/+10/+15 options, matching `snoozeReminder`'s convention. Resolves to
+   * +5/+10/+15/+30 options, matching `snoozeReminder`'s convention. Resolves to
    * whether it was actually deferred.
    */
   snoozeSports(extraMs: number): Promise<boolean>

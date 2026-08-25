@@ -13,7 +13,7 @@ export type ReminderAlert = {
 }
 
 /** The fixed snooze increments the overlay offers, matching the phase overlay's SNOOZE_MS convention. */
-export const REMINDER_SNOOZE_MINUTES_OPTIONS = [5, 10, 15] as const
+export const REMINDER_SNOOZE_MINUTES_OPTIONS = [5, 10, 15, 30] as const
 
 export const REMINDER_OVERLAY_ROUTE = '/reminder-overlay'
 

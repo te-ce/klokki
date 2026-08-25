@@ -38,12 +38,16 @@ describe('SportsOverlay', () => {
     expect(screen.queryByRole('button', { name: 'Dismiss' })).toBeNull()
   })
 
-  it('offers the fixed snooze increments', () => {
+  it('offers the fixed snooze increments, each named by what it defers', () => {
     const api = fakeKlokki()
     render(<SportsOverlay alert={alert} />)
 
+    // The visible glyph is the number alone — one segmented control rather
+    // than one button per increment, which is what used to wrap the footer.
     fireEvent.click(screen.getByRole('button', { name: 'Snooze 10 minutes' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Snooze 30 minutes' }))
 
-    expect(api.snoozeSports).toHaveBeenCalledWith(10 * 60_000)
+    expect(api.snoozeSports).toHaveBeenNthCalledWith(1, 10 * 60_000)
+    expect(api.snoozeSports).toHaveBeenNthCalledWith(2, 30 * 60_000)
   })
 })

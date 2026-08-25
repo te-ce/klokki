@@ -1,10 +1,16 @@
-import { BrowserWindow, shell } from 'electron'
+import { BrowserWindow, screen, shell } from 'electron'
 import { join } from 'node:path'
 import { alertRoute, type Alert } from '../shared/alert'
 import {
   reminderAlertRoute,
   type ReminderAlert,
 } from '../shared/reminder-alert'
+import {
+  OVERLAY_WIDTH,
+  reminderOverlayHeight,
+  sportsOverlayHeight,
+  transitionOverlayHeight,
+} from '../shared/overlay-size'
 import { sportsAlertRoute, type SportsAlert } from '../shared/sports-alert'
 
 const PRELOAD = join(import.meta.dirname, '../preload/index.js')
@@ -88,11 +94,16 @@ type OverlayState = {
  *   quantity — and a window that can never become key can never receive it.
  * - `skipTaskbar`, with the Dock already hidden, keeps Klokki a menubar app: an
  *   overlay must not put it in the app switcher.
+ *
+ * The height comes from the caller (`src/shared/overlay-size.ts`) because it is
+ * a fact about the alert, not about the platform: Sports asks about every
+ * activity at once, and one fixed height either clipped that behind a scrollbar
+ * or left the phase overlay half empty.
  */
 const createOverlay = (
   options: { focusable?: boolean } = {},
 ): {
-  readonly open: (route: string) => void
+  readonly open: (route: string, height: number) => void
   readonly close: () => void
   readonly state: () => OverlayState | null
 } => {
@@ -104,14 +115,14 @@ const createOverlay = (
     window = null
   }
 
-  const open = (route: string): void => {
+  const open = (route: string, height: number): void => {
     // A new boundary supersedes the last one: two stacked overlays would each
     // need dismissing, and the older one names a transition already gone by.
     close()
 
     window = new BrowserWindow({
-      width: 420,
-      height: 260,
+      width: OVERLAY_WIDTH,
+      height,
       center: true,
       show: false,
       frame: false,
@@ -157,7 +168,7 @@ const createOverlay = (
 const phaseOverlay = createOverlay()
 
 export const openOverlayWindow = (alert: Alert): void =>
-  phaseOverlay.open(alertRoute(alert))
+  phaseOverlay.open(alertRoute(alert), transitionOverlayHeight())
 
 /** Acknowledgement is the only thing that closes it; there is no timer. */
 export const closeOverlayWindow = (): void => phaseOverlay.close()
@@ -173,7 +184,10 @@ const reminderOverlay = createOverlay({ focusable: true })
  * fights the phase overlay for the same window.
  */
 export const openReminderOverlayWindow = (alert: ReminderAlert): void =>
-  reminderOverlay.open(reminderAlertRoute(alert))
+  reminderOverlay.open(
+    reminderAlertRoute(alert),
+    reminderOverlayHeight(alert.unit !== null),
+  )
 
 /** Answering the overlay is the only thing that closes it; there is no timer. */
 export const closeReminderOverlayWindow = (): void => reminderOverlay.close()
@@ -187,7 +201,13 @@ const sportsOverlay = createOverlay({ focusable: true })
  * reminder overlay is: it asks for typed input, a quantity per activity.
  */
 export const openSportsOverlayWindow = (alert: SportsAlert): void =>
-  sportsOverlay.open(sportsAlertRoute(alert))
+  sportsOverlay.open(
+    sportsAlertRoute(alert),
+    sportsOverlayHeight(
+      alert.activities.length,
+      screen.getPrimaryDisplay().workAreaSize.height,
+    ),
+  )
 
 /** Answering the overlay is the only thing that closes it; there is no timer. */
 export const closeSportsOverlayWindow = (): void => sportsOverlay.close()

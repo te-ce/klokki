@@ -179,6 +179,20 @@ waits for the seam to appear, because `electron.launch()` resolves before
   confirmation and a snoozed one at the boundary it deferred, never at a poll
   tick. Nothing behind an unanswered boundary can have elapsed, so draining more
   than one phase per tick is not a case that exists.
+- **An overlay is sized to the alert it shows, and “later” is one control.**
+  The three overlays share a shape — title, rows, then a footer of Snooze on the
+  left and the affirmative on the right — so a user who has learnt one has
+  learnt all three. Sports is the only one whose content grows, and one row per
+  activity (name left, field right) grows it in a direction the main process can
+  predict: `src/shared/overlay-size.ts` turns the alert into a window height,
+  because the activity count is known before the window opens and a window
+  measured after paint resizes under the user. The snooze increments are one
+  segmented control rather than a button each — three buttons reading
+  “Snooze 5 minutes” ran wider than the window and wrapped the footer, which is
+  exactly the content whose height nothing could predict. The height stops
+  growing at 80% of the work area, and past that the rows scroll inside the
+  window: an alert whose footer is off screen has no reachable way out, and
+  Snooze and Done are the only two there are.
 - **Transitions are intrusive.** Native notification _plus_ a borderless
   always-on-top overlay that must be dismissed or snoozed. A notification alone
   is missed in Do Not Disturb and fullscreen — the exact moments it matters.

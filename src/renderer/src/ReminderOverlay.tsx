@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import { MS_PER_MINUTE } from '../../shared/preset'
 import {
   REMINDER_SNOOZE_MINUTES_OPTIONS,
   type ReminderAlert,
 } from '../../shared/reminder-alert'
+import { SnoozeChoice } from './SnoozeChoice'
 
 /**
  * The whole content of the reminder overlay: one step, and exactly two ways
@@ -11,7 +11,10 @@ import {
  * reminder that hasn't been done should always end in "later" or "done".
  *
  * Done needs a quantity before it is enabled when the step carries a `unit`
- * (e.g. how many pushups); a step with no unit needs no input at all.
+ * (e.g. how many pushups); a step with no unit needs no input at all. The
+ * quantity sits in a row named by its unit and the footer is the Sports
+ * overlay's footer, because the two windows answer the same question and a
+ * user who has learnt one has learnt the other.
  */
 export const ReminderOverlay = ({ alert }: { alert: ReminderAlert }) => {
   const [quantity, setQuantity] = useState('')
@@ -27,37 +30,32 @@ export const ReminderOverlay = ({ alert }: { alert: ReminderAlert }) => {
   return (
     <section
       data-testid="reminder-overlay"
-      className="bg-ground/95 flex h-screen flex-col items-center justify-center gap-5 p-10 text-center"
+      className="bg-ground/95 flex h-screen flex-col gap-3.5 p-5"
     >
-      <p className="text-[40px] leading-none font-semibold tracking-[-0.02em]">
+      <p className="text-center text-[26px] leading-none font-semibold tracking-[-0.02em]">
         {alert.label}
       </p>
       {alert.unit !== null && (
-        <input
-          type="number"
-          placeholder={alert.unit}
-          value={quantity}
-          autoFocus
-          onChange={(event) => setQuantity(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') complete()
-          }}
-          className="border-edge h-9 w-32 rounded-lg border px-3 text-center"
-        />
+        <label className="flex h-8 items-center justify-between gap-3 px-0.5">
+          <span className="text-ink-soft">{alert.unit}</span>
+          <input
+            type="number"
+            placeholder="0"
+            value={quantity}
+            autoFocus
+            onChange={(event) => setQuantity(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') complete()
+            }}
+            className="border-edge h-8 w-20 rounded-lg border px-3 text-center"
+          />
+        </label>
       )}
-      <div className="flex flex-wrap items-center justify-center gap-2">
-        {REMINDER_SNOOZE_MINUTES_OPTIONS.map((minutes) => (
-          <button
-            key={minutes}
-            type="button"
-            className="border-edge text-ink-soft hover:bg-panel h-9 rounded-lg border px-3 whitespace-nowrap"
-            onClick={() =>
-              void window.klokki.snoozeReminder(minutes * MS_PER_MINUTE)
-            }
-          >
-            {`Snooze ${minutes} minutes`}
-          </button>
-        ))}
+      <div className="mt-auto flex items-center justify-between gap-3">
+        <SnoozeChoice
+          options={REMINDER_SNOOZE_MINUTES_OPTIONS}
+          onSnooze={(extraMs) => void window.klokki.snoozeReminder(extraMs)}
+        />
         <button
           type="button"
           disabled={!canComplete}

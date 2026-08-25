@@ -34,7 +34,8 @@ describe('ReminderOverlay', () => {
     const api = mockApi()
     render(<ReminderOverlay alert={{ label: 'Pushups', unit: 'reps' }} />)
 
-    fireEvent.change(screen.getByPlaceholderText('reps'), {
+    // The row is named by its unit, so the field needs no second copy of it.
+    fireEvent.change(screen.getByLabelText('reps'), {
       target: { value: '20' },
     })
     const done = screen.getByRole('button', { name: 'Done' })

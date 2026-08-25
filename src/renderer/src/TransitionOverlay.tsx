@@ -1,6 +1,7 @@
 import type { Alert } from '../../shared/alert'
 import { MS_PER_MINUTE } from '../../shared/preset'
 import { SNOOZE_MS } from '../../shared/timer'
+import { SnoozeChoice } from './SnoozeChoice'
 
 /**
  * The whole content of the overlay window: one phase change, and two ways out.
@@ -18,27 +19,30 @@ import { SNOOZE_MS } from '../../shared/timer'
  *
  * With no phase following, there is no boundary to defer — the timer is simply
  * over — so the snooze is not offered at all rather than offered and ignored.
+ *
+ * The snooze is `SnoozeChoice` with the one increment the main process offers
+ * (`SNOOZE_MS`), so the footer is the footer of the other two overlays even
+ * though only this one has a single amount to choose from.
  */
 export const TransitionOverlay = ({ alert }: { alert: Alert }) => (
   <section
     data-testid="transition-overlay"
-    className="bg-ground/95 flex h-screen flex-col items-center justify-center gap-5 p-10 text-center"
+    className="bg-ground/95 flex h-screen flex-col gap-3.5 p-5"
   >
-    <p className="text-ink-faint text-[11px] tracking-[0.22em] uppercase">
+    <p className="text-ink-faint text-center text-[10px] tracking-[0.22em] uppercase">
       {alert.completedLabel} finished
     </p>
-    <p className="text-[40px] leading-none font-semibold tracking-[-0.02em]">
+    <p className="text-center text-[26px] leading-none font-semibold tracking-[-0.02em]">
       {alert.nextLabel ?? 'Timer finished'}
     </p>
-    <div className="flex items-center gap-2.5">
-      {alert.nextLabel !== null && (
-        <button
-          type="button"
-          className="border-edge text-ink-soft hover:bg-panel h-9 rounded-lg border px-5"
-          onClick={() => void window.klokki.snoozeAlert()}
-        >
-          {`Snooze ${SNOOZE_MS / MS_PER_MINUTE} minutes`}
-        </button>
+    <div className="mt-auto flex items-center justify-between gap-3">
+      {alert.nextLabel !== null ? (
+        <SnoozeChoice
+          options={[SNOOZE_MS / MS_PER_MINUTE]}
+          onSnooze={() => void window.klokki.snoozeAlert()}
+        />
+      ) : (
+        <span />
       )}
       <button
         type="button"

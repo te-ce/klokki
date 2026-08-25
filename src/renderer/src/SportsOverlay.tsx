@@ -1,16 +1,27 @@
 import { useState } from 'react'
-import { MS_PER_MINUTE } from '../../shared/preset'
 import {
   SPORTS_SNOOZE_MINUTES_OPTIONS,
   type SportsAlert,
 } from '../../shared/sports-alert'
+import { SnoozeChoice } from './SnoozeChoice'
 
 /**
- * The whole content of the Sports overlay: one number input per activity,
- * and exactly two ways out — Snooze or Done, never a plain dismiss, the same
- * shape `ReminderOverlay` gives a single step. An activity left blank is
- * logged as zero rather than skipped: the overlay is a full round, and
- * "didn't do this one" is itself worth a number.
+ * The whole content of the Sports overlay: one row per activity, and exactly
+ * two ways out — Snooze or Done, never a plain dismiss, the same shape
+ * `ReminderOverlay` gives a single step. An activity left blank is logged as
+ * zero rather than skipped: the overlay is a full round, and "didn't do this
+ * one" is itself worth a number.
+ *
+ * One activity is one row — name left, field right — rather than a wrapping
+ * strip of columns, so the fourth activity costs a row of height the main
+ * process can predict (`sportsOverlayHeight`) instead of a second line that
+ * only the renderer knows about.
+ *
+ * The rows are the only part that scrolls. `sportsOverlayHeight` stops growing
+ * the window at a share of the screen, and past that the overflow has to go
+ * somewhere: it goes to the list, never to the footer, because Snooze and Done
+ * are the only ways out of an alert and an alert with no reachable way out is
+ * the worst thing this window can be.
  */
 export const SportsOverlay = ({ alert }: { alert: SportsAlert }) => {
   const [quantities, setQuantities] = useState<Record<string, string>>({})
@@ -25,18 +36,18 @@ export const SportsOverlay = ({ alert }: { alert: SportsAlert }) => {
   return (
     <section
       data-testid="sports-overlay"
-      className="bg-ground/95 flex h-screen flex-col items-center justify-center gap-5 p-10 text-center"
+      className="bg-ground/95 flex h-screen flex-col gap-3.5 p-5"
     >
-      <p className="text-[40px] leading-none font-semibold tracking-[-0.02em]">
+      <p className="text-center text-[26px] leading-none font-semibold tracking-[-0.02em]">
         Sports
       </p>
-      <div className="flex flex-wrap items-center justify-center gap-3">
+      <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto">
         {alert.activities.map((activity) => (
           <label
             key={activity.id}
-            className="flex flex-col items-center gap-1.5"
+            className="flex h-8 shrink-0 items-center justify-between gap-3 px-0.5"
           >
-            <span>{activity.name}</span>
+            <span className="text-ink-soft">{activity.name}</span>
             <input
               type="number"
               placeholder="0"
@@ -50,24 +61,16 @@ export const SportsOverlay = ({ alert }: { alert: SportsAlert }) => {
               onKeyDown={(event) => {
                 if (event.key === 'Enter') complete()
               }}
-              className="border-edge h-9 w-24 rounded-lg border px-3 text-center"
+              className="border-edge h-8 w-20 rounded-lg border px-3 text-center"
             />
           </label>
         ))}
       </div>
-      <div className="flex flex-wrap items-center justify-center gap-2">
-        {SPORTS_SNOOZE_MINUTES_OPTIONS.map((minutes) => (
-          <button
-            key={minutes}
-            type="button"
-            className="border-edge text-ink-soft hover:bg-panel h-9 rounded-lg border px-3 whitespace-nowrap"
-            onClick={() =>
-              void window.klokki.snoozeSports(minutes * MS_PER_MINUTE)
-            }
-          >
-            {`Snooze ${minutes} minutes`}
-          </button>
-        ))}
+      <div className="flex shrink-0 items-center justify-between gap-3">
+        <SnoozeChoice
+          options={SPORTS_SNOOZE_MINUTES_OPTIONS}
+          onSnooze={(extraMs) => void window.klokki.snoozeSports(extraMs)}
+        />
         <button
           type="button"
           className="bg-ink text-ground h-9 rounded-lg px-5 font-medium"

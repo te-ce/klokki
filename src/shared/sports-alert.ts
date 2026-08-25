@@ -16,7 +16,7 @@ export type SportsAlert = {
 }
 
 /** Matches `REMINDER_SNOOZE_MINUTES_OPTIONS` — the same fixed increments. */
-export const SPORTS_SNOOZE_MINUTES_OPTIONS = [5, 10, 15] as const
+export const SPORTS_SNOOZE_MINUTES_OPTIONS = [5, 10, 15, 30] as const
 
 export const SPORTS_OVERLAY_ROUTE = '/sports-overlay'
 
