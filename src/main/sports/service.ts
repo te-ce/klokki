@@ -3,6 +3,7 @@ import { createPoller } from '../polling'
 import { systemClock, type Clock } from '../timer/clock'
 import {
   addTime as addTimeEngine,
+  fireNow as fireNowEngine,
   scheduleAt,
   setRemaining as setRemainingEngine,
   snooze as snoozeEngine,
@@ -49,6 +50,13 @@ export type SportsService = {
    * could be: no activities or a zero interval cannot be scheduled.
    */
   readonly start: () => boolean
+  /**
+   * Fires Sports right now, regardless of the schedule — the tray's "Log
+   * Sports Now". Answers whether it could: no activities or a zero interval
+   * cannot fire, the same guard `start` uses. A firing already awaiting an
+   * answer is left as it is, not restarted.
+   */
+  readonly fireNow: () => boolean
   readonly getState: () => SportRunState
   readonly subscribe: (listener: () => void) => () => void
   /** Every change to the schedule, not just a firing — see `ReminderService`. */
@@ -140,6 +148,17 @@ export const createSportsService = (
       state = scheduleAt(settings, clock.now())
       syncPolling()
       announceChange()
+      return true
+    },
+    fireNow: () => {
+      if (!isRunnableSportSettings(settings)) return false
+      const before = state
+      state = fireNowEngine(state)
+      syncPolling()
+      if (state !== before) {
+        announceChange()
+        emit()
+      }
       return true
     },
     snooze: (extraMs) => {

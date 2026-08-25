@@ -79,6 +79,19 @@ export const withConfirmed = (
 export const withRemoved = (): SportRunState => STOPPED
 
 /**
+ * Forces an immediate firing — the tray's "Log Sports Now", answering the
+ * same way a scheduled firing does. A firing already awaiting an answer is
+ * left alone: there is already an overlay to answer, and firing again would
+ * not open a second one, only lose the reference the first was raised with.
+ * Whether the settings are runnable at all is the caller's guard, the same
+ * split `start` in `service.ts` makes around `scheduleAt`.
+ */
+export const fireNow = (state: SportRunState): SportRunState =>
+  state.scheduled && state.nextFireAt === null
+    ? state
+    : { scheduled: true, nextFireAt: null }
+
+/**
  * Defers a waiting firing by `extraMs`. A no-op when nothing is waiting —
  * there is no boundary to defer.
  */

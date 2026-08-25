@@ -26,7 +26,7 @@ import type { ReminderService } from './reminders/service'
 import type { ReminderStore } from './reminders/store'
 import { createReminderViewSource } from './reminders/view-source'
 import { wireReminderAlerts } from './reminders/wire'
-import { startSports, stopSports } from './sports/start'
+import { fireSportsNow, startSports, stopSports } from './sports/start'
 import type { SportRunState } from './sports/engine'
 import {
   createSportsAlertPresenter,
@@ -276,6 +276,9 @@ export const wireApp = (ports: AppPorts): WiredApp => {
       stopReminder: (id) => stopReminderById(ports.reminderStore, id),
       startSports: () => startSports(ports.sportsStore, ports.sportsService),
       stopSports: () => stopSports(ports.sportsStore),
+      fireSportsNow: () => {
+        fireSportsNow(ports.sportsStore, ports.sportsService)
+      },
       openSettings: ports.openSettings,
       quit: ports.quit,
     },

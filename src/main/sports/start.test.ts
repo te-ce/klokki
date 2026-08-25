@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { SportSettings } from '../../shared/sport'
-import { startSports, stopSports } from './start'
+import { fireSportsNow, startSports, stopSports } from './start'
 
 const settings: SportSettings = {
   intervalMinutes: 60,
@@ -18,7 +18,7 @@ const fakes = (initial: SportSettings) => {
     }),
     subscribe: vi.fn(() => () => {}),
   }
-  const service = { start: vi.fn(() => true) }
+  const service = { start: vi.fn(() => true), fireNow: vi.fn(() => true) }
   return { store, service }
 }
 
@@ -39,6 +39,26 @@ describe('startSports', () => {
 
     expect(store.save).toHaveBeenCalledWith({ ...settings, enabled: true })
     expect(service.start).toHaveBeenCalled()
+  })
+})
+
+describe('fireSportsNow', () => {
+  it('fires Sports that was already on', () => {
+    const { store, service } = fakes(settings)
+
+    expect(fireSportsNow(store, service as never)).toBe(true)
+
+    expect(store.save).not.toHaveBeenCalled()
+    expect(service.fireNow).toHaveBeenCalled()
+  })
+
+  it('turns Sports on before firing it', () => {
+    const { store, service } = fakes({ ...settings, enabled: false })
+
+    fireSportsNow(store, service as never)
+
+    expect(store.save).toHaveBeenCalledWith({ ...settings, enabled: true })
+    expect(service.fireNow).toHaveBeenCalled()
   })
 })
 

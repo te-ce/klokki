@@ -218,11 +218,29 @@ describe('what the menubar says', () => {
       '—',
       'Sports',
       'Start Sports',
+      'Log Sports Now',
       'Stop Sports',
       '—',
       'Settings…',
       'Quit Klokki',
     ])
+  })
+
+  it('fires Sports right now by its own command', () => {
+    const items = menubarModel(IDLE, [], [], sports).items
+    expect(items[3]).toEqual({
+      kind: 'command',
+      label: 'Log Sports Now',
+      action: { kind: 'fireSportsNow' },
+    })
+  })
+
+  it('hides Log Sports Now while a firing is already awaiting an answer', () => {
+    expect(
+      menubarModel(IDLE, [], [], { ...sports, awaiting: true }).items.map(
+        (item) => (item.kind === 'separator' ? '—' : item.label),
+      ),
+    ).not.toContain('Log Sports Now')
   })
 
   it('offers to start Sports that has not been scheduled yet', () => {

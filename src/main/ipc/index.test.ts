@@ -142,6 +142,7 @@ const wire = (overrides: Partial<IpcDeps> = {}) => {
     setRemaining: vi.fn(() => true),
     addTime: vi.fn(() => true),
     start: vi.fn(() => true),
+    fireNow: vi.fn(() => true),
     getState: vi.fn(() => ({ scheduled: false, nextFireAt: null }) as const),
     subscribe: vi.fn(() => () => {}),
     onScheduleChange: vi.fn(() => () => {}),

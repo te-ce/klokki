@@ -22,6 +22,7 @@ export type MenubarAction =
   | { readonly kind: 'stopReminder'; readonly reminderId: string }
   | { readonly kind: 'startSports' }
   | { readonly kind: 'stopSports' }
+  | { readonly kind: 'fireSportsNow' }
   | { readonly kind: 'settings' }
   | { readonly kind: 'quit' }
 
@@ -159,6 +160,18 @@ const sportsItems = (sports: SportsView): readonly MenubarItem[] => {
       label: startLabel('Sports', sports.nextFireAt !== null),
       action: { kind: 'startSports' },
     },
+    // Hidden while a firing is already awaiting an answer: the overlay it
+    // would raise is already on screen, and firing again would not open a
+    // second one, only replace the one the user is looking at.
+    ...(sports.awaiting
+      ? []
+      : [
+          {
+            kind: 'command',
+            label: 'Log Sports Now',
+            action: { kind: 'fireSportsNow' },
+          } as const,
+        ]),
     ...(sports.enabled
       ? [
           {

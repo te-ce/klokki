@@ -854,6 +854,54 @@ describe('Sports, all the way out', () => {
     })
   })
 
+  it('fires Sports immediately from the tray, without waiting for the schedule', () => {
+    const wired = build(null, { sports: settings })
+    elapse(20 * MINUTE)
+
+    expect(wired.menubar.clickMenuItem('Log Sports Now')).toBe(true)
+
+    expect(wired.sportsService.getState()).toEqual({
+      scheduled: true,
+      nextFireAt: null,
+    })
+    expect(wired.sportsAlerts.showOverlay).toHaveBeenCalledWith({
+      activities: settings.activities,
+    })
+  })
+
+  it('enables Sports that was off when fired from the tray', () => {
+    const wired = build(null, { sports: { ...settings, enabled: false } })
+
+    expect(wired.menubar.clickMenuItem('Log Sports Now')).toBe(true)
+
+    expect(wired.sportsStore.get().enabled).toBe(true)
+    expect(wired.sportsService.getState()).toEqual({
+      scheduled: true,
+      nextFireAt: null,
+    })
+  })
+
+  it('restarts the interval from the answer to a firing forced from the tray, same as a scheduled one', () => {
+    const wired = build(null, { sports: settings })
+    elapse(20 * MINUTE)
+    wired.menubar.clickMenuItem('Log Sports Now')
+    elapse(5 * MINUTE)
+
+    wired.invoke(IPC.confirmSports, { situps: 10, squats: 5 })
+
+    expect(wired.sportsService.getState()).toEqual({
+      scheduled: true,
+      nextFireAt: 25 * MINUTE + 60 * MINUTE,
+    })
+  })
+
+  it('hides Log Sports Now from the tray while a firing is already awaiting', () => {
+    const wired = build(null, { sports: settings })
+    elapse(60 * MINUTE)
+
+    expect(wired.menubar.menuLabels()).not.toContain('Log Sports Now')
+  })
+
   it('drops the schedule when Sports is disabled', () => {
     const wired = build(null, { sports: settings })
 

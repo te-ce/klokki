@@ -4,6 +4,7 @@ import { MS_PER_MINUTE } from '../../shared/preset'
 import type { SportSettings } from '../../shared/sport'
 import {
   addTime,
+  fireNow,
   scheduleAt,
   setRemaining,
   snooze,
@@ -110,6 +111,26 @@ describe('withConfirmed', () => {
 describe('withRemoved', () => {
   it('drops the schedule', () => {
     expect(withRemoved()).toEqual(STOPPED)
+  })
+})
+
+describe('fireNow', () => {
+  it('forces a firing from an unscheduled state', () => {
+    expect(fireNow(STOPPED)).toEqual({ scheduled: true, nextFireAt: null })
+  })
+
+  it('forces a firing from a running countdown, skipping the rest of it', () => {
+    const scheduled = scheduleAt(settings, T0)
+    expect(fireNow(scheduled)).toEqual({ scheduled: true, nextFireAt: null })
+  })
+
+  it('leaves a firing already awaiting an answer alone', () => {
+    const fired = tick(
+      scheduleAt(settings, T0),
+      settings,
+      T0 + minutes(60),
+    ).state
+    expect(fireNow(fired)).toBe(fired)
   })
 })
 

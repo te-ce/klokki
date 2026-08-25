@@ -107,6 +107,57 @@ describe('createSportsService', () => {
     service.dispose()
   })
 
+  it('fires immediately from the tray, showing the overlay right away', () => {
+    const service = createSportsService(clock)
+    const listener = vi.fn()
+    service.subscribe(listener)
+
+    service.setSettings(settings)
+    expect(service.fireNow()).toBe(true)
+
+    expect(listener).toHaveBeenCalledTimes(1)
+    expect(service.getState()).toEqual({ scheduled: true, nextFireAt: null })
+    service.dispose()
+  })
+
+  it('starts the next interval from the answer to a forced firing, same as a scheduled one', () => {
+    const service = createSportsService(clock)
+    service.setSettings(settings)
+    service.fireNow()
+    elapse(minutes(3))
+
+    expect(service.confirm()).toBe(true)
+    expect(service.getState()).toEqual({
+      scheduled: true,
+      nextFireAt: T0 + minutes(3) + minutes(60),
+    })
+    service.dispose()
+  })
+
+  it('does not re-fire or reopen a firing already awaiting an answer', () => {
+    const service = createSportsService(clock)
+    const listener = vi.fn()
+    service.subscribe(listener)
+
+    service.setSettings(settings)
+    service.fireNow()
+    expect(listener).toHaveBeenCalledTimes(1)
+
+    expect(service.fireNow()).toBe(true)
+    expect(listener).toHaveBeenCalledTimes(1)
+    service.dispose()
+  })
+
+  it('cannot fire with no activities or a zero interval', () => {
+    const service = createSportsService(clock)
+    service.setSettings({ ...settings, activities: [] })
+    expect(service.fireNow()).toBe(false)
+
+    service.setSettings({ ...settings, intervalMinutes: 0 })
+    expect(service.fireNow()).toBe(false)
+    service.dispose()
+  })
+
   it('has nothing to confirm while idle', () => {
     const service = createSportsService(clock)
     expect(service.confirm()).toBe(false)

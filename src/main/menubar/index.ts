@@ -44,6 +44,8 @@ export type MenubarActions = {
   readonly stopReminder: (reminderId: string) => void
   readonly startSports: () => void
   readonly stopSports: () => void
+  /** Fires Sports right now — the tray's "Log Sports Now". */
+  readonly fireSportsNow: () => void
   readonly openSettings: () => void
   readonly quit: () => void
 }
@@ -110,6 +112,9 @@ export const createMenubar = (
         return true
       case 'stopSports':
         actions.stopSports()
+        return true
+      case 'fireSportsNow':
+        actions.fireSportsNow()
         return true
       default:
         return false

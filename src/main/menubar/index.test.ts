@@ -167,6 +167,7 @@ const fakeActions = () => ({
   stopReminder: vi.fn(),
   startSports: vi.fn(),
   stopSports: vi.fn(),
+  fireSportsNow: vi.fn(),
   skip: vi.fn(),
   confirm: vi.fn(),
   addTime: vi.fn(),
