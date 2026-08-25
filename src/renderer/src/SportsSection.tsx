@@ -8,6 +8,7 @@ import {
 import { PlusIcon } from './icons'
 import { FIELD } from './PhaseRow'
 import { SportsActivityRow } from './SportsActivityRow'
+import { SportsCountdown } from './SportsCountdown'
 import { useSports } from './useSports'
 
 const replaceAt = <T,>(items: readonly T[], index: number, item: T): T[] =>
@@ -123,6 +124,8 @@ export const SportsSection = () => {
           {sports.enabled ? 'Stop' : 'Start'}
         </button>
       </div>
+
+      {sports.enabled && <SportsCountdown sports={sports} />}
 
       <form
         className="bg-panel border-line flex flex-col gap-3.5 rounded-[9px] border p-3.5"

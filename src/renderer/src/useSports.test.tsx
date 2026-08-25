@@ -10,6 +10,8 @@ const view = (overrides: Partial<SportsView> = {}): SportsView => ({
   enabled: true,
   nextFireAt: null,
   awaiting: false,
+  remainingMs: null,
+  countdown: null,
   ...overrides,
 })
 

@@ -7,6 +7,7 @@ import type { LoginItem } from '../login-item'
 import { startPresetById } from '../presets/start'
 import type { PresetStore } from '../presets/store'
 import type { ReminderStore } from '../reminders/store'
+import type { SportsService } from '../sports/service'
 import type { SportStore } from '../sports/store'
 import type { TimerService } from '../timer/service'
 
@@ -62,6 +63,7 @@ export type IpcDeps = {
   /** The Sports settings joined with the engine's live schedule — see wire.ts. */
   readonly sportsViews: () => SportsView
   readonly sportsAnswers: SportsAnswers
+  readonly sportsService: SportsService
   readonly startSports: () => void
   readonly stopSports: () => void
   readonly logSports: SportsLog
@@ -163,6 +165,7 @@ export const registerIpc = (deps: IpcDeps): void => {
     sportsStore,
     sportsViews,
     sportsAnswers,
+    sportsService,
   } = deps
 
   const handlers: Handlers = {
@@ -235,6 +238,12 @@ export const registerIpc = (deps: IpcDeps): void => {
       sportsAnswers.confirm(expect(quantities, isQuantities, 'quantities')),
     logSports: (quantities) =>
       deps.logSports(expect(quantities, isQuantities, 'quantities')),
+    setRemainingSports: (targetMs) =>
+      sportsService.setRemaining(
+        expect(targetMs, isNumber, 'a duration in ms'),
+      ),
+    addTimeSports: (extraMs) =>
+      sportsService.addTime(expect(extraMs, isNumber, 'a duration in ms')),
   }
 
   for (const [name, handler] of Object.entries(handlers))

@@ -1,4 +1,5 @@
 import type { SportSettings, SportsView } from '../../shared/sport'
+import { systemClock, type Clock } from '../timer/clock'
 import type { SportRunState } from './engine'
 import { toSportsView } from './view'
 
@@ -28,8 +29,10 @@ export type SportsViewSource = {
 export const createSportsViewSource = (
   store: ViewStoreSource,
   service: ViewServiceSource,
+  clock: Clock = systemClock,
 ): SportsViewSource => {
-  const view = (): SportsView => toSportsView(store.get(), service.getState())
+  const view = (): SportsView =>
+    toSportsView(store.get(), service.getState(), clock.now())
 
   const listeners = new Set<(view: SportsView) => void>()
   let announced: string | null = null

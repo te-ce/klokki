@@ -169,6 +169,42 @@ describe('createSportsService', () => {
     service.dispose()
   })
 
+  it('corrects the running countdown to a target', () => {
+    const service = createSportsService(clock)
+    service.setSettings(settings)
+
+    expect(service.setRemaining(minutes(5))).toBe(true)
+    expect(service.getState()).toEqual({
+      scheduled: true,
+      nextFireAt: T0 + minutes(5),
+    })
+    service.dispose()
+  })
+
+  it('cannot correct a countdown that is not running', () => {
+    const service = createSportsService(clock)
+    expect(service.setRemaining(minutes(5))).toBe(false)
+    service.dispose()
+  })
+
+  it('adds time to the running countdown', () => {
+    const service = createSportsService(clock)
+    service.setSettings(settings)
+
+    expect(service.addTime(minutes(5))).toBe(true)
+    expect(service.getState()).toEqual({
+      scheduled: true,
+      nextFireAt: T0 + minutes(65),
+    })
+    service.dispose()
+  })
+
+  it('cannot add time to a countdown that is not running', () => {
+    const service = createSportsService(clock)
+    expect(service.addTime(minutes(5))).toBe(false)
+    service.dispose()
+  })
+
   it('stops polling once nothing is scheduled', () => {
     const service = createSportsService(clock)
     service.setSettings(settings)

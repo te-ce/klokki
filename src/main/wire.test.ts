@@ -877,7 +877,13 @@ describe('Sports, all the way out', () => {
 
     expect(window.on(PUSH.sports).at(-1)).toEqual({
       channel: PUSH.sports,
-      payload: { ...settings, nextFireAt: 60 * MINUTE, awaiting: false },
+      payload: {
+        ...settings,
+        nextFireAt: 60 * MINUTE,
+        awaiting: false,
+        remainingMs: 60 * MINUTE,
+        countdown: '1:00:00',
+      },
     })
   })
 

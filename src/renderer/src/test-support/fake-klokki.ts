@@ -40,6 +40,8 @@ export const IDLE_SPORTS_VIEW: SportsView = {
   enabled: false,
   nextFireAt: null,
   awaiting: false,
+  remainingMs: null,
+  countdown: null,
 }
 
 type Mocked = { readonly [K in keyof KlokkiApi]: Mock<KlokkiApi[K]> }
@@ -120,6 +122,8 @@ export const fakeKlokki = (overrides: Partial<KlokkiApi> = {}): FakeKlokki => {
     confirmSports: () => Promise.resolve(),
     logSports: () => Promise.resolve(),
     getSportsStats: () => Promise.resolve(emptySportsStats),
+    setRemainingSports: () => Promise.resolve(true),
+    addTimeSports: () => Promise.resolve(true),
     onTimerView: subscriber(views),
     onPresets: subscriber(presets),
     onHistoryChanged: subscriber(history),

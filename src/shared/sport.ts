@@ -26,6 +26,10 @@ export type SportSettings = {
 export type SportsView = SportSettings & {
   readonly nextFireAt: number | null
   readonly awaiting: boolean
+  /** Milliseconds until `nextFireAt`, or null while awaiting an answer or unscheduled. */
+  readonly remainingMs: number | null
+  /** `remainingMs` rendered for display, or null on the same terms. */
+  readonly countdown: string | null
 }
 
 export const isSportActivity = (value: unknown): value is SportActivity =>

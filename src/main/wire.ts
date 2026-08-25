@@ -180,6 +180,7 @@ export const wireApp = (ports: AppPorts): WiredApp => {
   const sportsViewSource = createSportsViewSource(
     ports.sportsStore,
     ports.sportsService,
+    ports.clock ?? systemClock,
   )
 
   const broadcaster = createViewBroadcaster({
@@ -215,6 +216,7 @@ export const wireApp = (ports: AppPorts): WiredApp => {
     sportsStore: ports.sportsStore,
     sportsViews: sportsViewSource.view,
     sportsAnswers: sportsAlerts,
+    sportsService: ports.sportsService,
     startSports: () => startSports(ports.sportsStore, ports.sportsService),
     stopSports: () => stopSports(ports.sportsStore),
     // Only the activities the tab's form actually had a number for — unlike

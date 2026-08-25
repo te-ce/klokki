@@ -47,6 +47,8 @@ export const IPC = {
   confirmSports: 'klokki:confirm-sports',
   logSports: 'klokki:log-sports',
   getSportsStats: 'klokki:get-sports-stats',
+  setRemainingSports: 'klokki:set-remaining-sports',
+  addTimeSports: 'klokki:add-time-sports',
 } as const
 
 /**
@@ -212,5 +214,16 @@ export interface KlokkiApi {
    * the tail of sports-history.jsonl on every call.
    */
   getSportsStats(): Promise<SportsHistoryStats>
+  /**
+   * Corrects the running Sports countdown to `targetMs` — the Sports
+   * counterpart to `setRemaining`. Resolves to whether anything moved;
+   * nothing does while awaiting an answer or unscheduled.
+   */
+  setRemainingSports(targetMs: number): Promise<boolean>
+  /**
+   * Adds `extraMs` to the running Sports countdown — the Sports counterpart
+   * to `addTime`. Resolves to whether anything moved, the same guard.
+   */
+  addTimeSports(extraMs: number): Promise<boolean>
   onSports(listener: (view: SportsView) => void): () => void
 }

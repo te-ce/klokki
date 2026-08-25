@@ -2,7 +2,9 @@ import { isRunnableSportSettings, type SportSettings } from '../../shared/sport'
 import { createPoller } from '../polling'
 import { systemClock, type Clock } from '../timer/clock'
 import {
+  addTime as addTimeEngine,
   scheduleAt,
+  setRemaining as setRemainingEngine,
   snooze as snoozeEngine,
   STOPPED,
   tick,
@@ -31,6 +33,16 @@ export type SportsService = {
   readonly snooze: (extraMs: number) => boolean
   /** Starts the next interval because the firing was answered. */
   readonly confirm: () => boolean
+  /**
+   * Corrects the running countdown to `targetMs`. Answers whether anything
+   * moved; nothing does while awaiting an answer or unscheduled.
+   */
+  readonly setRemaining: (targetMs: number) => boolean
+  /**
+   * Adds `extraMs` to the running countdown. Answers whether anything moved,
+   * the same guard `setRemaining` uses.
+   */
+  readonly addTime: (extraMs: number) => boolean
   /**
    * Schedules Sports one full interval from now, whether or not it was
    * already running — Start/Restart from the tray. Answers whether it
@@ -74,11 +86,14 @@ export const createSportsService = (
   }
 
   function advance(): void {
-    const before = state
     const result = tick(state, settings, clock.now())
     state = result.state
     syncPolling()
-    if (state !== before) announceChange()
+    // Unconditional, not just on change: the view's countdown is derived from
+    // `now` at read time, so it must be re-announced every poll while
+    // counting down, the same reason the timer's service pushes every
+    // second regardless of whether `TimerState` itself moved.
+    announceChange()
     if (result.fired) emit()
   }
 
@@ -130,6 +145,20 @@ export const createSportsService = (
     snooze: (extraMs) => {
       const before = state
       state = snoozeEngine(state, clock.now(), extraMs)
+      syncPolling()
+      if (state !== before) announceChange()
+      return state !== before
+    },
+    setRemaining: (targetMs) => {
+      const before = state
+      state = setRemainingEngine(state, clock.now(), targetMs)
+      syncPolling()
+      if (state !== before) announceChange()
+      return state !== before
+    },
+    addTime: (extraMs) => {
+      const before = state
+      state = addTimeEngine(state, extraMs)
       syncPolling()
       if (state !== before) announceChange()
       return state !== before

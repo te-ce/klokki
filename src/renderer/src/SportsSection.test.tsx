@@ -14,6 +14,8 @@ const situpsAndSquats: SportsView = {
   enabled: true,
   nextFireAt: 3_600_000,
   awaiting: false,
+  remainingMs: 3_600_000,
+  countdown: '1:00:00',
 }
 
 /** The bridge, standing in for a main process that owns the one Sports schedule. */
@@ -37,6 +39,8 @@ const mockApi = (initial: SportsView = situpsAndSquats) => {
       api.pushSports(current)
       return Promise.resolve(undefined)
     },
+    setRemainingSports: () => Promise.resolve(true),
+    addTimeSports: () => Promise.resolve(true),
   })
   return api
 }
@@ -93,6 +97,70 @@ describe('the Sports schedule', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Start' }))
 
     await waitFor(() => expect(api.startSports).toHaveBeenCalled())
+  })
+})
+
+describe('the running countdown', () => {
+  it('shows the live countdown while running', async () => {
+    mockApi()
+    render(<SportsSection />)
+
+    expect(await screen.findByTestId('sports-countdown')).toHaveTextContent(
+      '1:00:00',
+    )
+  })
+
+  it('shows no countdown block while stopped', async () => {
+    mockApi({ ...situpsAndSquats, enabled: false })
+    render(<SportsSection />)
+    await screen.findByRole('button', { name: 'Start' })
+
+    expect(screen.queryByTestId('sports-countdown')).not.toBeInTheDocument()
+  })
+
+  it('restarts the interval from the countdown', async () => {
+    const api = mockApi()
+    render(<SportsSection />)
+    await screen.findByTestId('sports-countdown')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Restart' }))
+
+    await waitFor(() => expect(api.startSports).toHaveBeenCalled())
+  })
+
+  it('adds five minutes to the countdown', async () => {
+    const api = mockApi()
+    render(<SportsSection />)
+    await screen.findByTestId('sports-countdown')
+
+    fireEvent.click(screen.getByRole('button', { name: /5 min/ }))
+
+    await waitFor(() =>
+      expect(api.addTimeSports).toHaveBeenCalledWith(5 * 60_000),
+    )
+  })
+
+  it('sets the remaining time in minutes', async () => {
+    const api = mockApi()
+    render(<SportsSection />)
+    await screen.findByTestId('sports-countdown')
+
+    fireEvent.change(screen.getByLabelText('Minutes remaining'), {
+      target: { value: '10' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Set remaining' }))
+
+    await waitFor(() =>
+      expect(api.setRemainingSports).toHaveBeenCalledWith(10 * 60_000),
+    )
+  })
+
+  it('offers no remaining-time control while awaiting an answer', async () => {
+    mockApi({ ...situpsAndSquats, nextFireAt: null, awaiting: true })
+    render(<SportsSection />)
+    await screen.findByTestId('sports-countdown')
+
+    expect(screen.getByLabelText('Minutes remaining')).not.toBeVisible()
   })
 })
 

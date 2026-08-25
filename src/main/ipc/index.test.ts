@@ -37,6 +37,8 @@ const sportsView: SportsView = {
   ...sportsSettings,
   nextFireAt: 3_600_000,
   awaiting: false,
+  remainingMs: 3_600_000,
+  countdown: '1:00:00',
 }
 
 const IDLE = IDLE_VIEW
@@ -132,6 +134,19 @@ const wire = (overrides: Partial<IpcDeps> = {}) => {
     snooze: vi.fn(() => true),
     confirm: vi.fn(),
   }
+  const sportsService = {
+    setSettings: vi.fn(),
+    resume: vi.fn(),
+    snooze: vi.fn(() => true),
+    confirm: vi.fn(() => true),
+    setRemaining: vi.fn(() => true),
+    addTime: vi.fn(() => true),
+    start: vi.fn(() => true),
+    getState: vi.fn(() => ({ scheduled: false, nextFireAt: null }) as const),
+    subscribe: vi.fn(() => () => {}),
+    onScheduleChange: vi.fn(() => () => {}),
+    dispose: vi.fn(),
+  }
   const startSports = vi.fn()
   const stopSports = vi.fn()
   const logSports = vi.fn()
@@ -150,6 +165,7 @@ const wire = (overrides: Partial<IpcDeps> = {}) => {
     sportsStore,
     sportsViews,
     sportsAnswers,
+    sportsService,
     startSports,
     stopSports,
     logSports,
@@ -173,6 +189,7 @@ const wire = (overrides: Partial<IpcDeps> = {}) => {
     sportsStore,
     sportsViews,
     sportsAnswers,
+    sportsService,
     startSports,
     stopSports,
     logSports,
@@ -494,5 +511,19 @@ describe('what the handlers do', () => {
     app.invoke(IPC.getSportsStats)
 
     expect(app.sportsHistory.stats).toHaveBeenCalledTimes(2)
+  })
+
+  it('corrects the Sports remaining time, and says whether anything moved', () => {
+    const app = wire()
+
+    expect(app.invoke(IPC.setRemainingSports, 120_000)).toBe(true)
+    expect(app.sportsService.setRemaining).toHaveBeenCalledWith(120_000)
+  })
+
+  it('adds time to the running Sports countdown, and says whether anything moved', () => {
+    const app = wire()
+
+    expect(app.invoke(IPC.addTimeSports, 300_000)).toBe(true)
+    expect(app.sportsService.addTime).toHaveBeenCalledWith(300_000)
   })
 })

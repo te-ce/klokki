@@ -3,7 +3,9 @@ import { describe, expect, it } from 'vitest'
 import { MS_PER_MINUTE } from '../../shared/preset'
 import type { SportSettings } from '../../shared/sport'
 import {
+  addTime,
   scheduleAt,
+  setRemaining,
   snooze,
   STOPPED,
   tick,
@@ -128,6 +130,53 @@ describe('snooze', () => {
     const scheduled = scheduleAt(settings, T0)
     expect(snooze(scheduled, T0, minutes(5))).toEqual(scheduled)
     expect(snooze(STOPPED, T0, minutes(5))).toEqual(STOPPED)
+  })
+})
+
+describe('setRemaining', () => {
+  it('corrects a running countdown to targetMs from now', () => {
+    const scheduled = scheduleAt(settings, T0)
+    expect(setRemaining(scheduled, T0 + minutes(10), minutes(5))).toEqual({
+      scheduled: true,
+      nextFireAt: T0 + minutes(15),
+    })
+  })
+
+  it('clamps a negative target to zero rather than rejecting it', () => {
+    expect(setRemaining(scheduleAt(settings, T0), T0, -minutes(5))).toEqual({
+      scheduled: true,
+      nextFireAt: T0,
+    })
+  })
+
+  it('does nothing while awaiting an answer or unscheduled', () => {
+    const fired = tick(
+      scheduleAt(settings, T0),
+      settings,
+      T0 + minutes(60),
+    ).state
+    expect(setRemaining(fired, T0 + minutes(60), minutes(5))).toEqual(fired)
+    expect(setRemaining(STOPPED, T0, minutes(5))).toEqual(STOPPED)
+  })
+})
+
+describe('addTime', () => {
+  it('adds extraMs to a running countdown', () => {
+    const scheduled = scheduleAt(settings, T0)
+    expect(addTime(scheduled, minutes(5))).toEqual({
+      scheduled: true,
+      nextFireAt: T0 + minutes(65),
+    })
+  })
+
+  it('does nothing while awaiting an answer or unscheduled', () => {
+    const fired = tick(
+      scheduleAt(settings, T0),
+      settings,
+      T0 + minutes(60),
+    ).state
+    expect(addTime(fired, minutes(5))).toEqual(fired)
+    expect(addTime(STOPPED, minutes(5))).toEqual(STOPPED)
   })
 })
 

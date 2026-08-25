@@ -90,3 +90,31 @@ export const snooze = (
   state.scheduled && state.nextFireAt === null
     ? { scheduled: true, nextFireAt: now + extraMs }
     : state
+
+/**
+ * Corrects the running countdown to `targetMs` — the Sports counterpart to
+ * the timer's `setRemaining`. A no-op while awaiting an answer or
+ * unscheduled: there is no countdown to correct. `targetMs` is clamped to
+ * zero rather than rejected, the same as the timer's version.
+ */
+export const setRemaining = (
+  state: SportRunState,
+  now: number,
+  targetMs: number,
+): SportRunState =>
+  state.scheduled && state.nextFireAt !== null
+    ? { scheduled: true, nextFireAt: now + Math.max(0, targetMs) }
+    : state
+
+/**
+ * Adds `extraMs` to the running countdown — the Sports counterpart to the
+ * timer's `addTime`. A no-op while awaiting an answer or unscheduled, the
+ * same guard `setRemaining` uses.
+ */
+export const addTime = (
+  state: SportRunState,
+  extraMs: number,
+): SportRunState =>
+  state.scheduled && state.nextFireAt !== null
+    ? { scheduled: true, nextFireAt: state.nextFireAt + extraMs }
+    : state

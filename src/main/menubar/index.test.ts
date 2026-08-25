@@ -34,6 +34,8 @@ const NO_SPORTS: SportsView = {
   enabled: false,
   nextFireAt: null,
   awaiting: false,
+  remainingMs: null,
+  countdown: null,
 }
 
 const sports: SportsView = {
@@ -42,6 +44,8 @@ const sports: SportsView = {
   enabled: true,
   nextFireAt: null,
   awaiting: false,
+  remainingMs: null,
+  countdown: null,
 }
 
 const IDLE = IDLE_VIEW

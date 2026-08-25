@@ -187,6 +187,8 @@ describe('createViewBroadcaster', () => {
       enabled: true,
       nextFireAt: 1_800_000,
       awaiting: false,
+      remainingMs: 1_800_000,
+      countdown: '30:00',
     }
 
     broadcaster.register(target)

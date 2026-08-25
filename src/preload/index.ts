@@ -59,6 +59,9 @@ const api: KlokkiApi = {
     ipcRenderer.invoke(IPC.confirmSports, quantities),
   logSports: (quantities) => ipcRenderer.invoke(IPC.logSports, quantities),
   getSportsStats: () => ipcRenderer.invoke(IPC.getSportsStats),
+  setRemainingSports: (targetMs) =>
+    ipcRenderer.invoke(IPC.setRemainingSports, targetMs),
+  addTimeSports: (extraMs) => ipcRenderer.invoke(IPC.addTimeSports, extraMs),
   onTimerView: (listener) => on<TimerView>(PUSH.timerView, listener),
   onPresets: (listener) => on<readonly Preset[]>(PUSH.presets, listener),
   onHistoryChanged: (listener) => on(PUSH.historyChanged, listener),

@@ -189,6 +189,8 @@ const NO_SPORTS: SportsView = {
   enabled: false,
   nextFireAt: null,
   awaiting: false,
+  remainingMs: null,
+  countdown: null,
 }
 
 export const menubarModel = (
