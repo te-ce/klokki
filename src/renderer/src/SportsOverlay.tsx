@@ -38,7 +38,9 @@ export const SportsOverlay = ({ alert }: { alert: SportsAlert }) => {
       data-testid="sports-overlay"
       className="bg-ground/95 flex h-screen flex-col gap-3.5 p-5"
     >
-      <p className="text-center text-[26px] leading-none font-semibold tracking-[-0.02em]">
+      {/* The one static row in the window — the natural place to grab it and
+          drag, since every row below is an input and the footer is Snooze/Done. */}
+      <p className="drag-region text-center text-[26px] leading-none font-semibold tracking-[-0.02em]">
         Sports
       </p>
       <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto">

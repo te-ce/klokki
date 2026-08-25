@@ -87,6 +87,9 @@ test('the overlay sits above fullscreen apps without taking focus', async () => 
     focusable: false,
     // On the active Space, not the one the overlay was created on.
     visibleOnAllWorkspaces: true,
+    // Frameless and centred, so the user's only way to move it off whatever it
+    // landed on is dragging the window itself.
+    movable: true,
   })
   // An overlay must not turn a menubar app into a Dock and app-switcher entry.
   expect(await dockVisible(app)).toBe(false)

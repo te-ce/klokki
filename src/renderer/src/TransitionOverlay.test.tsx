@@ -90,4 +90,15 @@ describe('TransitionOverlay', () => {
 
     expect(screen.queryByRole('button', { name: /Snooze/ })).toBeNull()
   })
+
+  it('lets the frameless window be dragged by its one static row', () => {
+    mockApi()
+    render(
+      <TransitionOverlay
+        alert={{ completedLabel: 'Focus', nextLabel: 'Break' }}
+      />,
+    )
+
+    expect(screen.getByText('Focus finished')).toHaveClass('drag-region')
+  })
 })

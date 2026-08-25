@@ -50,4 +50,13 @@ describe('SportsOverlay', () => {
     expect(api.snoozeSports).toHaveBeenNthCalledWith(1, 10 * 60_000)
     expect(api.snoozeSports).toHaveBeenNthCalledWith(2, 30 * 60_000)
   })
+
+  it('lets the frameless window be dragged by its one static row', () => {
+    fakeKlokki()
+    render(<SportsOverlay alert={alert} />)
+
+    expect(screen.getByText('Sports')).toHaveClass('drag-region')
+    // Every row below the title is an input and must still take clicks.
+    expect(screen.getByLabelText('Situps')).not.toHaveClass('drag-region')
+  })
 })

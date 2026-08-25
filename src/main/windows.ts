@@ -74,6 +74,7 @@ type OverlayState = {
   alwaysOnTop: boolean
   focusable: boolean
   visibleOnAllWorkspaces: boolean
+  movable: boolean
 }
 
 /**
@@ -94,6 +95,12 @@ type OverlayState = {
  *   quantity — and a window that can never become key can never receive it.
  * - `skipTaskbar`, with the Dock already hidden, keeps Klokki a menubar app: an
  *   overlay must not put it in the app switcher.
+ * - `movable: true` is the one option here that isn't about being impossible to
+ *   miss — a frameless, centred window has no OS-drawn titlebar to drag by, so
+ *   without it an overlay that lands over whatever the user was reading is
+ *   stuck there. Dragging does not fight any of the above: the window stays
+ *   always-on-top, unfocusable (or focusable), off the taskbar and on every
+ *   Space regardless of where the user has put it on screen.
  *
  * The height comes from the caller (`src/shared/overlay-size.ts`) because it is
  * a fact about the alert, not about the platform: Sports asks about every
@@ -127,7 +134,7 @@ const createOverlay = (
       show: false,
       frame: false,
       resizable: false,
-      movable: false,
+      movable: true,
       minimizable: false,
       maximizable: false,
       fullscreenable: false,
@@ -159,6 +166,7 @@ const createOverlay = (
       alwaysOnTop: window.isAlwaysOnTop(),
       focusable: window.isFocusable(),
       visibleOnAllWorkspaces: window.isVisibleOnAllWorkspaces(),
+      movable: window.isMovable(),
     }
   }
 

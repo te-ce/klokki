@@ -60,4 +60,13 @@ describe('ReminderOverlay', () => {
 
     expect(api.snoozeReminder).toHaveBeenCalledWith(10 * 60_000)
   })
+
+  it('lets the frameless window be dragged by its one static row', () => {
+    mockApi()
+    render(<ReminderOverlay alert={{ label: 'Pushups', unit: 'reps' }} />)
+
+    expect(screen.getByText('Pushups')).toHaveClass('drag-region')
+    // The quantity field sits under that row and must still take clicks.
+    expect(screen.getByLabelText('reps')).not.toHaveClass('drag-region')
+  })
 })

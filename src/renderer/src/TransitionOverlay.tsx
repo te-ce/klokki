@@ -28,7 +28,9 @@ export const TransitionOverlay = ({ alert }: { alert: Alert }) => (
     data-testid="transition-overlay"
     className="bg-ground/95 flex h-screen flex-col gap-3.5 p-5"
   >
-    <p className="text-ink-faint text-center text-[10px] tracking-[0.22em] uppercase">
+    {/* The one static row in the window — the natural place to grab it and
+        drag, since nothing here is ever clickable. */}
+    <p className="drag-region text-ink-faint text-center text-[10px] tracking-[0.22em] uppercase">
       {alert.completedLabel} finished
     </p>
     <p className="text-center text-[26px] leading-none font-semibold tracking-[-0.02em]">
