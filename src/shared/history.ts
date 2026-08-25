@@ -12,6 +12,17 @@
  */
 export type PhaseOutcome = 'completed' | 'snoozed' | 'skipped'
 
+/**
+ * How many days every stats view covers, today included. Seven is the whole
+ * scope on purpose (see AGENTS.md): the stats are a tail-read of the log, so
+ * nothing wider can be served without a query engine.
+ *
+ * It lives here rather than beside one of the three summarisers because all
+ * three windows have to be the same window — the pane reads them as one week —
+ * and because the view divides by it to average.
+ */
+export const STATS_DAYS = 7
+
 export type HistoryEvent = {
   readonly endedAt: number
   readonly presetId: string

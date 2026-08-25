@@ -1,11 +1,9 @@
+import { STATS_DAYS } from '../../shared/history'
 import type {
   ReminderDayStats,
   ReminderHistoryEvent,
   ReminderHistoryStats,
 } from '../../shared/reminder-history'
-
-/** Matches `STATS_DAYS` in stats.ts — the same seven-day scope, same reason. */
-export const REMINDER_STATS_DAYS = 7
 
 const MS_PER_DAY = 86_400_000
 
@@ -69,7 +67,7 @@ export const summariseReminders = (
   timeZone?: string,
 ): ReminderHistoryStats => {
   const today = dayKey(now, timeZone)
-  const wanted = daysEndingOn(today, REMINDER_STATS_DAYS)
+  const wanted = daysEndingOn(today, STATS_DAYS)
 
   const buckets = new Map<string, ReminderHistoryEvent[]>(
     wanted.map((date) => [date, []]),

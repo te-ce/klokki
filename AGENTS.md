@@ -201,6 +201,20 @@ waits for the seam to appear, because `electron.launch()` resolves before
   follow the schedule, and only the overlay follows the firings. `ReminderView`
   carries `awaiting` because "waiting for you" and "not scheduled" are different
   things for a row to say.
+- **The stats pane reads the three logs as one week.** Phases, reminders and
+  Sports each have their own log and their own summariser, but the day a stretch
+  of standing landed on is the day the pushups did or did not — so the pane joins
+  them on the calendar day (`zipWeek` in `src/renderer/src/week.ts`) and draws
+  one row per day, not three lists of `YYYY-MM-DD`. Phase minutes are what a row
+  is drawn at, scaled to the busiest day of the week rather than to the day's own
+  maximum, because a row is read against its neighbours; reps and kilometres are
+  counted beside them, because they share no scale with minutes. A label's accent
+  comes from the week's ranking of it and never from its position within a day,
+  which is sorted by that day's minutes and would swap two labels between rows.
+  The join and the sums are the only derivation the renderer does, and they are
+  arithmetic over one payload — never a fact inferred from the timer or from a
+  second push. `STATS_DAYS` therefore lives in `src/shared/history.ts`: all three
+  windows have to be the same window, and the view divides by it to average.
 - **History is local and append-only** (`history.jsonl`). Append-only survives a
   kill mid-write; stats read the tail. Stats cover today + 7 days, which is why
   no query engine is needed. A line is written when a stretch of phase _ends_,

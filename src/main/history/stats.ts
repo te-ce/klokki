@@ -1,11 +1,9 @@
-import type { DayStats, HistoryEvent, HistoryStats } from '../../shared/history'
-
-/**
- * How many days the stats view covers, today included. Seven is the whole scope
- * on purpose (see AGENTS.md): it is a tail-read of the log, so nothing wider can
- * be served without a query engine.
- */
-export const STATS_DAYS = 7
+import {
+  STATS_DAYS,
+  type DayStats,
+  type HistoryEvent,
+  type HistoryStats,
+} from '../../shared/history'
 
 const MS_PER_MINUTE = 60_000
 const MS_PER_DAY = 86_400_000

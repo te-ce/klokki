@@ -1,11 +1,9 @@
+import { STATS_DAYS } from '../../shared/history'
 import type {
   SportsDayStats,
   SportsHistoryEvent,
   SportsHistoryStats,
 } from '../../shared/sports-history'
-
-/** Matches `STATS_DAYS`/`REMINDER_STATS_DAYS` — the same seven-day scope, same reason. */
-export const SPORTS_STATS_DAYS = 7
 
 const MS_PER_DAY = 86_400_000
 
@@ -61,7 +59,7 @@ export const summariseSports = (
   timeZone?: string,
 ): SportsHistoryStats => {
   const today = dayKey(now, timeZone)
-  const wanted = daysEndingOn(today, SPORTS_STATS_DAYS)
+  const wanted = daysEndingOn(today, STATS_DAYS)
 
   const buckets = new Map<string, SportsHistoryEvent[]>(
     wanted.map((date) => [date, []]),

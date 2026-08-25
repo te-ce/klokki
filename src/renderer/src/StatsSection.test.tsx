@@ -51,7 +51,7 @@ const reminderStats = (
         { label: 'Pushups', quantity: 60 },
         { label: 'Squats', quantity: 40 },
       ]),
-      reminderDay('2026-08-19'),
+      reminderDay('2026-08-19', [{ label: 'Pushups', quantity: 25 }]),
       reminderDay('2026-08-18', [{ label: 'Pushups', quantity: 20 }]),
       reminderDay('2026-08-17'),
       reminderDay('2026-08-16'),
@@ -94,38 +94,99 @@ const mockApi = (
     getSportsStats: () => Promise.resolve(sportsValue),
   })
 
+const spine = () => screen.findByRole('list', { name: /^last 7 days$/i })
+
 describe('StatsSection', () => {
-  it("shows today's completed phases and minutes per label", async () => {
+  it("shows today's phases, its total and its minutes per label", async () => {
     mockApi()
     render(<StatsSection />)
 
     expect(await screen.findByText('3 phases')).toBeInTheDocument()
     const today = await screen.findByRole('group', { name: /Today/ })
+    expect(today).toHaveTextContent('Thu 20')
+    expect(today).toHaveTextContent('2h 15m')
     expect(today).toHaveTextContent('Sitting')
-    expect(today).toHaveTextContent('90m')
+    expect(today).toHaveTextContent('1h 30m')
     expect(today).toHaveTextContent('Standing')
     expect(today).toHaveTextContent('45m')
   })
 
-  it('lists the last seven days, newest first', async () => {
+  it("counts today's reminder steps and Sports beside the minutes", async () => {
     mockApi()
     render(<StatsSection />)
 
-    const list = await screen.findByRole('list', { name: /^last 7 days$/i })
-    const rows = within(list).getAllByRole('listitem')
+    // One card, not three: the reps happened on the day the minutes did.
+    const today = await screen.findByRole('group', { name: /Today/ })
+    expect(today).toHaveTextContent('Pushups 60')
+    expect(today).toHaveTextContent('Squats 40')
+    expect(today).toHaveTextContent('Situps 20')
+  })
+
+  it('says so when nothing at all was recorded today', async () => {
+    mockApi(
+      stats({ today: day(TODAY) as HistoryStats['today'] }),
+      reminderStats({
+        today: reminderDay(TODAY) as ReminderHistoryStats['today'],
+      }),
+      sportsStats({ today: sportsDay(TODAY) as SportsHistoryStats['today'] }),
+    )
+    render(<StatsSection />)
+
+    const today = await screen.findByRole('group', { name: /Today/ })
+    expect(today).toHaveTextContent('Nothing recorded')
+  })
+
+  it('lists the last seven days as one spine, newest first', async () => {
+    mockApi()
+    render(<StatsSection />)
+
+    const rows = within(await spine()).getAllByRole('listitem')
     expect(rows).toHaveLength(7)
-    expect(rows[0]).toHaveTextContent('2026-08-20')
-    expect(rows[6]).toHaveTextContent('2026-08-14')
+    expect(rows[0]).toHaveTextContent('Thu 20')
+    expect(rows[6]).toHaveTextContent('Fri 14')
+  })
+
+  it('puts every log on the same row of the spine', async () => {
+    mockApi()
+    render(<StatsSection />)
+
+    const rows = within(await spine()).getAllByRole('listitem')
+    // 18 Aug: half an hour of sitting, twenty pushups and fifteen squats — three
+    // logs, one row.
+    expect(rows[2]).toHaveTextContent('Tue 18')
+    expect(rows[2]).toHaveTextContent('30m')
+    expect(rows[2]).toHaveTextContent('Pushups 20 · Squats 15')
+  })
+
+  it('keeps a day with counts but no minutes, rather than reading it as empty', async () => {
+    mockApi()
+    render(<StatsSection />)
+
+    const rows = within(await spine()).getAllByRole('listitem')
+    expect(rows[1]).toHaveTextContent('Wed 19')
+    expect(rows[1]).toHaveTextContent('Pushups 25')
+    expect(rows[1]).not.toHaveTextContent('Nothing recorded')
   })
 
   it('renders a day with nothing recorded as empty rather than omitting it', async () => {
     mockApi()
     render(<StatsSection />)
 
-    const list = await screen.findByRole('list', { name: /^last 7 days$/i })
-    const rows = within(list).getAllByRole('listitem')
-    expect(rows[1]).toHaveTextContent('2026-08-19')
-    expect(rows[1]).toHaveTextContent('Nothing recorded')
+    const rows = within(await spine()).getAllByRole('listitem')
+    expect(rows[3]).toHaveTextContent('Mon 17')
+    expect(rows[3]).toHaveTextContent('Nothing recorded')
+  })
+
+  it('totals the week and averages it over the whole window', async () => {
+    mockApi()
+    render(<StatsSection />)
+
+    // 135 + 30 minutes over seven days, empty days included.
+    const totals = await screen.findByLabelText(/week totals/i)
+    expect(totals).toHaveTextContent('2h 45m')
+    expect(totals).toHaveTextContent('24m')
+    expect(totals).toHaveTextContent('Phases')
+    expect(totals).toHaveTextContent('4')
   })
 
   it('re-reads the log when the main process says a line was written', async () => {
@@ -136,6 +197,8 @@ describe('StatsSection', () => {
 
     api.pushHistoryChanged()
     await waitFor(() => expect(api.getStats).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(api.getReminderStats).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(api.getSportsStats).toHaveBeenCalledTimes(2))
   })
 
   it('re-reads for a stretch that no phase label would have betrayed', async () => {
@@ -170,79 +233,5 @@ describe('StatsSection', () => {
     view.unmount()
 
     expect(api.listenerCount()).toBe(0)
-  })
-
-  it("shows today's total quantity per reminder step label", async () => {
-    mockApi()
-    render(<StatsSection />)
-
-    const today = await screen.findByRole('group', { name: /Reminders/ })
-    expect(today).toHaveTextContent('Pushups')
-    expect(today).toHaveTextContent('60')
-    expect(today).toHaveTextContent('Squats')
-    expect(today).toHaveTextContent('40')
-  })
-
-  it('lists the last seven days of reminder totals, newest first', async () => {
-    mockApi()
-    render(<StatsSection />)
-
-    const list = await screen.findByRole('list', { name: /reminders/i })
-    const rows = within(list).getAllByRole('listitem')
-    expect(rows).toHaveLength(7)
-    expect(rows[0]).toHaveTextContent('2026-08-20')
-    expect(rows[6]).toHaveTextContent('2026-08-14')
-  })
-
-  it('renders a reminder day with nothing logged as empty rather than omitting it', async () => {
-    mockApi()
-    render(<StatsSection />)
-
-    const list = await screen.findByRole('list', { name: /reminders/i })
-    const rows = within(list).getAllByRole('listitem')
-    expect(rows[1]).toHaveTextContent('2026-08-19')
-    expect(rows[1]).toHaveTextContent('Nothing recorded')
-  })
-
-  it('re-reads the reminder log when the main process says a line was written', async () => {
-    const api = mockApi()
-    render(<StatsSection />)
-
-    await waitFor(() => expect(api.getReminderStats).toHaveBeenCalledTimes(1))
-
-    api.pushHistoryChanged()
-    await waitFor(() => expect(api.getReminderStats).toHaveBeenCalledTimes(2))
-  })
-
-  it("shows today's total quantity per Sports activity", async () => {
-    mockApi()
-    render(<StatsSection />)
-
-    const today = await screen.findByRole('group', { name: /Sports today/ })
-    expect(today).toHaveTextContent('Situps')
-    expect(today).toHaveTextContent('20')
-  })
-
-  it('lists the last seven days of Sports totals, newest first', async () => {
-    mockApi()
-    render(<StatsSection />)
-
-    const list = await screen.findByRole('list', {
-      name: /^sports, last 7 days$/i,
-    })
-    const rows = within(list).getAllByRole('listitem')
-    expect(rows).toHaveLength(7)
-    expect(rows[0]).toHaveTextContent('2026-08-20')
-    expect(rows[6]).toHaveTextContent('2026-08-14')
-  })
-
-  it('re-reads the Sports log when the main process says a line was written', async () => {
-    const api = mockApi()
-    render(<StatsSection />)
-
-    await waitFor(() => expect(api.getSportsStats).toHaveBeenCalledTimes(1))
-
-    api.pushHistoryChanged()
-    await waitFor(() => expect(api.getSportsStats).toHaveBeenCalledTimes(2))
   })
 })
