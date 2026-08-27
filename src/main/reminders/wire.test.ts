@@ -19,6 +19,7 @@ const fakeService = () => {
     }),
     snooze: vi.fn(() => true),
     confirm: vi.fn(() => true),
+    stop: vi.fn(),
     fire: (batch: readonly ReminderDue[]) => {
       for (const listener of listeners) listener(batch)
     },
@@ -115,6 +116,50 @@ describe('wireReminderAlerts', () => {
     controller.complete(null)
 
     expect(service.confirm).not.toHaveBeenCalled()
+    controller.dispose()
+  })
+
+  it('stops the reminder the overlay is showing, and closes it', () => {
+    const service = fakeService()
+    const close = vi.fn()
+    const record = vi.fn()
+    const controller = wireReminderAlerts(service, vi.fn(), close, record)
+    service.fire([due('water', 'Drink water')])
+
+    controller.stop()
+
+    // By which reminder is showing, never by an id from outside: a stale id
+    // would stop one the user is not looking at.
+    expect(service.stop).toHaveBeenCalledExactlyOnceWith('water')
+    expect(close).toHaveBeenCalledOnce()
+    // A stop is neither a "done" nor a "later", so there is nothing to log.
+    expect(record).not.toHaveBeenCalled()
+    expect(service.confirm).not.toHaveBeenCalled()
+    controller.dispose()
+  })
+
+  it('shows the queued reminder once the current one is stopped', () => {
+    const service = fakeService()
+    const present = vi.fn()
+    const controller = wireReminderAlerts(service, present, vi.fn())
+    service.fire([due('water', 'Drink water'), due('pushups', 'Pushups')])
+
+    controller.stop()
+
+    // Stopping one reminder is not an answer to the others behind it.
+    expect(present).toHaveBeenLastCalledWith({ label: 'Pushups', unit: null })
+    controller.dispose()
+  })
+
+  it('stops nothing when no reminder is showing', () => {
+    const service = fakeService()
+    const close = vi.fn()
+    const controller = wireReminderAlerts(service, vi.fn(), close)
+
+    controller.stop()
+
+    expect(service.stop).not.toHaveBeenCalled()
+    expect(close).not.toHaveBeenCalled()
     controller.dispose()
   })
 

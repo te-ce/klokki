@@ -7,9 +7,13 @@ export type SportsAlertSurface = {
   readonly showOverlay: (alert: SportsAlert) => void
 }
 
-const sportsNotificationFor = (alert: SportsAlert): NotificationText => ({
+const sportsNotificationFor = (
+  alert: SportsAlert,
+  stop: () => void,
+): NotificationText => ({
   title: 'Sports',
   body: `Log your ${alert.activities.map((a) => a.name).join(', ')}, or snooze it.`,
+  actions: [{ label: 'Stop Sports', run: stop }],
 })
 
 /**
@@ -18,10 +22,14 @@ const sportsNotificationFor = (alert: SportsAlert): NotificationText => ({
  * the overlay is shown even when the notification fails.
  */
 export const createSportsAlertPresenter =
-  (surface: SportsAlertSurface) =>
+  (
+    surface: SportsAlertSurface,
+    /** Stops Sports and closes the overlay — see `createAlertPresenter`. */
+    stop: () => void,
+  ) =>
   (alert: SportsAlert): void => {
     try {
-      surface.notify(sportsNotificationFor(alert))
+      surface.notify(sportsNotificationFor(alert, stop))
     } catch {
       /* empty */
     }

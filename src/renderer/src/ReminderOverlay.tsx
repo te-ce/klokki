@@ -3,12 +3,15 @@ import {
   REMINDER_SNOOZE_MINUTES_OPTIONS,
   type ReminderAlert,
 } from '../../shared/reminder-alert'
+import { OverlayStop } from './OverlayStop'
 import { SnoozeChoice } from './SnoozeChoice'
 
 /**
- * The whole content of the reminder overlay: one step, and exactly two ways
- * out — Snooze or Done, never a plain dismiss (see issues/open/09). A
- * reminder that hasn't been done should always end in "later" or "done".
+ * The whole content of the reminder overlay: one step, and three ways out —
+ * Snooze, Done, or Stop, never a plain dismiss (see issues/open/09). A
+ * reminder that hasn't been done should always end in "later", "done", or
+ * "not any more": closing it with nothing said is the one answer it will not
+ * take.
  *
  * Done needs a quantity before it is enabled when the step carries a `unit`
  * (e.g. how many pushups); a step with no unit needs no input at all. The
@@ -54,10 +57,18 @@ export const ReminderOverlay = ({ alert }: { alert: ReminderAlert }) => {
         </label>
       )}
       <div className="mt-auto flex items-center justify-between gap-3">
-        <SnoozeChoice
-          options={REMINDER_SNOOZE_MINUTES_OPTIONS}
-          onSnooze={(extraMs) => void window.klokki.snoozeReminder(extraMs)}
-        />
+        <div className="flex items-center gap-2">
+          {/* Stopping disables this reminder — the tray's stop, reached from
+              where the user actually is when they decide it is not for today. */}
+          <OverlayStop
+            label="Stop reminder"
+            onStop={() => void window.klokki.stopReminderFromAlert()}
+          />
+          <SnoozeChoice
+            options={REMINDER_SNOOZE_MINUTES_OPTIONS}
+            onSnooze={(extraMs) => void window.klokki.snoozeReminder(extraMs)}
+          />
+        </div>
         <button
           type="button"
           disabled={!canComplete}

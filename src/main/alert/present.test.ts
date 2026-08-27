@@ -13,12 +13,14 @@ describe('presenting an alert', () => {
   it('shows both halves, because either one alone is missable', () => {
     const platform = surface()
 
-    createAlertPresenter(platform)(alert)
+    createAlertPresenter(platform, vi.fn())(alert)
 
-    expect(platform.notify).toHaveBeenCalledWith({
-      title: 'Focus finished',
-      body: 'Break starting now',
-    })
+    expect(platform.notify).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Focus finished',
+        body: 'Break starting now',
+      }),
+    )
     expect(platform.showOverlay).toHaveBeenCalledWith(alert)
   })
 
@@ -30,14 +32,14 @@ describe('presenting an alert', () => {
       throw new Error('no notification centre')
     })
 
-    createAlertPresenter(platform)(alert)
+    createAlertPresenter(platform, vi.fn())(alert)
 
     expect(platform.showOverlay).toHaveBeenCalledWith(alert)
   })
 
   it('supersedes the last alert rather than stacking a second overlay', () => {
     const platform = surface()
-    const present = createAlertPresenter(platform)
+    const present = createAlertPresenter(platform, vi.fn())
 
     present(alert)
     present({ completedLabel: 'Break', nextLabel: 'Focus' })
@@ -47,5 +49,20 @@ describe('presenting an alert', () => {
       completedLabel: 'Break',
       nextLabel: 'Focus',
     })
+  })
+
+  it('gives the notification a Stop button that takes the overlay path', () => {
+    const platform = surface()
+    const stop = vi.fn()
+
+    createAlertPresenter(platform, stop)(alert)
+
+    // Both halves of one alert must stop the same thing the same way.
+    const text = platform.notify.mock.calls[0]?.[0] as {
+      actions: readonly { label: string; run: () => void }[]
+    }
+    expect(text.actions.map((action) => action.label)).toEqual(['Stop Timer'])
+    text.actions[0]?.run()
+    expect(stop).toHaveBeenCalledOnce()
   })
 })

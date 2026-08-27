@@ -109,8 +109,20 @@ export type WiredApp = {
  */
 export const wireApp = (ports: AppPorts): WiredApp => {
   const reminderAlerts = wireReminderAlerts(
-    ports.reminderService,
-    createReminderAlertPresenter(ports.reminderAlerts),
+    {
+      subscribe: ports.reminderService.subscribe,
+      snooze: ports.reminderService.snooze,
+      confirm: ports.reminderService.confirm,
+      // The tray's stop path, unchanged: a reminder stopped from its overlay is
+      // a reminder disabled, which is what drops its schedule.
+      stop: (id) => stopReminderById(ports.reminderStore, id),
+    },
+    // The notification's Stop button stops whatever the overlay is showing when
+    // it is clicked — the controller's own answer, so the two halves of one
+    // alert cannot stop different things.
+    createReminderAlertPresenter(ports.reminderAlerts, () =>
+      reminderAlerts.stop(),
+    ),
     ports.reminderOverlay.close,
     ports.reminderHistory.append,
     ports.clock ?? systemClock,
@@ -149,9 +161,14 @@ export const wireApp = (ports: AppPorts): WiredApp => {
   )
 
   const sportsAlerts = wireSportsAlerts(
-    ports.sportsService,
+    {
+      subscribe: ports.sportsService.subscribe,
+      snooze: ports.sportsService.snooze,
+      confirm: ports.sportsService.confirm,
+      stop: () => stopSports(ports.sportsStore),
+    },
     ports.sportsStore,
-    createSportsAlertPresenter(ports.sportsAlerts),
+    createSportsAlertPresenter(ports.sportsAlerts, () => sportsAlerts.stop()),
     ports.sportsOverlay.close,
     ports.sportsHistory.append,
     ports.clock ?? systemClock,
@@ -201,6 +218,15 @@ export const wireApp = (ports: AppPorts): WiredApp => {
     window.onClosed(() => broadcaster.unregister(window.target))
   })
 
+  // Stopping the timer from the alert it raised. One closure, reached from the
+  // overlay (IPC) and from the notification's own Stop button: the run ends and
+  // the overlay that was announcing the boundary closes, because a boundary of a
+  // stopped run has nothing left to answer.
+  const stopTimerFromAlert = (): void => {
+    ports.service.stop()
+    ports.overlay.close()
+  }
+
   registerIpc({
     requests: ports.requests,
     service: ports.service,
@@ -219,6 +245,7 @@ export const wireApp = (ports: AppPorts): WiredApp => {
     sportsService: ports.sportsService,
     startSports: () => startSports(ports.sportsStore, ports.sportsService),
     stopSports: () => stopSports(ports.sportsStore),
+    stopFromAlert: stopTimerFromAlert,
     // Only the activities the tab's form actually had a number for — unlike
     // the overlay's confirm, a manual log is not a full round, so an activity
     // left blank is not "zero of it", it is "not logged this time".
@@ -240,7 +267,7 @@ export const wireApp = (ports: AppPorts): WiredApp => {
 
   const unwireAlerts = wireAlerts(
     ports.service,
-    createAlertPresenter(ports.alerts),
+    createAlertPresenter(ports.alerts, stopTimerFromAlert),
   )
   const unwireHistory = recordHistory(ports.service, ports.history.append)
   const unwireSnapshot = persistSnapshot(ports.service, ports.snapshot)

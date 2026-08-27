@@ -17,10 +17,18 @@ export type AlertSurface = {
  * other one down with it.
  */
 export const createAlertPresenter =
-  (surface: AlertSurface) =>
+  (
+    surface: AlertSurface,
+    /**
+     * Stops the run and closes the overlay, for the notification's Stop button —
+     * the same thing the overlay's own Stop does, because the two halves of one
+     * alert must not answer differently.
+     */
+    stop: () => void,
+  ) =>
   (alert: Alert): void => {
     try {
-      surface.notify(notificationFor(alert))
+      surface.notify(notificationFor(alert, stop))
     } catch {
       /* empty */
     }

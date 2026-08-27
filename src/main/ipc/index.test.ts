@@ -107,6 +107,7 @@ const wire = (overrides: Partial<IpcDeps> = {}) => {
   const reminderAnswers = {
     snooze: vi.fn(() => true),
     complete: vi.fn(),
+    stop: vi.fn(),
   }
   const reminderStore = {
     list: vi.fn((): readonly ReminderDefinition[] => [water]),
@@ -133,6 +134,7 @@ const wire = (overrides: Partial<IpcDeps> = {}) => {
   const sportsAnswers = {
     snooze: vi.fn(() => true),
     confirm: vi.fn(),
+    stop: vi.fn(),
   }
   const sportsService = {
     setSettings: vi.fn(),
@@ -150,6 +152,7 @@ const wire = (overrides: Partial<IpcDeps> = {}) => {
   }
   const startSports = vi.fn()
   const stopSports = vi.fn()
+  const stopFromAlert = vi.fn()
   const logSports = vi.fn()
   const deps: IpcDeps = {
     requests: sink.sink,
@@ -169,6 +172,7 @@ const wire = (overrides: Partial<IpcDeps> = {}) => {
     sportsService,
     startSports,
     stopSports,
+    stopFromAlert,
     logSports,
     appInfo: () => ({ version: '1.2.3', electron: '43.0.0' }),
     ...overrides,
@@ -193,6 +197,7 @@ const wire = (overrides: Partial<IpcDeps> = {}) => {
     sportsService,
     startSports,
     stopSports,
+    stopFromAlert,
     logSports,
   }
 }
@@ -268,6 +273,18 @@ describe('what the handlers do', () => {
     expect(app.service.confirm).toHaveBeenCalledOnce()
     expect(app.overlay.close).toHaveBeenCalledOnce()
     expect(app.service.snooze).not.toHaveBeenCalled()
+  })
+
+  it('stops the run and the overlay together, from the alert itself', () => {
+    const app = wire()
+
+    app.invoke(IPC.stopFromAlert)
+
+    // One closure in wire.ts, so the overlay's Stop and the notification's
+    // cannot drift apart. `stopTimer` is untouched: this is the alert's own way
+    // out, not a second way to stop the timer.
+    expect(app.stopFromAlert).toHaveBeenCalledOnce()
+    expect(app.service.confirm).not.toHaveBeenCalled()
   })
 
   it('confirms a waiting boundary for a window that is not the overlay', () => {
@@ -411,6 +428,15 @@ describe('what the handlers do', () => {
     expect(app.reminderAnswers.snooze).toHaveBeenCalledWith(600_000)
   })
 
+  it('stops the reminder currently showing, without being told which', () => {
+    const app = wire()
+
+    app.invoke(IPC.stopReminderFromAlert)
+
+    expect(app.reminderAnswers.stop).toHaveBeenCalledOnce()
+    expect(app.reminderAnswers.complete).not.toHaveBeenCalled()
+  })
+
   it('answers the reminder currently showing as done, with its quantity', () => {
     const app = wire()
 
@@ -479,6 +505,17 @@ describe('what the handlers do', () => {
     app.invoke(IPC.stopSports)
 
     expect(app.stopSports).toHaveBeenCalledOnce()
+  })
+
+  it('stops Sports from the overlay it raised', () => {
+    const app = wire()
+
+    app.invoke(IPC.stopSportsFromAlert)
+
+    // Through the controller, which is what also closes the overlay and clears
+    // the firing it was showing — not the tray's bare `stopSports`.
+    expect(app.sportsAnswers.stop).toHaveBeenCalledOnce()
+    expect(app.stopSports).not.toHaveBeenCalled()
   })
 
   it('defers Sports currently showing, and says whether it moved', () => {

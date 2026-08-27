@@ -22,7 +22,14 @@ const ROW = 32
 const ROW_GAP = 6
 const FOOTER = 36
 
-export const OVERLAY_WIDTH = 420
+/**
+ * Wide enough for the footer all three overlays share, which is three controls
+ * now rather than two: the snooze strip, Stop, and the affirmative. At 420 the
+ * three of them ran past the window and wrapped, and a footer that wraps is a
+ * height nothing above the renderer can predict — the same failure a button per
+ * snooze increment caused (see `SnoozeChoice`).
+ */
+export const OVERLAY_WIDTH = 480
 
 /**
  * The most of the screen an overlay may take. An alert is meant to be

@@ -18,7 +18,7 @@ describe('presenting a Sports alert', () => {
   it('shows both halves, because either one alone is missable', () => {
     const platform = surface()
 
-    createSportsAlertPresenter(platform)(alert)
+    createSportsAlertPresenter(platform, vi.fn())(alert)
 
     expect(platform.notify).toHaveBeenCalled()
     expect(platform.showOverlay).toHaveBeenCalledWith(alert)
@@ -30,8 +30,22 @@ describe('presenting a Sports alert', () => {
       throw new Error('no notification centre')
     })
 
-    createSportsAlertPresenter(platform)(alert)
+    createSportsAlertPresenter(platform, vi.fn())(alert)
 
     expect(platform.showOverlay).toHaveBeenCalledWith(alert)
+  })
+
+  it('gives the notification a Stop button that takes the overlay path', () => {
+    const platform = surface()
+    const stop = vi.fn()
+
+    createSportsAlertPresenter(platform, stop)(alert)
+
+    const text = platform.notify.mock.calls[0]?.[0] as {
+      actions: readonly { label: string; run: () => void }[]
+    }
+    expect(text.actions.map((action) => action.label)).toEqual(['Stop Sports'])
+    text.actions[0]?.run()
+    expect(stop).toHaveBeenCalledOnce()
   })
 })

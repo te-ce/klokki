@@ -3,11 +3,12 @@ import {
   SPORTS_SNOOZE_MINUTES_OPTIONS,
   type SportsAlert,
 } from '../../shared/sports-alert'
+import { OverlayStop } from './OverlayStop'
 import { SnoozeChoice } from './SnoozeChoice'
 
 /**
- * The whole content of the Sports overlay: one row per activity, and exactly
- * two ways out — Snooze or Done, never a plain dismiss, the same shape
+ * The whole content of the Sports overlay: one row per activity, and three
+ * ways out — Snooze, Done or Stop, never a plain dismiss, the same shape
  * `ReminderOverlay` gives a single step. An activity left blank is logged as
  * zero rather than skipped: the overlay is a full round, and "didn't do this
  * one" is itself worth a number.
@@ -19,9 +20,9 @@ import { SnoozeChoice } from './SnoozeChoice'
  *
  * The rows are the only part that scrolls. `sportsOverlayHeight` stops growing
  * the window at a share of the screen, and past that the overflow has to go
- * somewhere: it goes to the list, never to the footer, because Snooze and Done
- * are the only ways out of an alert and an alert with no reachable way out is
- * the worst thing this window can be.
+ * somewhere: it goes to the list, never to the footer, because the footer holds
+ * every way out of the alert and an alert with no reachable way out is the worst
+ * thing this window can be.
  */
 export const SportsOverlay = ({ alert }: { alert: SportsAlert }) => {
   const [quantities, setQuantities] = useState<Record<string, string>>({})
@@ -69,10 +70,18 @@ export const SportsOverlay = ({ alert }: { alert: SportsAlert }) => {
         ))}
       </div>
       <div className="flex shrink-0 items-center justify-between gap-3">
-        <SnoozeChoice
-          options={SPORTS_SNOOZE_MINUTES_OPTIONS}
-          onSnooze={(extraMs) => void window.klokki.snoozeSports(extraMs)}
-        />
+        <div className="flex shrink-0 items-center gap-2">
+          {/* Stopping disables the Sports schedule — the tray's stop, offered
+              here so the overlay is not the one place it cannot be reached. */}
+          <OverlayStop
+            label="Stop Sports"
+            onStop={() => void window.klokki.stopSportsFromAlert()}
+          />
+          <SnoozeChoice
+            options={SPORTS_SNOOZE_MINUTES_OPTIONS}
+            onSnooze={(extraMs) => void window.klokki.snoozeSports(extraMs)}
+          />
+        </div>
         <button
           type="button"
           className="bg-ink text-ground h-9 rounded-lg px-5 font-medium"

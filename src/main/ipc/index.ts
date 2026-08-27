@@ -32,12 +32,14 @@ export type OverlayControl = {
 export type ReminderAnswers = {
   readonly snooze: (extraMs: number) => boolean
   readonly complete: (quantity: number | null) => void
+  readonly stop: () => void
 }
 
 /** Answering the Sports overlay currently showing — see sports/wire.ts. */
 export type SportsAnswers = {
   readonly snooze: (extraMs: number) => boolean
   readonly confirm: (quantities: Readonly<Record<string, number>>) => void
+  readonly stop: () => void
 }
 
 /**
@@ -66,6 +68,12 @@ export type IpcDeps = {
   readonly sportsService: SportsService
   readonly startSports: () => void
   readonly stopSports: () => void
+  /**
+   * Stopping the timer from the overlay that announced a boundary, closing it
+   * on the way out — one closure in wire.ts, because the notification's Stop
+   * button is the same move made from the other half of the same alert.
+   */
+  readonly stopFromAlert: () => void
   readonly logSports: SportsLog
   readonly appInfo: () => AppInfo
 }
@@ -203,6 +211,11 @@ export const registerIpc = (deps: IpcDeps): void => {
     // only when its new end has already gone by, and leaving an overlay up that
     // names a boundary long past is worse than closing it. The renderer is told
     // which of the two happened rather than being left to assume the first.
+    // The run ends and the overlay goes with it: a boundary belonging to a run
+    // that no longer exists has nothing left to answer, and an overlay naming it
+    // would be a window with no true way out. `stopTimer` is deliberately left
+    // as it was — this is the alert's own way out, not a new way to stop.
+    stopFromAlert: () => deps.stopFromAlert(),
     snoozeAlert: (extraMs) => {
       const snoozed = service.snooze(
         expect(extraMs, isNumber, 'a duration in ms'),
@@ -228,6 +241,10 @@ export const registerIpc = (deps: IpcDeps): void => {
       reminderAnswers.complete(
         expect(quantity, isNumberOrNull, 'a quantity or null'),
       ),
+    // Which reminder is stopped is the controller's answer, not the renderer's:
+    // the overlay stops the reminder it is showing (see reminders/wire.ts).
+    stopReminderFromAlert: () => reminderAnswers.stop(),
+    stopSportsFromAlert: () => sportsAnswers.stop(),
     getSportsStats: () => sportsHistory.stats(),
     getSportsSettings: () => sportsViews(),
     saveSportsSettings: (settings) =>

@@ -1,9 +1,10 @@
 import type { Alert } from '../../shared/alert'
 import { TIMER_SNOOZE_MINUTES_OPTIONS } from '../../shared/timer'
+import { OverlayStop } from './OverlayStop'
 import { SnoozeChoice } from './SnoozeChoice'
 
 /**
- * The whole content of the overlay window: one phase change, and two ways out.
+ * The whole content of the overlay window: one phase change, and three ways out.
  *
  * There is no timer here and no auto-close — the point of the overlay is that a
  * notification is swallowed by Do Not Disturb and by fullscreen apps, so this
@@ -20,8 +21,8 @@ import { SnoozeChoice } from './SnoozeChoice'
  * over — so the snooze is not offered at all rather than offered and ignored.
  *
  * The snooze is `SnoozeChoice` with the same fixed +5/+10/+15/+30 options the
- * reminder and Sports overlays offer (`TIMER_SNOOZE_MINUTES_OPTIONS`), so the
- * footer is the footer of the other two overlays.
+ * reminder and Sports overlays offer (`TIMER_SNOOZE_MINUTES_OPTIONS`), and Stop
+ * is `OverlayStop`, so the footer is the footer of the other two overlays.
  */
 export const TransitionOverlay = ({ alert }: { alert: Alert }) => (
   <section
@@ -38,10 +39,19 @@ export const TransitionOverlay = ({ alert }: { alert: Alert }) => (
     </p>
     <div className="mt-auto flex items-center justify-between gap-3">
       {alert.nextLabel !== null ? (
-        <SnoozeChoice
-          options={TIMER_SNOOZE_MINUTES_OPTIONS}
-          onSnooze={(extraMs) => void window.klokki.snoozeAlert(extraMs)}
-        />
+        <div className="flex items-center gap-2">
+          {/* Stopping ends the run the boundary belongs to, so there is nothing
+              left to answer and the overlay closes with it. Offered only while a
+              phase is still to come: a run that has finished is already over. */}
+          <OverlayStop
+            label="Stop timer"
+            onStop={() => void window.klokki.stopFromAlert()}
+          />
+          <SnoozeChoice
+            options={TIMER_SNOOZE_MINUTES_OPTIONS}
+            onSnooze={(extraMs) => void window.klokki.snoozeAlert(extraMs)}
+          />
+        </div>
       ) : (
         <span />
       )}

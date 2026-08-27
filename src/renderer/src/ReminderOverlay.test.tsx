@@ -45,7 +45,32 @@ describe('ReminderOverlay', () => {
     expect(api.completeReminder).toHaveBeenCalledWith(20)
   })
 
-  it('offers no plain dismiss — only Snooze and Done', () => {
+  it('stops this reminder from the overlay it raised', () => {
+    const api = mockApi()
+    render(<ReminderOverlay alert={{ label: 'Pushups', unit: 'reps' }} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Stop reminder' }))
+
+    // Which reminder is the main process's answer — the overlay stops the one
+    // it is showing, so nothing here has to hold an id.
+    expect(api.stopReminderFromAlert).toHaveBeenCalledOnce()
+    expect(api.completeReminder).not.toHaveBeenCalled()
+    expect(api.snoozeReminder).not.toHaveBeenCalled()
+  })
+
+  it('lets a step with a unit be stopped without a quantity', () => {
+    const api = mockApi()
+    render(<ReminderOverlay alert={{ label: 'Pushups', unit: 'reps' }} />)
+
+    // Done needs a number; Stop does not — it is not a round that happened.
+    expect(screen.getByRole('button', { name: 'Done' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Stop reminder' })).toBeEnabled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Stop reminder' }))
+    expect(api.stopReminderFromAlert).toHaveBeenCalledOnce()
+  })
+
+  it('offers no plain dismiss — only Snooze, Done and Stop', () => {
     mockApi()
     render(<ReminderOverlay alert={{ label: 'Drink water', unit: null }} />)
 

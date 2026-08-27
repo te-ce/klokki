@@ -193,6 +193,42 @@ waits for the seam to appear, because `electron.launch()` resolves before
   growing at 80% of the work area, and past that the rows scroll inside the
   window: an alert whose footer is off screen has no reachable way out, and
   Snooze and Done are the only two there are.
+- **Every alert can stop the thing that raised it.** The overlay was the one
+  place the user could not say "not today": Snooze and the affirmative were the
+  only answers, so stopping meant finding the tray behind a window that sits
+  above everything. Each overlay now has a third control — the transition's
+  stops the timer, a reminder's disables that reminder, Sports' disables Sports
+  — and each takes the path the tray already took (`service.stop`,
+  `stopReminderById`, `stopSports`) plus the close the overlay would otherwise
+  wait forever for. `IPC.stopFromAlert`, `IPC.stopReminderFromAlert` and
+  `IPC.stopSportsFromAlert` exist because "stop it and close me" is one move and
+  the existing channels are only half of it; `stopTimer` and `stopSports` are
+  untouched. Which reminder is stopped is the controller's answer and never an
+  id the renderer holds — an overlay stops what it is showing, and a stale id
+  would stop a reminder the user is not looking at. Disabling is the whole stop,
+  because the store's subscriber is what drops a schedule, which is also what
+  keeps a stopped reminder or firing from being left awaiting an answer that can
+  no longer be given. A stop writes no history: it is neither a "done" nor a
+  "later", and minutes that were not spent are not a stretch. The transition
+  overlay offers it only while a phase is still to come, for the same reason its
+  snooze is left off a run that has already finished.
+- **Stop is the quietest control in the footer, and the furthest from the
+  affirmative.** It is text where Done is filled, and at the opposite end, because
+  it is the one answer waiting cannot undo — and the visible glyph is "Stop" with
+  what is stopped in the accessible name (`OverlayStop`), the same split
+  `SnoozeChoice` makes with its increments. Three controls do not fit the 420px
+  window the two did, so `OVERLAY_WIDTH` is 480: a footer that wraps is a height
+  nothing above the renderer can predict, which is the same failure a button per
+  snooze increment caused.
+- **The notification carries the same Stop the overlay does.** It is a
+  `Notification` action, so the alert can be answered without the overlay ever
+  being looked at — and it must not be a second way to stop anything, so its
+  label is decided with the rest of the wording (`notification.ts`) and its
+  effect is literally the overlay's own path. `NotificationText.actions` pairs a
+  label with a callback and `alert/notify.ts` turns the pair into a platform
+  button, which is what keeps the adapter free of both decisions. macOS shows the
+  first action inline; a platform that ignores actions loses nothing but the
+  shortcut, because the overlay half is the requirement and stands on its own.
 - **Transitions are intrusive.** Native notification _plus_ a borderless
   always-on-top overlay that must be dismissed or snoozed. A notification alone
   is missed in Do Not Disturb and fullscreen — the exact moments it matters.

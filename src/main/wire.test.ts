@@ -11,6 +11,7 @@ import {
   createReminderHistory,
   createSportsHistory,
 } from './history'
+import type { NotificationText } from './alert/notification'
 import type { ViewTarget } from './ipc/broadcast'
 import type { MenubarAction, MenubarItem } from './menubar/surface'
 import type { PresetStore } from './presets/store'
@@ -242,11 +243,14 @@ const build = (
   const sportsService = createSportsService(clock)
   const sportsRunStore = fakeSportsRunStore(options.sportsRun)
   const menubar = fakeMenubar()
-  const alerts = { notify: vi.fn(), showOverlay: vi.fn() }
+  // Typed, because a test reads the notification's own Stop action back out of
+  // these calls — the platform half of an alert, recorded rather than shown.
+  const notifier = () => vi.fn<(text: NotificationText) => void>()
+  const alerts = { notify: notifier(), showOverlay: vi.fn() }
   const overlay = { close: vi.fn() }
-  const reminderAlerts = { notify: vi.fn(), showOverlay: vi.fn() }
+  const reminderAlerts = { notify: notifier(), showOverlay: vi.fn() }
   const reminderOverlay = { close: vi.fn() }
-  const sportsAlerts = { notify: vi.fn(), showOverlay: vi.fn() }
+  const sportsAlerts = { notify: notifier(), showOverlay: vi.fn() }
   const sportsOverlay = { close: vi.fn() }
   const requests = new Map<string, (...args: readonly unknown[]) => unknown>()
   let onOpened: (window: WindowHandle) => void = () => {}
@@ -346,10 +350,12 @@ describe('a phase boundary, all the way out', () => {
     elapse(25 * MINUTE)
 
     // Both halves of the alert, because either one alone is missable.
-    expect(wired.alerts.notify).toHaveBeenCalledWith({
-      title: 'Focus finished',
-      body: 'Break starting now',
-    })
+    expect(wired.alerts.notify).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Focus finished',
+        body: 'Break starting now',
+      }),
+    )
     expect(wired.alerts.showOverlay).toHaveBeenCalledWith({
       completedLabel: 'Focus',
       nextLabel: 'Break',
@@ -376,6 +382,41 @@ describe('a phase boundary, all the way out', () => {
     const today = wired.history.stats().today
     expect(today.completed).toBe(1)
     expect(today.minutesByLabel).toEqual([{ label: 'Focus', minutes: 30 }])
+  })
+
+  it('stops the run from the overlay it raised, and closes the overlay', () => {
+    const wired = build()
+    wired.invoke(IPC.startPreset, 'pomodoro')
+    elapse(25 * MINUTE)
+
+    wired.invoke(IPC.stopFromAlert)
+
+    // The run is over rather than parked at the boundary, and the window that
+    // announced it is gone: there is nothing left to answer.
+    expect(wired.service.getView().running).toBe(false)
+    expect(wired.overlay.close).toHaveBeenCalledOnce()
+    expect(wired.menubar.title()).toBe('')
+
+    // And the break it was announcing never starts, however long we wait.
+    elapse(10 * MINUTE)
+    expect(wired.alerts.showOverlay).toHaveBeenCalledOnce()
+    expect(wired.history.stats().today.minutesByLabel).toEqual([
+      { label: 'Focus', minutes: 25 },
+    ])
+  })
+
+  it('stops the same run from the notification the same alert raised', () => {
+    const wired = build()
+    wired.invoke(IPC.startPreset, 'pomodoro')
+    elapse(25 * MINUTE)
+
+    // The notification's Stop button, invoked the way macOS would.
+    const [text] = wired.alerts.notify.mock.calls[0] ?? []
+    expect(text?.actions.map((action) => action.label)).toEqual(['Stop Timer'])
+    text?.actions[0]?.run()
+
+    expect(wired.service.getView().running).toBe(false)
+    expect(wired.overlay.close).toHaveBeenCalledOnce()
   })
 
   it('logs a skip and moves the tray on, without raising an alert', () => {
@@ -512,10 +553,12 @@ describe('the running timer, saved for a restart', () => {
       snoozedMs: 0,
     })
 
-    expect(wired.alerts.notify).toHaveBeenCalledWith({
-      title: 'Focus finished',
-      body: 'Break starting now',
-    })
+    expect(wired.alerts.notify).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Focus finished',
+        body: 'Break starting now',
+      }),
+    )
     expect(wired.history.stats().today.completed).toBe(1)
     // Not one minute into Break: it has not started, and starting it is what
     // the user is being asked about.
@@ -706,6 +749,41 @@ describe('reminders, saved for a restart', () => {
 
     wired.invoke(IPC.completeReminder, null)
 
+    expect(wired.reminderOverlay.close).toHaveBeenCalledOnce()
+  })
+
+  it('disables the reminder the overlay was showing, leaving nothing half-fired', () => {
+    const wired = build(null, { reminders: [water] })
+    elapse(30 * MINUTE)
+
+    wired.invoke(IPC.stopReminderFromAlert)
+
+    // The tray's stop path exactly: the definition is off, so the store's
+    // subscriber drops the run rather than leaving it waiting for an answer
+    // that can no longer be given.
+    expect(wired.reminderStore.list()).toEqual([{ ...water, enabled: false }])
+    expect(wired.reminderService.getState()).toEqual([])
+    expect(wired.reminderRunStore.load()).toEqual([])
+    expect(wired.reminderOverlay.close).toHaveBeenCalledOnce()
+    // Neither done nor deferred: nothing lands in the log.
+    expect(wired.reminderHistory.stats().today.quantityByLabel).toEqual([])
+
+    // And it stays quiet however long the interval it would have had.
+    elapse(60 * MINUTE)
+    expect(wired.reminderAlerts.showOverlay).toHaveBeenCalledOnce()
+  })
+
+  it('stops the reminder from the notification the same alert raised', () => {
+    const wired = build(null, { reminders: [water] })
+    elapse(30 * MINUTE)
+
+    const [text] = wired.reminderAlerts.notify.mock.calls[0] ?? []
+    expect(text?.actions.map((action) => action.label)).toEqual([
+      'Stop Reminder',
+    ])
+    text?.actions[0]?.run()
+
+    expect(wired.reminderService.getState()).toEqual([])
     expect(wired.reminderOverlay.close).toHaveBeenCalledOnce()
   })
 
@@ -965,6 +1043,40 @@ describe('Sports, all the way out', () => {
 
     wired.invoke(IPC.confirmSports, { situps: 10, squats: 5 })
 
+    expect(wired.sportsOverlay.close).toHaveBeenCalledOnce()
+  })
+
+  it('disables Sports from the overlay it raised, leaving nothing half-fired', () => {
+    const wired = build(null, { sports: settings })
+    elapse(60 * MINUTE)
+
+    wired.invoke(IPC.stopSportsFromAlert)
+
+    expect(wired.sportsStore.get().enabled).toBe(false)
+    expect(wired.sportsService.getState()).toEqual({
+      scheduled: false,
+      nextFireAt: null,
+    })
+    expect(wired.sportsRunStore.load()).toEqual({
+      scheduled: false,
+      nextFireAt: null,
+    })
+    expect(wired.sportsOverlay.close).toHaveBeenCalledOnce()
+    expect(wired.sportsHistory.stats().today.quantityByLabel).toEqual([])
+
+    elapse(120 * MINUTE)
+    expect(wired.sportsAlerts.showOverlay).toHaveBeenCalledOnce()
+  })
+
+  it('stops Sports from the notification the same alert raised', () => {
+    const wired = build(null, { sports: settings })
+    elapse(60 * MINUTE)
+
+    const [text] = wired.sportsAlerts.notify.mock.calls[0] ?? []
+    expect(text?.actions.map((action) => action.label)).toEqual(['Stop Sports'])
+    text?.actions[0]?.run()
+
+    expect(wired.sportsStore.get().enabled).toBe(false)
     expect(wired.sportsOverlay.close).toHaveBeenCalledOnce()
   })
 

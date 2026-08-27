@@ -27,6 +27,7 @@ export const IPC = {
   getLaunchAtLogin: 'klokki:get-launch-at-login',
   setLaunchAtLogin: 'klokki:set-launch-at-login',
   stopTimer: 'klokki:stop-timer',
+  stopFromAlert: 'klokki:stop-from-alert',
   skipPhase: 'klokki:skip-phase',
   confirmNext: 'klokki:confirm-next',
   setRemaining: 'klokki:set-remaining',
@@ -38,12 +39,14 @@ export const IPC = {
   deleteReminder: 'klokki:delete-reminder',
   setReminderEnabled: 'klokki:set-reminder-enabled',
   snoozeReminder: 'klokki:snooze-reminder',
+  stopReminderFromAlert: 'klokki:stop-reminder-from-alert',
   completeReminder: 'klokki:complete-reminder',
   getSportsSettings: 'klokki:get-sports-settings',
   saveSportsSettings: 'klokki:save-sports-settings',
   startSports: 'klokki:start-sports',
   stopSports: 'klokki:stop-sports',
   snoozeSports: 'klokki:snooze-sports',
+  stopSportsFromAlert: 'klokki:stop-sports-from-alert',
   confirmSports: 'klokki:confirm-sports',
   logSports: 'klokki:log-sports',
   getSportsStats: 'klokki:get-sports-stats',
@@ -128,6 +131,14 @@ export interface KlokkiApi {
   /** Closes the transition overlay. The only way out of it — it never times out. */
   dismissAlert(): Promise<void>
   /**
+   * Stops the run the transition overlay is announcing, and closes the overlay
+   * — the same `stopTimer` the tray and the Timer pane call, plus the close the
+   * overlay would otherwise wait forever for. An alert is where the user is
+   * when they decide they are done for the day, so the decision is offered
+   * there rather than only in a window they would have to open first.
+   */
+  stopFromAlert(): Promise<void>
+  /**
    * Defers the boundary the overlay is showing and closes it, by `extraMs` —
    * one of the fixed +5/+10/+15/+30 options, matching `snoozeReminder`'s
    * convention of the renderer picking among fixed increments.
@@ -167,6 +178,13 @@ export interface KlokkiApi {
    * the overlay and lets the engine's normal advance stand.
    */
   completeReminder(quantity: number | null): Promise<void>
+  /**
+   * Stops the reminder the overlay is currently showing — by which one is
+   * showing, never by an id the renderer holds — and closes the overlay. The
+   * same disable the tray's Stop does, so the reminder keeps its definition and
+   * its history and simply stops asking.
+   */
+  stopReminderFromAlert(): Promise<void>
   /** Read from the OS login item, never from a value the app stored. */
   getLaunchAtLogin(): Promise<boolean>
   /** Returns the state the OS has after the write, which may differ. */
@@ -204,6 +222,11 @@ export interface KlokkiApi {
    * id. Closes the overlay and starts the next interval.
    */
   confirmSports(quantities: Readonly<Record<string, number>>): Promise<void>
+  /**
+   * Stops Sports from the overlay it raised, and closes the overlay — the same
+   * disable `stopSports` does from the tray and the Sports tab.
+   */
+  stopSportsFromAlert(): Promise<void>
   /**
    * Logs Sports activity from the Sports tab, independent of the running
    * schedule — it never restarts the interval, unlike `confirmSports`.

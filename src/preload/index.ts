@@ -34,6 +34,7 @@ const api: KlokkiApi = {
   setRemaining: (targetMs) => ipcRenderer.invoke(IPC.setRemaining, targetMs),
   addTime: (extraMs) => ipcRenderer.invoke(IPC.addTime, extraMs),
   dismissAlert: () => ipcRenderer.invoke(IPC.dismissAlert),
+  stopFromAlert: () => ipcRenderer.invoke(IPC.stopFromAlert),
   snoozeAlert: (extraMs) => ipcRenderer.invoke(IPC.snoozeAlert, extraMs),
   savePreset: (preset) => ipcRenderer.invoke(IPC.savePreset, preset),
   deletePreset: (id) => ipcRenderer.invoke(IPC.deletePreset, id),
@@ -49,6 +50,7 @@ const api: KlokkiApi = {
   snoozeReminder: (extraMs) => ipcRenderer.invoke(IPC.snoozeReminder, extraMs),
   completeReminder: (quantity) =>
     ipcRenderer.invoke(IPC.completeReminder, quantity),
+  stopReminderFromAlert: () => ipcRenderer.invoke(IPC.stopReminderFromAlert),
   getSportsSettings: () => ipcRenderer.invoke(IPC.getSportsSettings),
   saveSportsSettings: (settings) =>
     ipcRenderer.invoke(IPC.saveSportsSettings, settings),
@@ -57,6 +59,7 @@ const api: KlokkiApi = {
   snoozeSports: (extraMs) => ipcRenderer.invoke(IPC.snoozeSports, extraMs),
   confirmSports: (quantities) =>
     ipcRenderer.invoke(IPC.confirmSports, quantities),
+  stopSportsFromAlert: () => ipcRenderer.invoke(IPC.stopSportsFromAlert),
   logSports: (quantities) => ipcRenderer.invoke(IPC.logSports, quantities),
   getSportsStats: () => ipcRenderer.invoke(IPC.getSportsStats),
   setRemainingSports: (targetMs) =>

@@ -22,6 +22,7 @@ const fakeService = () => {
     }),
     snooze: vi.fn(() => true),
     confirm: vi.fn(() => true),
+    stop: vi.fn(),
     fire: () => {
       for (const listener of listeners) listener()
     },
@@ -141,6 +142,55 @@ describe('wireSportsAlerts', () => {
     controller.snooze(5 * 60_000)
 
     expect(record).not.toHaveBeenCalled()
+    controller.dispose()
+  })
+
+  it('stops Sports from the overlay it raised, and closes it', () => {
+    const service = fakeService()
+    const close = vi.fn()
+    const record = vi.fn()
+    const controller = wireSportsAlerts(
+      service,
+      fakeStore(),
+      vi.fn(),
+      close,
+      record,
+    )
+    service.fire()
+
+    controller.stop()
+
+    expect(service.stop).toHaveBeenCalledOnce()
+    expect(close).toHaveBeenCalledOnce()
+    // A stop is not a round done, so no quantities are written.
+    expect(record).not.toHaveBeenCalled()
+    expect(service.confirm).not.toHaveBeenCalled()
+    controller.dispose()
+  })
+
+  it('stops nothing when no firing is showing', () => {
+    const service = fakeService()
+    const close = vi.fn()
+    const controller = wireSportsAlerts(service, fakeStore(), vi.fn(), close)
+
+    controller.stop()
+
+    expect(service.stop).not.toHaveBeenCalled()
+    expect(close).not.toHaveBeenCalled()
+    controller.dispose()
+  })
+
+  it('answers a second stop with nothing, the same as a second Done', () => {
+    const service = fakeService()
+    const controller = wireSportsAlerts(service, fakeStore(), vi.fn(), vi.fn())
+    service.fire()
+
+    controller.stop()
+    controller.stop()
+
+    // The overlay is gone after the first: a second answer must not disable a
+    // schedule the user has since restarted.
+    expect(service.stop).toHaveBeenCalledOnce()
     controller.dispose()
   })
 

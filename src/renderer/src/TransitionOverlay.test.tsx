@@ -91,6 +91,33 @@ describe('TransitionOverlay', () => {
     expect(screen.queryByRole('button', { name: /Snooze/ })).toBeNull()
   })
 
+  it('stops the run outright, without starting the phase it announced', () => {
+    const api = mockApi()
+    render(
+      <TransitionOverlay
+        alert={{ completedLabel: 'Focus', nextLabel: 'Break' }}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Stop timer' }))
+
+    // One call, the main process's own stop-and-close: confirming the boundary
+    // would start the very break the user just said they were done with.
+    expect(api.stopFromAlert).toHaveBeenCalledOnce()
+    expect(api.dismissAlert).not.toHaveBeenCalled()
+    expect(api.snoozeAlert).not.toHaveBeenCalled()
+  })
+
+  it('offers no stop when the run has already finished', () => {
+    mockApi()
+    render(
+      <TransitionOverlay alert={{ completedLabel: 'Only', nextLabel: null }} />,
+    )
+
+    // Nothing is running to stop — the same reason the snooze is left off.
+    expect(screen.queryByRole('button', { name: 'Stop timer' })).toBeNull()
+  })
+
   it('lets the frameless window be dragged by its one static row', () => {
     mockApi()
     render(

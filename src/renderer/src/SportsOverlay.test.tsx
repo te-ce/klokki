@@ -31,7 +31,19 @@ describe('SportsOverlay', () => {
     expect(api.confirmSports).toHaveBeenCalledWith({ situps: 20, squats: 0 })
   })
 
-  it('offers no plain dismiss — only Snooze and Done', () => {
+  it('stops the Sports schedule from the overlay it raised', () => {
+    const api = fakeKlokki()
+    render(<SportsOverlay alert={alert} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Stop Sports' }))
+
+    // A stop is not a round: nothing is logged, so Done must not be called.
+    expect(api.stopSportsFromAlert).toHaveBeenCalledOnce()
+    expect(api.confirmSports).not.toHaveBeenCalled()
+    expect(api.snoozeSports).not.toHaveBeenCalled()
+  })
+
+  it('offers no plain dismiss — only Snooze, Done and Stop', () => {
     fakeKlokki()
     render(<SportsOverlay alert={alert} />)
 

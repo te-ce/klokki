@@ -8,6 +8,11 @@ type SportsAlertSource = {
   readonly subscribe: (listener: () => void) => () => void
   readonly snooze: (extraMs: number) => boolean
   readonly confirm: () => boolean
+  /**
+   * The tray's stop path (`stopSports`) — a disable the store owns, after
+   * which its subscriber drops the schedule, exactly as it does for a reminder.
+   */
+  readonly stop: () => void
 }
 
 type SportsAlertStore = {
@@ -22,6 +27,12 @@ export type SportsAlertController = {
    * No-op when nothing is showing.
    */
   readonly confirm: (quantities: Readonly<Record<string, number>>) => void
+  /**
+   * Stops Sports and closes the overlay. No-op when nothing is showing — the
+   * same guard Snooze and Done use, so an answer to an overlay already gone
+   * cannot disable a schedule the user has since restarted.
+   */
+  readonly stop: () => void
   readonly dispose: () => void
 }
 
@@ -61,6 +72,15 @@ export const wireSportsAlerts = (
       showing = false
       close()
       return snoozed
+    },
+    stop: () => {
+      if (!showing) return
+      // Disabling drops the schedule (`setSettings` → `withRemoved`), so the
+      // firing this overlay was showing is not left awaiting an answer that can
+      // no longer arrive. Nothing is logged: a stop is not a round done.
+      source.stop()
+      showing = false
+      close()
     },
     confirm: (quantities) => {
       if (!showing) return

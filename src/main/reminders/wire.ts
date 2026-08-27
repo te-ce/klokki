@@ -4,13 +4,21 @@ import { systemClock, type Clock } from '../timer/clock'
 import { EMPTY_QUEUE, advance, enqueue, type ReminderQueueState } from './queue'
 import type { ReminderDue } from './engine'
 
-/** The slice of the reminder service the overlay needs: due events, and a way to defer one. */
+/**
+ * The slice of the app the overlay needs: due events, a way to defer one, a way
+ * to answer one, and a way to stop the reminder behind one for good.
+ *
+ * `stop` is the tray's stop path (`stopReminderById`) rather than the service's,
+ * because stopping a reminder is a disable the store owns — the schedule going
+ * away is what the store's subscriber then does about it.
+ */
 type ReminderAlertSource = {
   readonly subscribe: (
     listener: (due: readonly ReminderDue[]) => void,
   ) => () => void
   readonly snooze: (id: string, extraMs: number) => boolean
   readonly confirm: (id: string) => boolean
+  readonly stop: (id: string) => void
 }
 
 export type ReminderAlertController = {
@@ -18,6 +26,15 @@ export type ReminderAlertController = {
   readonly snooze: (extraMs: number) => boolean
   /** Answers the reminder currently showing as done. No-op when nothing is showing. */
   readonly complete: (quantity: number | null) => void
+  /**
+   * Stops the reminder currently showing, and closes its overlay. No-op when
+   * nothing is showing.
+   *
+   * Which reminder that is is known here and nowhere else, which is why the
+   * overlay and the notification both stop "the one showing" rather than an id
+   * they carry: a stale id would stop a reminder the user is not looking at.
+   */
+  readonly stop: () => void
   readonly dispose: () => void
 }
 
@@ -80,6 +97,19 @@ export const wireReminderAlerts = (
       close()
       advanceQueue()
       return snoozed
+    },
+    stop: () => {
+      const current = queue.current
+      if (!current) return
+      // Disabling is the whole stop: the store's subscriber drops the run, so
+      // the firing this overlay was showing is not left waiting for an answer
+      // that can no longer be given. Nothing is logged — a stop is neither a
+      // "done" nor a "later", and the minutes it did not spend are not history.
+      source.stop(current.definitionId)
+      close()
+      // A reminder stopped is still not the others' answer: anything queued
+      // behind it is something the user has yet to see.
+      advanceQueue()
     },
     complete: (quantity) => {
       const current = queue.current
