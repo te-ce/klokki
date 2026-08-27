@@ -1,7 +1,13 @@
 import type { ReminderAlert } from '../../shared/reminder-alert'
 import type { ReminderHistoryEvent } from '../../shared/reminder-history'
 import { systemClock, type Clock } from '../timer/clock'
-import { EMPTY_QUEUE, advance, enqueue, type ReminderQueueState } from './queue'
+import {
+  EMPTY_QUEUE,
+  advance,
+  enqueue,
+  retainPending,
+  type ReminderQueueState,
+} from './queue'
 import type { ReminderDue } from './engine'
 
 /**
@@ -35,6 +41,17 @@ export type ReminderAlertController = {
    * they carry: a stale id would stop a reminder the user is not looking at.
    */
   readonly stop: () => void
+  /**
+   * Voids the alert of any reminder that is no longer running, and drops the
+   * ones queued behind it — for a reminder stopped from somewhere that is not
+   * its own overlay: the tray, the settings window, or a delete.
+   *
+   * Told what is still running rather than what was stopped, because the store
+   * hands wire.ts the whole list and "not in it" is how a delete reads. Only
+   * the reminder this controller is showing is voided: another's overlay is
+   * announcing a firing that is still perfectly answerable.
+   */
+  readonly voidStopped: (isRunning: (definitionId: string) => boolean) => void
   readonly dispose: () => void
 }
 
@@ -57,6 +74,7 @@ const toAlert = (due: ReminderDue): ReminderAlert => ({
 export const wireReminderAlerts = (
   source: ReminderAlertSource,
   present: (alert: ReminderAlert) => void,
+  /** Voids the alert showing — both halves of it (see alert/void.ts). */
   close: () => void,
   /** Appends one line for every Done and every Snooze that actually took. */
   record: (event: ReminderHistoryEvent) => void = () => {},
@@ -101,14 +119,26 @@ export const wireReminderAlerts = (
     stop: () => {
       const current = queue.current
       if (!current) return
+      // Voided before the stop lands, not after: disabling is a store write,
+      // and the store's own subscriber (wire.ts) voids the alerts of reminders
+      // that are no longer running. Closing first is what makes this overlay
+      // already gone by the time that runs, so the queue advances once.
+      //
+      // A reminder stopped is still not the others' answer: anything queued
+      // behind it is something the user has yet to see.
+      close()
+      advanceQueue()
       // Disabling is the whole stop: the store's subscriber drops the run, so
       // the firing this overlay was showing is not left waiting for an answer
       // that can no longer be given. Nothing is logged — a stop is neither a
       // "done" nor a "later", and the minutes it did not spend are not history.
       source.stop(current.definitionId)
+    },
+    voidStopped: (isRunning) => {
+      queue = retainPending(queue, isRunning)
+      const current = queue.current
+      if (!current || isRunning(current.definitionId)) return
       close()
-      // A reminder stopped is still not the others' answer: anything queued
-      // behind it is something the user has yet to see.
       advanceQueue()
     },
     complete: (quantity) => {

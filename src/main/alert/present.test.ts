@@ -4,6 +4,7 @@ import { createAlertPresenter } from './present'
 
 const surface = () => ({
   notify: vi.fn(),
+  withdraw: vi.fn(),
   showOverlay: vi.fn(),
 })
 

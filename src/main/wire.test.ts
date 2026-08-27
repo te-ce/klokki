@@ -246,11 +246,21 @@ const build = (
   // Typed, because a test reads the notification's own Stop action back out of
   // these calls — the platform half of an alert, recorded rather than shown.
   const notifier = () => vi.fn<(text: NotificationText) => void>()
-  const alerts = { notify: notifier(), showOverlay: vi.fn() }
+  // `withdraw` is the other half of voiding an alert: the overlay window closes
+  // and the notification is taken back, so a stop is asserted on both.
+  const alerts = { notify: notifier(), withdraw: vi.fn(), showOverlay: vi.fn() }
   const overlay = { close: vi.fn() }
-  const reminderAlerts = { notify: notifier(), showOverlay: vi.fn() }
+  const reminderAlerts = {
+    notify: notifier(),
+    withdraw: vi.fn(),
+    showOverlay: vi.fn(),
+  }
   const reminderOverlay = { close: vi.fn() }
-  const sportsAlerts = { notify: notifier(), showOverlay: vi.fn() }
+  const sportsAlerts = {
+    notify: notifier(),
+    withdraw: vi.fn(),
+    showOverlay: vi.fn(),
+  }
   const sportsOverlay = { close: vi.fn() }
   const requests = new Map<string, (...args: readonly unknown[]) => unknown>()
   let onOpened: (window: WindowHandle) => void = () => {}
@@ -417,6 +427,54 @@ describe('a phase boundary, all the way out', () => {
 
     expect(wired.service.getView().running).toBe(false)
     expect(wired.overlay.close).toHaveBeenCalledOnce()
+  })
+
+  it('voids the alert when the run is stopped from the tray', () => {
+    const wired = build()
+    wired.menubar.clickMenuItem('Start Pomodoro')
+    elapse(25 * MINUTE)
+
+    wired.menubar.clickMenuItem('Stop')
+
+    // Both halves of the alert go: the overlay would name a boundary that no
+    // longer exists, and the notification sitting in Notification Center is the
+    // half that outlives the window.
+    expect(wired.overlay.close).toHaveBeenCalledOnce()
+    expect(wired.alerts.withdraw).toHaveBeenCalledOnce()
+    expect(wired.service.getView().running).toBe(false)
+  })
+
+  it('voids the alert when the run is stopped from the settings window', () => {
+    const wired = build()
+    wired.invoke(IPC.startPreset, 'pomodoro')
+    elapse(25 * MINUTE)
+
+    wired.invoke(IPC.stopTimer)
+
+    expect(wired.overlay.close).toHaveBeenCalledOnce()
+    expect(wired.alerts.withdraw).toHaveBeenCalledOnce()
+    expect(wired.service.getView().running).toBe(false)
+  })
+
+  it('leaves the alert of a run that finished on its own standing', () => {
+    const wired = build()
+    wired.invoke(IPC.startPreset, 'pomodoro')
+    elapse(25 * MINUTE)
+
+    // Answering the first boundary voids its own alert, and that is the only
+    // one voided here.
+    wired.invoke(IPC.dismissAlert)
+    elapse(5 * MINUTE)
+
+    // The last phase of a preset that does not loop ends the run, so the timer
+    // is idle — and "Timer finished" is exactly the alert the user still wants
+    // on screen. A stop is a stop; reaching the end is not one.
+    expect(wired.service.getView().running).toBe(false)
+    expect(wired.alerts.notify).toHaveBeenLastCalledWith(
+      expect.objectContaining({ title: 'Break finished' }),
+    )
+    expect(wired.overlay.close).toHaveBeenCalledOnce()
+    expect(wired.alerts.withdraw).toHaveBeenCalledOnce()
   })
 
   it('logs a skip and moves the tray on, without raising an alert', () => {
@@ -810,6 +868,62 @@ describe('reminders, saved for a restart', () => {
     })
   })
 
+  it('voids the alert of a reminder turned off from the settings window', () => {
+    const wired = build(null, { reminders: [water] })
+    elapse(30 * MINUTE)
+
+    wired.invoke(IPC.setReminderEnabled, 'water', false)
+
+    // The store is the trigger, so a stop made anywhere but the overlay lands
+    // here without anything having to remember to close a window.
+    expect(wired.reminderOverlay.close).toHaveBeenCalledOnce()
+    expect(wired.reminderAlerts.withdraw).toHaveBeenCalledOnce()
+    expect(wired.reminderService.getState()).toEqual([])
+  })
+
+  it('voids the alert of a reminder deleted while it was waiting', () => {
+    const wired = build(null, { reminders: [water] })
+    elapse(30 * MINUTE)
+
+    wired.invoke(IPC.deleteReminder, 'water')
+
+    expect(wired.reminderOverlay.close).toHaveBeenCalledOnce()
+    expect(wired.reminderAlerts.withdraw).toHaveBeenCalledOnce()
+  })
+
+  it('voids the alert of a reminder stopped from the tray', () => {
+    const wired = build(null, { reminders: [water] })
+    elapse(30 * MINUTE)
+
+    expect(wired.menubar.clickMenuItem('Stop Drink water')).toBe(true)
+
+    expect(wired.reminderOverlay.close).toHaveBeenCalledOnce()
+    expect(wired.reminderAlerts.withdraw).toHaveBeenCalledOnce()
+  })
+
+  it('leaves the overlay of a reminder that is still running standing', () => {
+    const pushups: ReminderDefinition = {
+      id: 'pushups',
+      name: 'Pushups',
+      intervalMinutes: 30,
+      steps: [{ label: 'Pushups', unit: 'reps' }],
+      enabled: true,
+    }
+    const wired = build(null, { reminders: [water, pushups] })
+    elapse(30 * MINUTE)
+
+    // Water is showing; pushups is queued behind it.
+    wired.invoke(IPC.setReminderEnabled, 'pushups', false)
+
+    // The glass of water is still perfectly answerable, so its alert stands.
+    expect(wired.reminderOverlay.close).not.toHaveBeenCalled()
+    expect(wired.reminderAlerts.withdraw).not.toHaveBeenCalled()
+
+    // And the reminder stopped behind it never gets its turn.
+    wired.invoke(IPC.completeReminder, null)
+    expect(wired.reminderAlerts.showOverlay).toHaveBeenCalledOnce()
+  })
+
   it('logs a Done answer to reminder history and tells every open window', () => {
     const pushups: ReminderDefinition = {
       id: 'pushups',
@@ -1078,6 +1192,36 @@ describe('Sports, all the way out', () => {
 
     expect(wired.sportsStore.get().enabled).toBe(false)
     expect(wired.sportsOverlay.close).toHaveBeenCalledOnce()
+  })
+
+  it('voids the Sports alert when Sports is stopped from the settings window', () => {
+    const wired = build(null, { sports: settings })
+    // A phase boundary is waiting too, with an overlay of its own up.
+    wired.invoke(IPC.startPreset, 'pomodoro')
+    elapse(60 * MINUTE)
+
+    wired.invoke(IPC.stopSports)
+
+    expect(wired.sportsOverlay.close).toHaveBeenCalledOnce()
+    expect(wired.sportsAlerts.withdraw).toHaveBeenCalledOnce()
+    // Only the alert of the thing that stopped: the timer is still holding at
+    // its boundary, and its overlay is the way to answer it.
+    expect(wired.overlay.close).not.toHaveBeenCalled()
+    expect(wired.alerts.withdraw).not.toHaveBeenCalled()
+  })
+
+  it('voids the Sports alert when Sports is stopped from the tray', () => {
+    const wired = build(null, { sports: settings })
+    elapse(60 * MINUTE)
+
+    expect(wired.menubar.clickMenuItem('Stop Sports')).toBe(true)
+
+    expect(wired.sportsOverlay.close).toHaveBeenCalledOnce()
+    expect(wired.sportsAlerts.withdraw).toHaveBeenCalledOnce()
+    expect(wired.sportsService.getState()).toEqual({
+      scheduled: false,
+      nextFireAt: null,
+    })
   })
 
   it('logs a Done answer to Sports history, one line per activity, and tells every open window', () => {

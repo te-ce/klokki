@@ -1,6 +1,7 @@
 import type { AppInfo } from '../shared/ipc'
 import { ADD_TIME_MS } from '../shared/timer'
 import { createAlertPresenter, type AlertSurface } from './alert/present'
+import { voidAlert } from './alert/void'
 import { wireAlerts } from './alert/wire'
 import type { History, ReminderHistory, SportsHistory } from './history'
 import { recordHistory } from './history/record'
@@ -108,6 +109,18 @@ export type WiredApp = {
  * joined up, and nothing above this line could assert it.
  */
 export const wireApp = (ports: AppPorts): WiredApp => {
+  // One per kind: an alert is void when the thing that raised it stops, and
+  // voiding it is closing the overlay *and* withdrawing the notification —
+  // both halves, because it was one alert (see alert/void.ts). Each kind voids
+  // only its own, which is what keeps a stopped reminder from clearing the
+  // transition overlay.
+  const voidTimerAlert = voidAlert(ports.alerts, ports.overlay)
+  const voidReminderAlert = voidAlert(
+    ports.reminderAlerts,
+    ports.reminderOverlay,
+  )
+  const voidSportsAlert = voidAlert(ports.sportsAlerts, ports.sportsOverlay)
+
   const reminderAlerts = wireReminderAlerts(
     {
       subscribe: ports.reminderService.subscribe,
@@ -123,7 +136,7 @@ export const wireApp = (ports: AppPorts): WiredApp => {
     createReminderAlertPresenter(ports.reminderAlerts, () =>
       reminderAlerts.stop(),
     ),
-    ports.reminderOverlay.close,
+    voidReminderAlert,
     ports.reminderHistory.append,
     ports.clock ?? systemClock,
   )
@@ -144,6 +157,14 @@ export const wireApp = (ports: AppPorts): WiredApp => {
   const unwireReminderStore = ports.reminderStore.subscribe((list) => {
     ports.reminderService.setDefinitions(list)
     persistReminderRun()
+    // The store is where every stop of a reminder ends up — the tray's item,
+    // the settings window's toggle, a delete — so it is also the honest place
+    // to notice that an alert has outlived the reminder behind it. Nothing has
+    // to remember to void anything; a reminder that is no longer in the list
+    // enabled is a reminder with no firing left to answer.
+    reminderAlerts.voidStopped((id) =>
+      list.some((definition) => definition.id === id && definition.enabled),
+    )
   })
   // Every change to the schedule is worth saving, not only a firing: an
   // answered reminder's next interval starts at the answer, and a restart from
@@ -169,7 +190,7 @@ export const wireApp = (ports: AppPorts): WiredApp => {
     },
     ports.sportsStore,
     createSportsAlertPresenter(ports.sportsAlerts, () => sportsAlerts.stop()),
-    ports.sportsOverlay.close,
+    voidSportsAlert,
     ports.sportsHistory.append,
     ports.clock ?? systemClock,
   )
@@ -189,6 +210,9 @@ export const wireApp = (ports: AppPorts): WiredApp => {
   const unwireSportsStore = ports.sportsStore.subscribe((settings) => {
     ports.sportsService.setSettings(settings)
     persistSportsRun()
+    // Same trigger as the reminders above: every Sports stop is a save with
+    // `enabled: false`, wherever the user made it.
+    sportsAlerts.voidStopped(settings.enabled)
   })
   const unwireSportsTick = ports.sportsService.onScheduleChange(() => {
     persistSportsRun()
@@ -218,13 +242,19 @@ export const wireApp = (ports: AppPorts): WiredApp => {
     window.onClosed(() => broadcaster.unregister(window.target))
   })
 
-  // Stopping the timer from the alert it raised. One closure, reached from the
-  // overlay (IPC) and from the notification's own Stop button: the run ends and
-  // the overlay that was announcing the boundary closes, because a boundary of a
-  // stopped run has nothing left to answer.
-  const stopTimerFromAlert = (): void => {
+  // Stopping the timer, from wherever: the tray, the settings window, the
+  // overlay's own Stop, the notification's Stop button. The run ends and the
+  // alert announcing a boundary goes with it, because a boundary of a stopped
+  // run has nothing left to answer.
+  //
+  // The timer is the one kind with no store behind its stop, so this closure is
+  // what the reminder and Sports store subscriptions are for the other two —
+  // and it has to be a closure rather than a subscription to `service`, because
+  // a run reaching its own last phase also lands on idle, and *that* alert is
+  // the one thing the user still wants to see.
+  const stopTimer = (): void => {
     ports.service.stop()
-    ports.overlay.close()
+    voidTimerAlert()
   }
 
   registerIpc({
@@ -234,7 +264,7 @@ export const wireApp = (ports: AppPorts): WiredApp => {
     loginItem: ports.loginItem,
     history: ports.history,
     reminderHistory: ports.reminderHistory,
-    overlay: ports.overlay,
+    overlay: { close: voidTimerAlert },
     reminderStore: ports.reminderStore,
     reminderViews: reminderViewSource.views,
     reminderAnswers: reminderAlerts,
@@ -245,7 +275,7 @@ export const wireApp = (ports: AppPorts): WiredApp => {
     sportsService: ports.sportsService,
     startSports: () => startSports(ports.sportsStore, ports.sportsService),
     stopSports: () => stopSports(ports.sportsStore),
-    stopFromAlert: stopTimerFromAlert,
+    stopTimer,
     // Only the activities the tab's form actually had a number for — unlike
     // the overlay's confirm, a manual log is not a full round, so an activity
     // left blank is not "zero of it", it is "not logged this time".
@@ -267,7 +297,7 @@ export const wireApp = (ports: AppPorts): WiredApp => {
 
   const unwireAlerts = wireAlerts(
     ports.service,
-    createAlertPresenter(ports.alerts, stopTimerFromAlert),
+    createAlertPresenter(ports.alerts, stopTimer),
   )
   const unwireHistory = recordHistory(ports.service, ports.history.append)
   const unwireSnapshot = persistSnapshot(ports.service, ports.snapshot)
@@ -287,7 +317,7 @@ export const wireApp = (ports: AppPorts): WiredApp => {
       sports: sportsViewSource,
     },
     {
-      stop: () => ports.service.stop(),
+      stop: stopTimer,
       skip: () => {
         ports.service.skip()
       },

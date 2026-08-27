@@ -4,6 +4,8 @@ import type { SportsAlert } from '../../shared/sports-alert'
 /** The platform half of a Sports alert — mirrors `ReminderAlertSurface`. */
 export type SportsAlertSurface = {
   readonly notify: (text: NotificationText) => void
+  /** Takes the last notification back — see `AlertSurface.withdraw`. */
+  readonly withdraw: () => void
   readonly showOverlay: (alert: SportsAlert) => void
 }
 

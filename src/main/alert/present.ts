@@ -4,6 +4,13 @@ import { notificationFor, type NotificationText } from './notification'
 /** The platform half of an alert: a notification, and the overlay window. */
 export type AlertSurface = {
   readonly notify: (text: NotificationText) => void
+  /**
+   * Takes the last notification back — for a stop, which voids the alert it
+   * raised (see alert/void.ts). Only the platform can do it, and only through
+   * the handle it kept, so it is a capability of the surface rather than
+   * something the decision above it could arrange for itself.
+   */
+  readonly withdraw: () => void
   readonly showOverlay: (alert: Alert) => void
 }
 

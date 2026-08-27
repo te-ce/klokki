@@ -23,7 +23,12 @@ export type RequestSink = {
   ) => void
 }
 
-/** The transition overlay, as much of it as answering a renderer needs. */
+/**
+ * The transition overlay, as much of it as answering a renderer needs.
+ *
+ * Closing it is voiding the alert it belongs to — wire.ts hands in a `close`
+ * that withdraws the notification too, because the two are one alert.
+ */
 export type OverlayControl = {
   readonly close: () => void
 }
@@ -69,11 +74,12 @@ export type IpcDeps = {
   readonly startSports: () => void
   readonly stopSports: () => void
   /**
-   * Stopping the timer from the overlay that announced a boundary, closing it
-   * on the way out — one closure in wire.ts, because the notification's Stop
-   * button is the same move made from the other half of the same alert.
+   * Stopping the timer, and voiding whatever alert the run had raised. One
+   * closure in wire.ts, shared with the tray and the notification's own Stop
+   * button, which is why `stopTimer` and `stopFromAlert` are the same move on
+   * two channels: an alert of a stopped run is void however the stop arrived.
    */
-  readonly stopFromAlert: () => void
+  readonly stopTimer: () => void
   readonly logSports: SportsLog
   readonly appInfo: () => AppInfo
 }
@@ -193,7 +199,7 @@ export const registerIpc = (deps: IpcDeps): void => {
     getLaunchAtLogin: () => loginItem.isEnabled(),
     setLaunchAtLogin: (enabled) =>
       loginItem.setEnabled(expect(enabled, isBoolean, 'a boolean')),
-    stopTimer: () => service.stop(),
+    stopTimer: () => deps.stopTimer(),
     skipPhase: () => service.skip(),
     confirmNext: () => service.confirm(),
     setRemaining: (targetMs) =>
@@ -211,11 +217,11 @@ export const registerIpc = (deps: IpcDeps): void => {
     // only when its new end has already gone by, and leaving an overlay up that
     // names a boundary long past is worse than closing it. The renderer is told
     // which of the two happened rather than being left to assume the first.
-    // The run ends and the overlay goes with it: a boundary belonging to a run
+    // The run ends and the alert goes with it: a boundary belonging to a run
     // that no longer exists has nothing left to answer, and an overlay naming it
-    // would be a window with no true way out. `stopTimer` is deliberately left
-    // as it was — this is the alert's own way out, not a new way to stop.
-    stopFromAlert: () => deps.stopFromAlert(),
+    // would be a window with no true way out. The same closure as `stopTimer`,
+    // because that is now true of a stop from anywhere.
+    stopFromAlert: () => deps.stopTimer(),
     snoozeAlert: (extraMs) => {
       const snoozed = service.snooze(
         expect(extraMs, isNumber, 'a duration in ms'),

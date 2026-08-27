@@ -229,6 +229,31 @@ waits for the seam to appear, because `electron.launch()` resolves before
   button, which is what keeps the adapter free of both decisions. macOS shows the
   first action inline; a platform that ignores actions loses nothing but the
   shortcut, because the overlay half is the requirement and stands on its own.
+- **A stop voids the alert of the thing it stopped — both halves of it.** An
+  alert that outlives its source is worse than none: it names a boundary that no
+  longer exists, its Snooze can only be declined, and its affirmative would
+  answer a run that is gone. So a stop closes the overlay _and_ withdraws the
+  native notification, wherever the stop was made — the tray, the settings
+  window, a delete, or the alert's own Stop. Withdrawing is the one part only the
+  platform can do, and only through the handle it kept: `createNotifier` in
+  `alert/notify.ts` holds it and each surface has its own, so a stopped reminder
+  cannot clear Sports' notification, while `voidAlert` (`alert/void.ts`) is the
+  decision — one alert, shown in two places, hidden in both — and is what every
+  path reaches. Which path is the honest trigger differs by kind, and neither is
+  a `close()` remembered at a call site: a reminder and Sports both stop by a
+  store write, so their store subscriptions in `wire.ts` void the alert of
+  anything no longer running and cover the tray, the toggle and a delete at once
+  (`voidStopped` is told what _is_ running, because "not in the list" is how a
+  delete reads); the timer has no store, so one `stopTimer` closure is what the
+  tray, `IPC.stopTimer` and `IPC.stopFromAlert` all call, which is why those two
+  channels are now the same move. It cannot be a subscription to the timer
+  service instead, because a run reaching its own last phase also lands on idle,
+  and "Timer finished" is the one alert the user still wants standing. Only the
+  matching alert is voided: the overlay windows are already separate per kind, and
+  for reminders the controller answers which one it is showing — the same
+  ownership its Stop already had — so a reminder stopped while another's overlay
+  is up leaves that overlay alone and merely drops itself from the queue it was
+  waiting in.
 - **Transitions are intrusive.** Native notification _plus_ a borderless
   always-on-top overlay that must be dismissed or snoozed. A notification alone
   is missed in Do Not Disturb and fullscreen — the exact moments it matters.

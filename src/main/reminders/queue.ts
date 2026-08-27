@@ -45,3 +45,19 @@ export const advance = (state: ReminderQueueState): ReminderQueueResult => {
   if (!next) return { state: EMPTY_QUEUE, toShow: null }
   return { state: { current: next, pending: rest }, toShow: next }
 }
+
+/**
+ * Drops queued reminders that are no longer running, leaving what is showing
+ * alone — that one is the controller's to void, because voiding it means
+ * closing a window and showing whatever was behind it.
+ *
+ * A reminder disabled or deleted while another's overlay is up would otherwise
+ * come round in its turn and announce a firing nothing can answer.
+ */
+export const retainPending = (
+  state: ReminderQueueState,
+  isRunning: (definitionId: string) => boolean,
+): ReminderQueueState => ({
+  ...state,
+  pending: state.pending.filter((due) => isRunning(due.definitionId)),
+})

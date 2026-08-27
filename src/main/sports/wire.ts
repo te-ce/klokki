@@ -33,6 +33,15 @@ export type SportsAlertController = {
    * cannot disable a schedule the user has since restarted.
    */
   readonly stop: () => void
+  /**
+   * Voids the alert showing when Sports is no longer running — for a stop that
+   * came from the tray or the settings window rather than from the overlay.
+   *
+   * Told whether Sports is running rather than being asked to work it out: the
+   * store's subscriber in wire.ts is holding the settings that just changed,
+   * and every save goes through it, enabled or not.
+   */
+  readonly voidStopped: (running: boolean) => void
   readonly dispose: () => void
 }
 
@@ -53,6 +62,7 @@ export const wireSportsAlerts = (
   source: SportsAlertSource,
   store: SportsAlertStore,
   present: (alert: SportsAlert) => void,
+  /** Voids the alert showing — both halves of it (see alert/void.ts). */
   close: () => void,
   /** Appends one line per activity for every completed answer. */
   record: (event: SportsHistoryEvent) => void = () => {},
@@ -75,10 +85,19 @@ export const wireSportsAlerts = (
     },
     stop: () => {
       if (!showing) return
+      // Voided before the stop lands: disabling is a store write, and the
+      // store's own subscriber (wire.ts) voids a showing alert once Sports is
+      // off. Closing first leaves that subscriber nothing to do rather than a
+      // second close.
+      showing = false
+      close()
       // Disabling drops the schedule (`setSettings` → `withRemoved`), so the
       // firing this overlay was showing is not left awaiting an answer that can
       // no longer arrive. Nothing is logged: a stop is not a round done.
       source.stop()
+    },
+    voidStopped: (running) => {
+      if (running || !showing) return
       showing = false
       close()
     },

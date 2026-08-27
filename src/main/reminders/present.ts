@@ -4,6 +4,8 @@ import type { ReminderAlert } from '../../shared/reminder-alert'
 /** The platform half of a reminder alert: a notification, and the overlay window. */
 export type ReminderAlertSurface = {
   readonly notify: (text: NotificationText) => void
+  /** Takes the last notification back — see `AlertSurface.withdraw`. */
+  readonly withdraw: () => void
   readonly showOverlay: (alert: ReminderAlert) => void
 }
 

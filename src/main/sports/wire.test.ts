@@ -194,6 +194,71 @@ describe('wireSportsAlerts', () => {
     controller.dispose()
   })
 
+  it('voids the alert when Sports is stopped from somewhere else', () => {
+    const service = fakeService()
+    const close = vi.fn()
+    const record = vi.fn()
+    const controller = wireSportsAlerts(
+      service,
+      fakeStore(),
+      vi.fn(),
+      close,
+      record,
+    )
+    service.fire()
+
+    // What the store's subscriber hands in — the tray item and the settings
+    // window are both a save with `enabled: false`.
+    controller.voidStopped(false)
+
+    expect(close).toHaveBeenCalledOnce()
+    // Voiding is not a stop of its own, and it is not a round done either.
+    expect(service.stop).not.toHaveBeenCalled()
+    expect(record).not.toHaveBeenCalled()
+    controller.dispose()
+  })
+
+  it('leaves the overlay alone while Sports is still running', () => {
+    const service = fakeService()
+    const close = vi.fn()
+    const controller = wireSportsAlerts(service, fakeStore(), vi.fn(), close)
+    service.fire()
+
+    // Every save comes through this, not only the ones that turn Sports off.
+    controller.voidStopped(true)
+
+    expect(close).not.toHaveBeenCalled()
+    controller.dispose()
+  })
+
+  it('voids nothing when no firing is showing', () => {
+    const service = fakeService()
+    const close = vi.fn()
+    const controller = wireSportsAlerts(service, fakeStore(), vi.fn(), close)
+
+    controller.voidStopped(false)
+
+    expect(close).not.toHaveBeenCalled()
+    controller.dispose()
+  })
+
+  it('closes once when its own stop comes back through the store', () => {
+    const service = fakeService()
+    const close = vi.fn()
+    const controller = wireSportsAlerts(service, fakeStore(), vi.fn(), close)
+    // The real store notifies synchronously, so wire.ts's subscriber voids the
+    // alert while `stop()` is still on the stack.
+    service.stop.mockImplementation(() => {
+      controller.voidStopped(false)
+    })
+    service.fire()
+
+    controller.stop()
+
+    expect(close).toHaveBeenCalledOnce()
+    controller.dispose()
+  })
+
   it('records nothing when confirm is called with nothing showing', () => {
     const service = fakeService()
     const record = vi.fn()

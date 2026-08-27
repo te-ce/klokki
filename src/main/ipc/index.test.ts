@@ -152,7 +152,7 @@ const wire = (overrides: Partial<IpcDeps> = {}) => {
   }
   const startSports = vi.fn()
   const stopSports = vi.fn()
-  const stopFromAlert = vi.fn()
+  const stopTimer = vi.fn()
   const logSports = vi.fn()
   const deps: IpcDeps = {
     requests: sink.sink,
@@ -172,7 +172,7 @@ const wire = (overrides: Partial<IpcDeps> = {}) => {
     sportsService,
     startSports,
     stopSports,
-    stopFromAlert,
+    stopTimer,
     logSports,
     appInfo: () => ({ version: '1.2.3', electron: '43.0.0' }),
     ...overrides,
@@ -197,7 +197,7 @@ const wire = (overrides: Partial<IpcDeps> = {}) => {
     sportsService,
     startSports,
     stopSports,
-    stopFromAlert,
+    stopTimer,
     logSports,
   }
 }
@@ -275,15 +275,14 @@ describe('what the handlers do', () => {
     expect(app.service.snooze).not.toHaveBeenCalled()
   })
 
-  it('stops the run and the overlay together, from the alert itself', () => {
+  it('stops the run and voids its alert, from the alert itself', () => {
     const app = wire()
 
     app.invoke(IPC.stopFromAlert)
 
-    // One closure in wire.ts, so the overlay's Stop and the notification's
-    // cannot drift apart. `stopTimer` is untouched: this is the alert's own way
-    // out, not a second way to stop the timer.
-    expect(app.stopFromAlert).toHaveBeenCalledOnce()
+    // One closure in wire.ts, so the overlay's Stop, the notification's, the
+    // tray's and this window's cannot drift apart.
+    expect(app.stopTimer).toHaveBeenCalledOnce()
     expect(app.service.confirm).not.toHaveBeenCalled()
   })
 
@@ -331,12 +330,16 @@ describe('what the handlers do', () => {
     expect(app.invoke(IPC.getTimerView)).toEqual(IDLE)
   })
 
-  it('stops the timer', () => {
+  it('stops the timer down the same path as the alert, so the alert is voided too', () => {
     const app = wire()
 
     app.invoke(IPC.stopTimer)
 
-    expect(app.service.stop).toHaveBeenCalledOnce()
+    // Not `service.stop` directly: a stop from a window leaves an overlay
+    // standing over a run that no longer exists, so it takes the closure that
+    // voids the alert as well (wire.ts).
+    expect(app.stopTimer).toHaveBeenCalledOnce()
+    expect(app.service.stop).not.toHaveBeenCalled()
   })
 
   it('skips to the next phase, and says whether anything moved', () => {

@@ -163,6 +163,99 @@ describe('wireReminderAlerts', () => {
     controller.dispose()
   })
 
+  it('voids the alert of a reminder stopped from somewhere else', () => {
+    const service = fakeService()
+    const close = vi.fn()
+    const record = vi.fn()
+    const controller = wireReminderAlerts(service, vi.fn(), close, record)
+    service.fire([due('water', 'Drink water')])
+
+    // What the store's subscriber hands in: the tray, the settings window and a
+    // delete all read as "this one is no longer running".
+    controller.voidStopped((id) => id !== 'water')
+
+    expect(close).toHaveBeenCalledOnce()
+    // Voiding an alert is not a stop of its own: whoever stopped the reminder
+    // already did that, and nothing is logged either way.
+    expect(service.stop).not.toHaveBeenCalled()
+    expect(record).not.toHaveBeenCalled()
+    controller.dispose()
+  })
+
+  it('leaves the overlay of a reminder that is still running alone', () => {
+    const service = fakeService()
+    const close = vi.fn()
+    const controller = wireReminderAlerts(service, vi.fn(), close)
+    service.fire([due('water', 'Drink water')])
+
+    controller.voidStopped((id) => id !== 'pushups')
+
+    // The overlay showing is announcing a firing that is still perfectly
+    // answerable — only the stopped reminder's alert is void.
+    expect(close).not.toHaveBeenCalled()
+    controller.dispose()
+  })
+
+  it('shows the queued reminder when the one showing is stopped elsewhere', () => {
+    const service = fakeService()
+    const present = vi.fn()
+    const controller = wireReminderAlerts(service, present, vi.fn())
+    service.fire([due('water', 'Drink water'), due('pushups', 'Pushups')])
+
+    controller.voidStopped((id) => id !== 'water')
+
+    expect(present).toHaveBeenLastCalledWith({ label: 'Pushups', unit: null })
+    controller.dispose()
+  })
+
+  it('drops a queued reminder that was stopped before its turn came', () => {
+    const service = fakeService()
+    const present = vi.fn()
+    const controller = wireReminderAlerts(service, present, vi.fn())
+    service.fire([due('water', 'Drink water'), due('pushups', 'Pushups')])
+
+    controller.voidStopped((id) => id !== 'pushups')
+    controller.complete(null)
+
+    // Water was answered and nothing is behind it: the reminder stopped while
+    // it waited never gets an overlay of its own.
+    expect(present).toHaveBeenCalledOnce()
+    controller.dispose()
+  })
+
+  it('voids nothing when no reminder is showing', () => {
+    const service = fakeService()
+    const close = vi.fn()
+    const controller = wireReminderAlerts(service, vi.fn(), close)
+
+    controller.voidStopped(() => false)
+
+    expect(close).not.toHaveBeenCalled()
+    controller.dispose()
+  })
+
+  it('advances the queue once when its own stop comes back through the store', () => {
+    const service = fakeService()
+    const present = vi.fn()
+    const close = vi.fn()
+    const controller = wireReminderAlerts(service, present, close)
+    // The real store notifies synchronously, so wire.ts's subscriber voids
+    // stopped alerts while `stop()` is still on the stack.
+    service.stop.mockImplementation(() => {
+      controller.voidStopped((id) => id !== 'water')
+    })
+    service.fire([due('water', 'Drink water'), due('pushups', 'Pushups')])
+
+    controller.stop()
+
+    // Once, not twice: a second advance would close the overlay the queued
+    // reminder had only just been given and skip it unanswered.
+    expect(close).toHaveBeenCalledOnce()
+    expect(present).toHaveBeenCalledTimes(2)
+    expect(present).toHaveBeenLastCalledWith({ label: 'Pushups', unit: null })
+    controller.dispose()
+  })
+
   it('records a Done answer for history, quantity and all', () => {
     const service = fakeService()
     const record = vi.fn()
