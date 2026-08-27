@@ -12,19 +12,26 @@ const APP_ENTRY = fileURLToPath(
   new URL('../out/main/index.js', import.meta.url),
 )
 
+/** One run of the pushed view, as the seam hands it over. */
+export type SeamRun = {
+  runId: string
+  awaiting: boolean
+  presetName: string
+  phaseLabel: string | null
+  countdown: string
+  remainingMs: number
+}
+
 /** Mirrors the seam installed by src/main/index.ts under KLOKKI_E2E=1. */
 type TestSeam = {
   trayTitle: () => string
   clickMenuItem: (label: string) => boolean
   menuLabels: () => string[]
-  view: () => {
-    running: boolean
-    phaseLabel: string | null
-    countdown: string
-    remainingMs: number
-  }
+  /** Every run in progress, in the order they were started. */
+  view: () => { runs: SeamRun[] }
   startPreset: (id: string) => void
-  stop: () => void
+  stop: (runId: string) => void
+  skip: (runId: string) => void
   subscriberCount: () => number
   overlay: () => OverlayState | null
 }
@@ -83,20 +90,25 @@ export const trayTitle = (app: ElectronApplication): Promise<string> =>
     (globalThis as unknown as SeamHost).__klokkiTest.trayTitle(),
   )
 
-export const phaseLabel = (app: ElectronApplication): Promise<string | null> =>
+/**
+ * Every run the app has, which is what the seam answers with now that several
+ * presets can be going at once. The helpers below read the first of them, which
+ * is all a single-run test needs.
+ */
+export const runs = (app: ElectronApplication): Promise<SeamRun[]> =>
   app.evaluate(
-    () => (globalThis as unknown as SeamHost).__klokkiTest.view().phaseLabel,
+    () => (globalThis as unknown as SeamHost).__klokkiTest.view().runs,
   )
 
-export const remaining = (app: ElectronApplication): Promise<number> =>
-  app.evaluate(
-    () => (globalThis as unknown as SeamHost).__klokkiTest.view().remainingMs,
-  )
+export const phaseLabel = async (
+  app: ElectronApplication,
+): Promise<string | null> => (await runs(app))[0]?.phaseLabel ?? null
 
-export const isRunning = (app: ElectronApplication): Promise<boolean> =>
-  app.evaluate(
-    () => (globalThis as unknown as SeamHost).__klokkiTest.view().running,
-  )
+export const remaining = async (app: ElectronApplication): Promise<number> =>
+  (await runs(app))[0]?.remainingMs ?? 0
+
+export const isRunning = async (app: ElectronApplication): Promise<boolean> =>
+  (await runs(app)).length > 0
 
 export const startPreset = (
   app: ElectronApplication,
@@ -108,8 +120,12 @@ export const startPreset = (
     id,
   )
 
-export const stop = (app: ElectronApplication): Promise<void> =>
-  app.evaluate(() => (globalThis as unknown as SeamHost).__klokkiTest.stop())
+export const stop = (app: ElectronApplication, runId: string): Promise<void> =>
+  app.evaluate(
+    (_electron, id) =>
+      (globalThis as unknown as SeamHost).__klokkiTest.stop(id),
+    runId,
+  )
 
 /** Clicks a real item in the tray's context menu, by label. */
 export const clickMenuItem = (

@@ -72,7 +72,7 @@ const wire = (overrides: Partial<IpcDeps> = {}) => {
     setRemaining: vi.fn(() => true),
     addTime: vi.fn(() => true),
     getView: vi.fn(() => IDLE),
-    getState: vi.fn(() => ({ status: 'idle' }) as const),
+    getStates: vi.fn(() => []),
     resume: vi.fn(),
     subscribe: vi.fn(() => () => {}),
     dispose: vi.fn(),
@@ -103,7 +103,7 @@ const wire = (overrides: Partial<IpcDeps> = {}) => {
     })),
     subscribe: vi.fn(() => () => {}),
   }
-  const overlay = { close: vi.fn() }
+  const answerAlert = vi.fn()
   const reminderAnswers = {
     snooze: vi.fn(() => true),
     complete: vi.fn(),
@@ -161,7 +161,7 @@ const wire = (overrides: Partial<IpcDeps> = {}) => {
     loginItem,
     history,
     reminderHistory,
-    overlay,
+    answerAlert,
     reminderStore,
     reminderViews,
     reminderAnswers,
@@ -186,7 +186,7 @@ const wire = (overrides: Partial<IpcDeps> = {}) => {
     loginItem,
     history,
     reminderHistory,
-    overlay,
+    answerAlert,
     reminderStore,
     reminderViews,
     reminderAnswers,
@@ -263,45 +263,73 @@ describe('what the handlers do', () => {
     })
   })
 
-  it('starts the waiting phase and closes the overlay when the alert is dismissed', () => {
+  it('starts the waiting phase and answers its alert when the alert is dismissed', () => {
     const app = wire()
 
-    app.invoke(IPC.dismissAlert)
+    app.invoke(IPC.dismissAlert, 'pomodoro')
 
     // Acknowledging the boundary is what starts the phase behind it: closing
     // the window without confirming would leave the run parked for good.
-    expect(app.service.confirm).toHaveBeenCalledOnce()
-    expect(app.overlay.close).toHaveBeenCalledOnce()
+    expect(app.service.confirm).toHaveBeenCalledExactlyOnceWith('pomodoro')
+    expect(app.answerAlert).toHaveBeenCalledExactlyOnceWith('pomodoro')
     expect(app.service.snooze).not.toHaveBeenCalled()
   })
 
   it('stops the run and voids its alert, from the alert itself', () => {
     const app = wire()
 
-    app.invoke(IPC.stopFromAlert)
+    app.invoke(IPC.stopFromAlert, 'pomodoro')
 
     // One closure in wire.ts, so the overlay's Stop, the notification's, the
     // tray's and this window's cannot drift apart.
-    expect(app.stopTimer).toHaveBeenCalledOnce()
+    expect(app.stopTimer).toHaveBeenCalledExactlyOnceWith('pomodoro')
     expect(app.service.confirm).not.toHaveBeenCalled()
   })
 
+  // With several runs going, an alert answered from the pane must void that
+  // run's alert and nothing else — the pane may be looking at a run whose
+  // boundary is queued behind another's overlay.
   it('confirms a waiting boundary for a window that is not the overlay', () => {
     const app = wire()
 
-    expect(app.invoke(IPC.confirmNext)).toBe(true)
+    expect(app.invoke(IPC.confirmNext, 'pomodoro')).toBe(true)
 
-    expect(app.service.confirm).toHaveBeenCalledOnce()
-    expect(app.overlay.close).not.toHaveBeenCalled()
+    expect(app.service.confirm).toHaveBeenCalledExactlyOnceWith('pomodoro')
+    expect(app.answerAlert).toHaveBeenCalledExactlyOnceWith('pomodoro')
   })
 
-  it('defers the boundary and closes the overlay on a snooze', () => {
+  it('skips a run by name, and answers that run’s boundary with it', () => {
     const app = wire()
 
-    expect(app.invoke(IPC.snoozeAlert, 600_000)).toBe(true)
+    expect(app.invoke(IPC.skipPhase, 'sit-stand')).toBe(true)
 
-    expect(app.service.snooze).toHaveBeenCalledWith(600_000)
-    expect(app.overlay.close).toHaveBeenCalledOnce()
+    expect(app.service.skip).toHaveBeenCalledExactlyOnceWith('sit-stand')
+    expect(app.answerAlert).toHaveBeenCalledExactlyOnceWith('sit-stand')
+  })
+
+  it('corrects and extends the run it is told to, not "the" timer', () => {
+    const app = wire()
+
+    app.invoke(IPC.setRemaining, 'pomodoro', 120_000)
+    app.invoke(IPC.addTime, 'sit-stand', 300_000)
+
+    expect(app.service.setRemaining).toHaveBeenCalledExactlyOnceWith(
+      'pomodoro',
+      120_000,
+    )
+    expect(app.service.addTime).toHaveBeenCalledExactlyOnceWith(
+      'sit-stand',
+      300_000,
+    )
+  })
+
+  it('defers the boundary and answers its alert on a snooze', () => {
+    const app = wire()
+
+    expect(app.invoke(IPC.snoozeAlert, 'pomodoro', 600_000)).toBe(true)
+
+    expect(app.service.snooze).toHaveBeenCalledWith('pomodoro', 600_000)
+    expect(app.answerAlert).toHaveBeenCalledExactlyOnceWith('pomodoro')
   })
 
   it('says so when the snooze was declined, and closes the overlay anyway', () => {
@@ -310,9 +338,17 @@ describe('what the handlers do', () => {
     // so the deferred end has already gone by and the machine declines it.
     app.service.snooze.mockReturnValue(false)
 
-    expect(app.invoke(IPC.snoozeAlert, 300_000)).toBe(false)
+    expect(app.invoke(IPC.snoozeAlert, 'pomodoro', 300_000)).toBe(false)
 
-    expect(app.overlay.close).toHaveBeenCalledOnce()
+    expect(app.answerAlert).toHaveBeenCalledExactlyOnceWith('pomodoro')
+  })
+
+  it('rejects a run-scoped call with no run to name', () => {
+    const app = wire()
+
+    expect(() => app.invoke(IPC.stopTimer)).toThrow(TypeError)
+    expect(() => app.invoke(IPC.skipPhase, 42)).toThrow(TypeError)
+    expect(() => app.invoke(IPC.addTime, 'pomodoro', 'soon')).toThrow(TypeError)
   })
 
   it('reads the login item from the OS and reports what it says after a write', () => {
@@ -333,34 +369,13 @@ describe('what the handlers do', () => {
   it('stops the timer down the same path as the alert, so the alert is voided too', () => {
     const app = wire()
 
-    app.invoke(IPC.stopTimer)
+    app.invoke(IPC.stopTimer, 'pomodoro')
 
     // Not `service.stop` directly: a stop from a window leaves an overlay
     // standing over a run that no longer exists, so it takes the closure that
     // voids the alert as well (wire.ts).
-    expect(app.stopTimer).toHaveBeenCalledOnce()
+    expect(app.stopTimer).toHaveBeenCalledExactlyOnceWith('pomodoro')
     expect(app.service.stop).not.toHaveBeenCalled()
-  })
-
-  it('skips to the next phase, and says whether anything moved', () => {
-    const app = wire()
-
-    expect(app.invoke(IPC.skipPhase)).toBe(true)
-    expect(app.service.skip).toHaveBeenCalledOnce()
-  })
-
-  it('corrects the remaining time, and says whether anything moved', () => {
-    const app = wire()
-
-    expect(app.invoke(IPC.setRemaining, 120_000)).toBe(true)
-    expect(app.service.setRemaining).toHaveBeenCalledWith(120_000)
-  })
-
-  it('adds time to the running phase, and says whether anything moved', () => {
-    const app = wire()
-
-    expect(app.invoke(IPC.addTime, 300_000)).toBe(true)
-    expect(app.service.addTime).toHaveBeenCalledWith(300_000)
   })
 
   it('deletes a preset by id', () => {

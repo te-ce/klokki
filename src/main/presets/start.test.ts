@@ -25,17 +25,23 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
+/** The one run in progress, as a view reads it. */
+const only = () => service.getView().runs[0]
+
 describe('starting by id', () => {
   it('starts the preset with that id', () => {
     startPresetById(service, store, 'pomodoro')
 
-    expect(service.getView().phaseLabel).toBe('Focus')
+    expect(only()?.phaseLabel).toBe('Focus')
+    // The run is named by the preset it runs, which is how everything else
+    // reaches it afterwards.
+    expect(only()?.runId).toBe('pomodoro')
   })
 
   it('does nothing for an id the store does not have', () => {
     startPresetById(service, store, 'deleted-a-moment-ago')
 
-    expect(service.getView().running).toBe(false)
+    expect(service.getView().runs).toEqual([])
   })
 
   it('starts the saved version, not the one that was on disk at launch', () => {
@@ -46,7 +52,18 @@ describe('starting by id', () => {
 
     startPresetById(service, store, 'pomodoro')
 
-    expect(service.getView().phaseLabel).toBe('Writing')
+    expect(only()?.phaseLabel).toBe('Writing')
+  })
+
+  // Concurrent runs: a second preset joins the first rather than replacing it.
+  it('adds a run beside the ones already going', () => {
+    startPresetById(service, store, 'pomodoro')
+    startPresetById(service, store, 'sit-stand')
+
+    expect(service.getView().runs.map((run) => run.runId)).toEqual([
+      'pomodoro',
+      'sit-stand',
+    ])
   })
 })
 
@@ -65,8 +82,8 @@ describe('editing the preset that is running', () => {
       phases: [{ label: 'Writing', minutes: 50, notify: true }],
     })
 
-    expect(service.getView().phaseLabel).toBe('Focus')
-    expect(service.getView().presetName).toBe('Pomodoro')
+    expect(only()?.phaseLabel).toBe('Focus')
+    expect(only()?.presetName).toBe('Pomodoro')
   })
 
   it('applies the edit on the next start', () => {
@@ -79,7 +96,9 @@ describe('editing the preset that is running', () => {
 
     startPresetById(service, store, 'pomodoro')
 
-    expect(service.getView().presetName).toBe('Deep work')
+    // Restarted in place, not added beside itself: one run per preset.
+    expect(service.getView().runs).toHaveLength(1)
+    expect(only()?.presetName).toBe('Deep work')
   })
 
   it('keeps running after the preset is deleted, until it is stopped', () => {
@@ -87,8 +106,8 @@ describe('editing the preset that is running', () => {
 
     store.remove('pomodoro')
 
-    expect(service.getView().running).toBe(true)
-    service.stop()
-    expect(service.getView().running).toBe(false)
+    expect(service.getView().runs).toHaveLength(1)
+    service.stop('pomodoro')
+    expect(service.getView().runs).toEqual([])
   })
 })

@@ -8,6 +8,7 @@ import {
   launch,
   menuLabels,
   phaseLabel,
+  runs,
   startPreset,
   stop,
   trayTitle,
@@ -48,7 +49,7 @@ test('stopping clears the menubar countdown', async () => {
   await startPreset(app, 'sit-stand')
   expect(await trayTitle(app)).toMatch(/30:00/)
 
-  await stop(app)
+  await stop(app, 'sit-stand')
 
   expect(await trayTitle(app)).toBe('')
   expect(await isRunning(app)).toBe(false)
@@ -105,7 +106,7 @@ test('@smoke skips to the next phase from the tray menu', async () => {
   await startPreset(app, 'sit-stand')
   expect(await phaseLabel(app)).toBe('Sitting')
 
-  expect(await clickMenuItem(app, 'Skip to Standing')).toBe(true)
+  expect(await clickMenuItem(app, 'Skip to Standing · Sit / Stand')).toBe(true)
 
   expect(await phaseLabel(app)).toBe('Standing')
   // Standing runs its full fifteen minutes, starting now.
@@ -154,6 +155,50 @@ test('@smoke starts a reminder from the tray menu', async () => {
   expect(
     JSON.parse(readFileSync(join(app.userDataDir, 'reminders.json'), 'utf8')),
   ).toMatchObject({ reminders: [{ id: 'water', enabled: true }] })
+
+  await close(app)
+})
+
+test('@smoke runs two presets at once and names both in the menubar', async () => {
+  const app = await launch()
+
+  await startPreset(app, 'pomodoro')
+  await startPreset(app, 'sit-stand')
+
+  // Both, joined — not one headline with the other hidden.
+  expect(await trayTitle(app)).toMatch(/^\s*Focus 25:00 · Sitting 30:00$/)
+  expect((await runs(app)).map((run) => run.runId)).toEqual([
+    'pomodoro',
+    'sit-stand',
+  ])
+
+  // A section each in the menu, every command naming the run it lands on.
+  const labels = await menuLabels(app)
+  expect(labels).toContain('Pomodoro — Focus')
+  expect(labels).toContain('Sit / Stand — Sitting')
+  expect(labels).toContain('Stop · Pomodoro')
+  expect(labels).toContain('Stop · Sit / Stand')
+
+  // Stopping one leaves the other counting, and the title says so.
+  expect(await clickMenuItem(app, 'Stop · Pomodoro')).toBe(true)
+  expect((await runs(app)).map((run) => run.runId)).toEqual(['sit-stand'])
+  expect(await trayTitle(app)).toMatch(/^\s*Sitting \d\d:\d\d$/)
+
+  await close(app)
+})
+
+test('restarting a running preset does not add a second copy of it', async () => {
+  const app = await launch()
+
+  await startPreset(app, 'pomodoro')
+  await startPreset(app, 'sit-stand')
+  await startPreset(app, 'pomodoro')
+
+  // One run per preset, still in the order they were first started.
+  expect((await runs(app)).map((run) => run.runId)).toEqual([
+    'pomodoro',
+    'sit-stand',
+  ])
 
   await close(app)
 })

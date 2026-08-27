@@ -2,7 +2,7 @@ import { skipLabel, startLabel } from '../../shared/labels'
 import type { Preset } from '../../shared/preset'
 import type { ReminderView } from '../../shared/reminder'
 import type { SportsView } from '../../shared/sport'
-import type { TimerView } from '../../shared/timer'
+import type { RunView, TimerView } from '../../shared/timer'
 
 /**
  * What clicking a menu item means, as data rather than as a closure.
@@ -13,10 +13,13 @@ import type { TimerView } from '../../shared/timer'
  * the only thing that knows an action ends in a call to Electron.
  */
 export type MenubarAction =
-  | { readonly kind: 'stop' }
-  | { readonly kind: 'skip' }
-  | { readonly kind: 'confirm' }
-  | { readonly kind: 'addTime' }
+  // Every run-scoped action names its run, because several presets can be
+  // running and a menu item that meant "the timer" would be ambiguous the
+  // moment a second one started.
+  | { readonly kind: 'stop'; readonly runId: string }
+  | { readonly kind: 'skip'; readonly runId: string }
+  | { readonly kind: 'confirm'; readonly runId: string }
+  | { readonly kind: 'addTime'; readonly runId: string }
   | { readonly kind: 'start'; readonly presetId: string }
   | { readonly kind: 'startReminder'; readonly reminderId: string }
   | { readonly kind: 'stopReminder'; readonly reminderId: string }
@@ -37,60 +40,99 @@ export type MenubarItem =
     }
 
 export type MenubarModel = {
-  /** The menubar text. Empty while idle: a resident icon with no number. */
+  /** The menubar text. Empty with nothing running: a resident icon, no number. */
   readonly title: string
   readonly tooltip: string
   readonly items: readonly MenubarItem[]
 }
 
 /**
- * The menubar text: what the user is meant to be doing, then how long is left.
+ * How the runs are joined in the menubar title, and in the menu items that name
+ * a run beside what a click does to it.
+ *
+ * A middle dot with spaces, which is what macOS itself uses to join unrelated
+ * facts in a status item: a comma reads as one list of phases, and a slash or a
+ * pipe reads as a choice between them.
+ */
+export const RUN_SEPARATOR = ' · '
+
+/**
+ * One run in the menubar text: what the user is meant to be doing, then how long
+ * is left.
  *
  * The phase comes first because it is the part read at a glance, and it is
  * dropped rather than shown as "null" if a running view somehow has no phase —
  * a number with no word beside it is still useful.
  */
-const trayTitle = (view: TimerView): string => {
-  if (view.phaseLabel === null) return ` ${view.countdown}`
+const runTitle = (run: RunView): string => {
+  if (run.phaseLabel === null) return run.countdown
   // A waiting run has a phase and a length but no clock, and showing its
   // countdown would be a number that never changes — which reads as a stuck
   // timer. It says what it is waiting for instead.
-  if (view.awaiting) return ` ${view.phaseLabel} ready`
-  return ` ${view.phaseLabel} ${view.countdown}`
+  if (run.awaiting) return `${run.phaseLabel} ready`
+  return `${run.phaseLabel} ${run.countdown}`
 }
 
 /**
- * What the menu offers about the run in progress, if there is one.
+ * The menubar text: every run, in the order they were started.
+ *
+ * Every one of them, rather than a headline with the rest hidden: a timer the
+ * user started and cannot see is a timer they have stopped trusting, and the
+ * menubar is the whole UI. Nothing is dropped and nothing is elided here — a
+ * long enough title is elided by macOS itself, from the right, and the menu
+ * below carries a section per run, so a run pushed off the end of the title is
+ * still named, still answerable, and never only in the title.
+ */
+const trayTitle = (runs: readonly RunView[]): string =>
+  runs.length === 0 ? '' : ` ${runs.map(runTitle).join(RUN_SEPARATOR)}`
+
+/**
+ * What the menu offers about one run: a heading naming it, then the three things
+ * that can be done to it.
  *
  * A waiting run is offered the phase it is holding — the boundary is answerable
- * from the menubar, so an overlay dismissed onto another Space, or missed
- * entirely, is not the only way to start the next phase. Skip is not offered
- * beside it because there is nothing running to cut short: starting the phase it
- * names *is* the skip.
+ * from the menubar, so an overlay dismissed onto another Space, superseded by a
+ * second run's, or missed entirely, is not the only way to start the next phase.
+ * Skip is not offered beside it because there is nothing running to cut short:
+ * starting the phase it names *is* the skip.
+ *
+ * Every command carries the preset's name, the way `Stop Drink water` does under
+ * Reminders. Two runs both offering a bare "Stop" would be two identical items
+ * in one menu, and which of them a click landed on would be a matter of reading
+ * the heading above it.
  */
-const runItems = (view: TimerView): readonly MenubarItem[] => {
-  if (!view.running) return []
+const runItems = (run: RunView): readonly MenubarItem[] => {
+  const named = (label: string): string =>
+    `${label}${RUN_SEPARATOR}${run.presetName}`
 
   return [
     {
       kind: 'label',
-      label: view.awaiting
-        ? `${view.presetName} — ${view.phaseLabel} ready`
-        : `${view.presetName} — ${view.phaseLabel}`,
+      label: run.awaiting
+        ? `${run.presetName} — ${run.phaseLabel} ready`
+        : `${run.presetName} — ${run.phaseLabel}`,
     },
-    view.awaiting
+    run.awaiting
       ? {
           kind: 'command',
-          label: `Start ${view.phaseLabel}`,
-          action: { kind: 'confirm' },
+          label: named(`Start ${run.phaseLabel}`),
+          action: { kind: 'confirm', runId: run.runId },
         }
       : {
           kind: 'command',
-          label: skipLabel(view.nextPhaseLabel),
-          action: { kind: 'skip' },
+          label: named(skipLabel(run.nextPhaseLabel)),
+          action: { kind: 'skip', runId: run.runId },
         },
-    { kind: 'command', label: '+5 min', action: { kind: 'addTime' } },
-    { kind: 'command', label: 'Stop', action: { kind: 'stop' } },
+    {
+      kind: 'command',
+      label: named('+5 min'),
+      action: { kind: 'addTime', runId: run.runId },
+    },
+    {
+      kind: 'command',
+      label: named('Stop'),
+      action: { kind: 'stop', runId: run.runId },
+    },
     { kind: 'separator' },
   ]
 }
@@ -212,13 +254,22 @@ export const menubarModel = (
   reminders: readonly ReminderView[],
   sports: SportsView = NO_SPORTS,
 ): MenubarModel => ({
-  title: view.running ? trayTitle(view) : '',
-  tooltip: view.running ? `Klokki — ${view.phaseLabel}` : 'Klokki',
+  title: trayTitle(view.runs),
+  tooltip:
+    view.runs.length === 0
+      ? 'Klokki'
+      : `Klokki — ${view.runs.map((run) => run.phaseLabel ?? run.countdown).join(RUN_SEPARATOR)}`,
   items: [
-    ...runItems(view),
+    ...view.runs.flatMap(runItems),
+    // Start or Restart per preset, not per timer: with concurrent runs, the one
+    // preset already going is the only one a click would restart — the rest
+    // would each add a run of their own.
     ...presets.map((preset): MenubarItem => ({
       kind: 'command',
-      label: startLabel(preset.name, view.running),
+      label: startLabel(
+        preset.name,
+        view.runs.some((run) => run.runId === preset.id),
+      ),
       action: { kind: 'start', presetId: preset.id },
     })),
     ...reminderItems(reminders),

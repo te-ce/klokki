@@ -11,9 +11,13 @@ import { IDLE_VIEW } from '../../../shared/test-support/timer-view'
 import type { TimerView } from '../../../shared/timer'
 
 export {
+  awaitingRun,
   awaitingView,
   IDLE_VIEW,
+  pomodoroRun,
   runningView,
+  sitStandRun,
+  twoRunView,
 } from '../../../shared/test-support/timer-view'
 
 /** Fixed, so a test never depends on the day it runs on. */

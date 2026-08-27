@@ -7,12 +7,17 @@ import { TimerRunning } from './TimerRunning'
 import { usePresets } from './usePresets'
 
 /**
- * The whole view of the running timer.
+ * The whole view of the timers.
  *
  * There is no `setInterval` here and no arithmetic on `remainingMs`: the main
  * process owns the clock and pushes a formatted view every second (see
  * AGENTS.md). This component renders whatever last arrived, which is also why it
  * asks for the current view on mount instead of waiting for the next push.
+ *
+ * Several presets can run at once, so this draws one `TimerRunning` per run in
+ * the order they were started — the same order the menubar title uses. "Nothing
+ * running" is `runs.length === 0`, read off the one payload rather than pushed
+ * as a second fact.
  */
 export const TimerPanel = () => {
   const [view, setView] = useState<TimerView | null>(null)
@@ -36,16 +41,24 @@ export const TimerPanel = () => {
 
   if (!view) return null
 
+  const running = new Set(view.runs.map((run) => run.runId))
+
   return (
     <section className="flex flex-1 flex-col gap-5.5">
-      {view.running ? <TimerRunning view={view} /> : <TimerIdle />}
+      {view.runs.length === 0 ? (
+        <TimerIdle />
+      ) : (
+        view.runs.map((run) => <TimerRunning key={run.runId} run={run} />)
+      )}
 
-      {/* While a timer runs this sits at the foot of the pane, under the phase it
-          would replace. With nothing running it is the only thing to do here, so
-          it stays where the eye already is. */}
-      <div className={`flex flex-col gap-2 ${view.running ? 'mt-auto' : ''}`}>
+      {/* While something runs this sits at the foot of the pane, under the runs
+          it adds to. With nothing running it is the only thing to do here, so it
+          stays where the eye already is. */}
+      <div
+        className={`flex flex-col gap-2 ${view.runs.length > 0 ? 'mt-auto' : ''}`}
+      >
         <h2 className="text-ink-faint text-[11px] tracking-[0.08em] uppercase">
-          {view.running ? 'Restart with' : 'Start'}
+          Start
         </h2>
         <div className="flex flex-wrap gap-2">
           {presets.map((preset) => (
@@ -55,16 +68,17 @@ export const TimerPanel = () => {
               className="bg-panel border-edge hover:bg-raised flex h-7.5 items-center gap-1.75 rounded-[7px] border px-3"
               onClick={() => void window.klokki.startPreset(preset.id)}
             >
-              {/* The running preset is the one whose triangle is lit; the rest
-                  are offered, not playing. */}
+              {/* A preset with a run of its own is the one whose triangle is
+                  lit, and the one whose button says Restart — the rest would each
+                  add a run rather than replace this one. */}
               <PlayIcon
                 className={
-                  view.running && preset.name === view.presetName
+                  running.has(preset.id)
                     ? 'text-work size-3'
                     : 'text-ink-ghost size-3'
                 }
               />
-              {startLabel(preset.name, view.running)}
+              {startLabel(preset.name, running.has(preset.id))}
             </button>
           ))}
         </div>

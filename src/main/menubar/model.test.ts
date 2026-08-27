@@ -3,9 +3,13 @@ import type { Preset } from '../../shared/preset'
 import type { ReminderView } from '../../shared/reminder'
 import type { SportsView } from '../../shared/sport'
 import {
+  awaitingRun,
   awaitingView,
   IDLE_VIEW,
+  pomodoroRun,
   runningView,
+  sitStandRun,
+  twoRunView,
 } from '../../shared/test-support/timer-view'
 import type { TimerView } from '../../shared/timer'
 import { menuKey, menubarModel } from './model'
@@ -49,6 +53,11 @@ const IDLE = IDLE_VIEW
 const running = (countdown: string, phaseLabel = 'Focus'): TimerView =>
   runningView({ countdown, phaseLabel, remainingMs: 60_000 })
 
+/** One run, with fields overridden — for a test that pokes at a single run. */
+const oneRun = (overrides: Parameters<typeof pomodoroRun>[0]): TimerView => ({
+  runs: [pomodoroRun(overrides)],
+})
+
 const labels = (
   view: TimerView,
   presets: readonly Preset[],
@@ -86,9 +95,11 @@ describe('what the menubar says', () => {
   it('names the running phase and offers Stop while running', () => {
     expect(labels(running('24:59'), [pomodoro])).toEqual([
       'Pomodoro — Focus',
-      'Skip to Break',
-      '+5 min',
-      'Stop',
+      // Every command names its run: two runs both offering a bare "Stop"
+      // would be two identical items in one menu.
+      'Skip to Break · Pomodoro',
+      '+5 min · Pomodoro',
+      'Stop · Pomodoro',
       '—',
       'Restart Pomodoro',
       '—',
@@ -98,10 +109,12 @@ describe('what the menubar says', () => {
   })
 
   it('names the skip by the phase it starts, and by the end when nothing follows', () => {
-    expect(labels(running('24:59'), [pomodoro])).toContain('Skip to Break')
+    expect(labels(running('24:59'), [pomodoro])).toContain(
+      'Skip to Break · Pomodoro',
+    )
     expect(
-      labels({ ...running('00:30'), nextPhaseLabel: null }, [pomodoro]),
-    ).toContain('Skip to the end')
+      labels(oneRun({ countdown: '00:30', nextPhaseLabel: null }), [pomodoro]),
+    ).toContain('Skip to the end · Pomodoro')
   })
 
   it('still opens settings and quits with no presets at all', () => {
@@ -115,6 +128,28 @@ describe('what the menubar says', () => {
       label: 'Start Pomodoro',
       action: { kind: 'start', presetId: 'pomodoro' },
     })
+  })
+
+  it('stops, skips and extends by run id, because there may be several', () => {
+    const items = menubarModel(runningView(), [pomodoro], []).items
+
+    expect(items.slice(1, 4)).toEqual([
+      {
+        kind: 'command',
+        label: 'Skip to Break · Pomodoro',
+        action: { kind: 'skip', runId: 'pomodoro' },
+      },
+      {
+        kind: 'command',
+        label: '+5 min · Pomodoro',
+        action: { kind: 'addTime', runId: 'pomodoro' },
+      },
+      {
+        kind: 'command',
+        label: 'Stop · Pomodoro',
+        action: { kind: 'stop', runId: 'pomodoro' },
+      },
+    ])
   })
 
   it('marks the running header as not clickable', () => {
@@ -132,9 +167,9 @@ describe('what the menubar says', () => {
       'Pomodoro — Break ready',
       // Not "Skip to Focus": Break has not started, so starting it is the
       // whole of what the boundary is asking.
-      'Start Break',
-      '+5 min',
-      'Stop',
+      'Start Break · Pomodoro',
+      '+5 min · Pomodoro',
+      'Stop · Pomodoro',
       '—',
       'Restart Pomodoro',
       '—',
@@ -148,8 +183,8 @@ describe('what the menubar says', () => {
 
     expect(items[1]).toEqual({
       kind: 'command',
-      label: 'Start Break',
-      action: { kind: 'confirm' },
+      label: 'Start Break · Pomodoro',
+      action: { kind: 'confirm', runId: 'pomodoro' },
     })
   })
 
@@ -206,6 +241,12 @@ describe('what the menubar says', () => {
   it('matches its snapshot while running', () => {
     expect(
       menubarModel(running('24:59'), [pomodoro, sitStand], [water]),
+    ).toMatchSnapshot()
+  })
+
+  it('matches its snapshot with two presets running at once', () => {
+    expect(
+      menubarModel(twoRunView(), [pomodoro, sitStand], [water]),
     ).toMatchSnapshot()
   })
 
@@ -285,6 +326,121 @@ describe('what the menubar says', () => {
   })
 })
 
+/**
+ * The title concatenates every run rather than naming one and hiding the rest: a
+ * timer the user started and cannot see is a timer they have stopped trusting,
+ * and the menubar is the whole UI.
+ */
+describe('the title with several runs', () => {
+  it('joins every run, in the order they were started', () => {
+    expect(menubarModel(twoRunView(), [], []).title).toBe(
+      ' Focus 25:00 · Sitting 30:00',
+    )
+  })
+
+  it('keeps naming the phase, never only the number', () => {
+    const title = menubarModel(twoRunView(), [], []).title
+    expect(title).toContain('Focus')
+    expect(title).toContain('Sitting')
+  })
+
+  it('says what a waiting run among live ones is waiting for', () => {
+    expect(
+      menubarModel({ runs: [awaitingRun(), sitStandRun()] }, [], []).title,
+    ).toBe(' Break ready · Sitting 30:00')
+  })
+
+  // Nothing is elided here: a long title is elided by macOS from the right, and
+  // the menu below carries a section per run, so nothing lives only in the title.
+  it('grows with the runs rather than dropping any of them', () => {
+    const runs = [
+      pomodoroRun(),
+      sitStandRun(),
+      pomodoroRun({
+        runId: 'third',
+        presetName: 'Third',
+        phaseLabel: 'Reading',
+      }),
+    ]
+
+    expect(menubarModel({ runs }, [], []).title).toBe(
+      ' Focus 25:00 · Sitting 30:00 · Reading 25:00',
+    )
+  })
+
+  it('names every phase in the tooltip too', () => {
+    expect(menubarModel(twoRunView(), [], []).tooltip).toBe(
+      'Klokki — Focus · Sitting',
+    )
+  })
+
+  it('is empty with no runs, exactly as it was with one timer', () => {
+    expect(menubarModel(IDLE, [pomodoro], []).title).toBe('')
+  })
+})
+
+describe('a section per running preset', () => {
+  it('gives each run its own heading and its own three commands', () => {
+    expect(labels(twoRunView(), [])).toEqual([
+      'Pomodoro — Focus',
+      'Skip to Break · Pomodoro',
+      '+5 min · Pomodoro',
+      'Stop · Pomodoro',
+      '—',
+      'Sit/Stand — Sitting',
+      'Skip to Standing · Sit/Stand',
+      '+5 min · Sit/Stand',
+      'Stop · Sit/Stand',
+      '—',
+      '—',
+      'Settings…',
+      'Quit Klokki',
+    ])
+  })
+
+  it('offers Restart for the presets that are running and Start for the rest', () => {
+    expect(labels(runningView(), [pomodoro, sitStand])).toContain(
+      'Restart Pomodoro',
+    )
+    // Sit / stand is not running: clicking it would add a run of its own.
+    expect(labels(runningView(), [pomodoro, sitStand])).toContain(
+      'Start Sit / stand',
+    )
+  })
+
+  it('keeps the Reminders and Sports headings intact beneath the runs', () => {
+    expect(
+      menubarModel(twoRunView(), [pomodoro], [water], sports).items.map(
+        (item) => (item.kind === 'separator' ? '—' : item.label),
+      ),
+    ).toEqual([
+      'Pomodoro — Focus',
+      'Skip to Break · Pomodoro',
+      '+5 min · Pomodoro',
+      'Stop · Pomodoro',
+      '—',
+      'Sit/Stand — Sitting',
+      'Skip to Standing · Sit/Stand',
+      '+5 min · Sit/Stand',
+      'Stop · Sit/Stand',
+      '—',
+      'Restart Pomodoro',
+      '—',
+      'Reminders',
+      'Start Drink water',
+      'Stop Drink water',
+      '—',
+      'Sports',
+      'Start Sports',
+      'Log Sports Now',
+      'Stop Sports',
+      '—',
+      'Settings…',
+      'Quit Klokki',
+    ])
+  })
+})
+
 describe('when the menu has to be rebuilt', () => {
   it('is unchanged by a countdown ticking, which happens every second', () => {
     const before = menuKey(menubarModel(running('24:59'), [pomodoro], []))
@@ -330,5 +486,20 @@ describe('when the menu has to be rebuilt', () => {
     expect(menuKey(menubarModel(IDLE, [pomodoro], []))).not.toBe(
       menuKey(menubarModel(running('01:00'), [pomodoro], [])),
     )
+  })
+
+  it('changes when a second preset starts, and not when either only ticks', () => {
+    const one = menuKey(menubarModel(runningView(), [pomodoro, sitStand], []))
+    const two = menuKey(menubarModel(twoRunView(), [pomodoro, sitStand], []))
+    expect(two).not.toBe(one)
+
+    const ticked = menuKey(
+      menubarModel(
+        twoRunView({ countdown: '24:59' }, { countdown: '29:59' }),
+        [pomodoro, sitStand],
+        [],
+      ),
+    )
+    expect(ticked).toBe(two)
   })
 })

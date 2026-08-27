@@ -11,7 +11,13 @@ const at = (hash: string) => {
 describe('Root', () => {
   it('is only the alert when the window was opened as an overlay', () => {
     fakeKlokki()
-    at(alertRoute({ completedLabel: 'Focus', nextLabel: 'Break' }))
+    at(
+      alertRoute({
+        runId: 'pomodoro',
+        completedLabel: 'Focus',
+        nextLabel: 'Break',
+      }),
+    )
 
     render(<Root />)
 

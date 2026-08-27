@@ -183,7 +183,7 @@ describe('the menubar', () => {
     createMenubar(surface, sources, fakeActions())
 
     expect(surface.title()).toBe(' Focus 24:59')
-    expect(surface.menuLabels()).toContain('Stop')
+    expect(surface.menuLabels()).toContain('Stop · Pomodoro')
   })
 
   it('follows the countdown', () => {
@@ -247,11 +247,11 @@ describe('the menubar', () => {
     const actions = fakeActions()
     createMenubar(surface, sources, actions)
 
-    surface.clickMenuItem('Stop')
+    surface.clickMenuItem('Stop · Pomodoro')
     surface.clickMenuItem('Settings…')
     surface.clickMenuItem('Quit Klokki')
 
-    expect(actions.stop).toHaveBeenCalledOnce()
+    expect(actions.stop).toHaveBeenCalledExactlyOnceWith('pomodoro')
     expect(actions.openSettings).toHaveBeenCalledOnce()
     expect(actions.quit).toHaveBeenCalledOnce()
   })
@@ -262,9 +262,9 @@ describe('the menubar', () => {
     const actions = fakeActions()
     createMenubar(surface, sources, actions)
 
-    expect(surface.clickMenuItem('Skip to Break')).toBe(true)
+    expect(surface.clickMenuItem('Skip to Break · Pomodoro')).toBe(true)
 
-    expect(actions.skip).toHaveBeenCalledOnce()
+    expect(actions.skip).toHaveBeenCalledExactlyOnceWith('pomodoro')
   })
 
   it('offers nothing to skip while idle', () => {
@@ -281,9 +281,9 @@ describe('the menubar', () => {
     const actions = fakeActions()
     createMenubar(surface, sources, actions)
 
-    expect(surface.clickMenuItem('+5 min')).toBe(true)
+    expect(surface.clickMenuItem('+5 min · Pomodoro')).toBe(true)
 
-    expect(actions.addTime).toHaveBeenCalledOnce()
+    expect(actions.addTime).toHaveBeenCalledExactlyOnceWith('pomodoro')
   })
 
   it('offers nothing to add time to while idle', () => {
@@ -344,8 +344,8 @@ describe('the menubar', () => {
 
     pushView(awaitingView())
 
-    expect(surface.clickMenuItem('Start Break')).toBe(true)
-    expect(actions.confirm).toHaveBeenCalledOnce()
+    expect(surface.clickMenuItem('Start Break · Pomodoro')).toBe(true)
+    expect(actions.confirm).toHaveBeenCalledExactlyOnceWith('pomodoro')
     expect(actions.skip).not.toHaveBeenCalled()
   })
 

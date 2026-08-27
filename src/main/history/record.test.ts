@@ -16,6 +16,16 @@ const sitStand: Preset = {
   ],
 }
 
+const pomodoro: Preset = {
+  id: 'pomodoro',
+  name: 'Pomodoro',
+  loop: true,
+  phases: [
+    { label: 'Focus', minutes: 25, notify: true },
+    { label: 'Break', minutes: 5, notify: true },
+  ],
+}
+
 let current = T0
 const clock: Clock = { now: () => current }
 
@@ -91,7 +101,7 @@ describe('recordHistory', () => {
     elapse(30 * MS_PER_MINUTE)
     // The user answers the overlay a couple of seconds after the boundary.
     elapse(2_000)
-    service.snooze(5 * MS_PER_MINUTE)
+    service.snooze('sit-stand', 5 * MS_PER_MINUTE)
     elapse(5 * MS_PER_MINUTE)
 
     expect(append.mock.calls.map(([event]) => event)).toEqual([
@@ -122,7 +132,7 @@ describe('recordHistory', () => {
 
     service.startPreset(sitStand)
     elapse(12 * MS_PER_MINUTE)
-    service.skip()
+    service.skip('sit-stand')
 
     expect(append).toHaveBeenCalledExactlyOnceWith({
       endedAt: T0 + 12 * MS_PER_MINUTE,
@@ -143,9 +153,9 @@ describe('recordHistory', () => {
     service.startPreset(sitStand)
     elapse(30 * MS_PER_MINUTE)
     elapse(2_000)
-    service.snooze(5 * MS_PER_MINUTE)
+    service.snooze('sit-stand', 5 * MS_PER_MINUTE)
     elapse(60_000)
-    service.skip()
+    service.skip('sit-stand')
 
     expect(append.mock.calls.map(([event]) => event.outcome)).toEqual([
       'completed',
@@ -162,7 +172,7 @@ describe('recordHistory', () => {
     recordHistory(service, append)
 
     service.startPreset(sitStand)
-    service.skip()
+    service.skip('sit-stand')
 
     // A zero-length stretch is not something that happened to the user.
     expect(append).not.toHaveBeenCalled()
@@ -179,6 +189,66 @@ describe('recordHistory', () => {
     elapse(30 * MS_PER_MINUTE)
 
     expect(append).not.toHaveBeenCalled()
+    service.dispose()
+  })
+})
+
+describe('two runs writing to one log', () => {
+  it('attributes every stretch to the run it belongs to', () => {
+    const service = createTimerService(clock)
+    const append = vi.fn()
+    recordHistory(service, append)
+
+    service.startPreset(pomodoro)
+    service.startPreset(sitStand)
+    // Focus (25) ends; Sitting (30) does not.
+    elapse(25 * MS_PER_MINUTE)
+    service.confirm('pomodoro')
+    elapse(5 * MS_PER_MINUTE)
+
+    expect(
+      append.mock.calls.map(([event]) => [
+        event.presetId,
+        event.phaseLabel,
+        event.outcome,
+      ]),
+    ).toEqual([
+      ['pomodoro', 'Focus', 'completed'],
+      // The tick at thirty minutes drains both runs, in run order.
+      ['pomodoro', 'Break', 'completed'],
+      ['sit-stand', 'Sitting', 'completed'],
+    ])
+    service.dispose()
+  })
+
+  // One run's snooze must not mark the other run's stretch as snoozed, which is
+  // the whole reason the pending snooze is keyed by run.
+  it('marks only the snoozed run’s stretch as snoozed', () => {
+    const service = createTimerService(clock)
+    const append = vi.fn()
+    recordHistory(service, append)
+
+    service.startPreset(pomodoro)
+    service.startPreset({ ...sitStand, phases: pomodoro.phases })
+    // Both cross their first boundary in the same tick.
+    elapse(25 * MS_PER_MINUTE)
+    service.snooze('pomodoro', 5 * MS_PER_MINUTE)
+    service.confirm('sit-stand')
+    elapse(5 * MS_PER_MINUTE)
+
+    expect(
+      append.mock.calls.map(([event]) => [
+        event.presetId,
+        event.durationMs,
+        event.outcome,
+      ]),
+    ).toEqual([
+      ['pomodoro', 25 * MS_PER_MINUTE, 'completed'],
+      ['sit-stand', 25 * MS_PER_MINUTE, 'completed'],
+      // Pomodoro's deferred five minutes, and sit/stand's full Break beside it.
+      ['pomodoro', 5 * MS_PER_MINUTE, 'snoozed'],
+      ['sit-stand', 5 * MS_PER_MINUTE, 'completed'],
+    ])
     service.dispose()
   })
 })

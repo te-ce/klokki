@@ -2,34 +2,42 @@ import { useState } from 'react'
 import { skipLabel } from '../../shared/labels'
 import { MS_PER_MINUTE } from '../../shared/preset'
 import { ADD_TIME_MS } from '../../shared/timer'
-import type { TimerView } from '../../shared/timer'
+import type { RunView } from '../../shared/timer'
 import { PlusIcon, SkipIcon, StopIcon } from './icons'
 import { PhaseSequence } from './PhaseSequence'
 
 /** What follows the phase on screen, and whether the sequence starts over. */
-const whatFollows = (view: TimerView): string => {
-  if (view.nextPhaseLabel === null) return 'Last phase'
-  const next = `${view.nextPhaseLabel} ${view.nextPhaseMinutes}m`
-  return view.loop ? `${next} · then repeat` : next
+const whatFollows = (run: RunView): string => {
+  if (run.nextPhaseLabel === null) return 'Last phase'
+  const next = `${run.nextPhaseLabel} ${run.nextPhaseMinutes}m`
+  return run.loop ? `${next} · then repeat` : next
 }
 
-export const TimerRunning = ({ view }: { view: TimerView }) => {
+/**
+ * One run: its phase, its countdown, its sequence bar, and the four things that
+ * can be done to it.
+ *
+ * Every control names `run.runId`, because the pane draws one of these per
+ * running preset and a command that meant "the timer" would land on whichever
+ * run the main process happened to consider current.
+ */
+export const TimerRunning = ({ run }: { run: RunView }) => {
   const [remainingInput, setRemainingInput] = useState('')
-  const phase = view.phases[view.phaseIndex]
+  const phase = run.phases[run.phaseIndex]
 
   return (
     <>
       <div className="flex flex-col gap-2.5">
         <div className="flex items-center gap-2" data-testid="running-phase">
           <span
-            className={`size-1.75 rounded-full ${view.awaiting ? 'bg-edge' : 'bg-work'}`}
+            className={`size-1.75 rounded-full ${run.awaiting ? 'bg-edge' : 'bg-work'}`}
           />
-          <span className="text-ink-dim text-xs">{view.presetName}</span>
+          <span className="text-ink-dim text-xs">{run.presetName}</span>
           <span className="text-edge">·</span>
-          <span className="text-xs font-medium">{view.phaseLabel}</span>
+          <span className="text-xs font-medium">{run.phaseLabel}</span>
           {/* A waiting run's countdown does not move, so the pane says why
               rather than leaving a frozen clock to be read as a stuck one. */}
-          {view.awaiting && (
+          {run.awaiting && (
             <span className="text-ink-faint text-[11px]">waiting to start</span>
           )}
         </div>
@@ -38,16 +46,16 @@ export const TimerRunning = ({ view }: { view: TimerView }) => {
           data-testid="countdown"
           className="font-mono text-[62px] leading-none font-light tracking-[-0.02em] tabular-nums"
         >
-          {view.countdown}
+          {run.countdown}
         </p>
 
         <div className="mt-1 flex flex-col gap-1.5">
-          <PhaseSequence view={view} />
+          <PhaseSequence run={run} />
           <div className="text-ink-faint flex justify-between text-[11px]">
             <span>
-              {view.phaseLabel} {phase?.minutes}m
+              {run.phaseLabel} {phase?.minutes}m
             </span>
-            <span>{whatFollows(view)}</span>
+            <span>{whatFollows(run)}</span>
           </div>
         </div>
       </div>
@@ -63,27 +71,27 @@ export const TimerRunning = ({ view }: { view: TimerView }) => {
           type="button"
           className="bg-ink text-ground flex h-7.5 items-center gap-1.5 rounded-[7px] px-3 font-medium"
           onClick={() =>
-            void (view.awaiting
-              ? window.klokki.confirmNext()
-              : window.klokki.skipPhase())
+            void (run.awaiting
+              ? window.klokki.confirmNext(run.runId)
+              : window.klokki.skipPhase(run.runId))
           }
         >
           <SkipIcon className="size-3.25" strokeWidth={2} />
-          {view.awaiting
-            ? `Start ${view.phaseLabel}`
-            : skipLabel(view.nextPhaseLabel)}
+          {run.awaiting
+            ? `Start ${run.phaseLabel}`
+            : skipLabel(run.nextPhaseLabel)}
         </button>
         <button
           type="button"
           className="border-edge text-ink-soft hover:bg-panel flex h-7.5 items-center gap-1.5 rounded-[7px] border px-3"
-          onClick={() => void window.klokki.addTime(ADD_TIME_MS)}
+          onClick={() => void window.klokki.addTime(run.runId, ADD_TIME_MS)}
         >
           <PlusIcon className="size-3.25" strokeWidth={2} />5 min
         </button>
         <button
           type="button"
           className="border-edge text-ink-soft hover:bg-panel flex h-7.5 items-center gap-1.5 rounded-[7px] border px-3"
-          onClick={() => void window.klokki.stopTimer()}
+          onClick={() => void window.klokki.stopTimer(run.runId)}
         >
           <StopIcon className="size-3.25" strokeWidth={2} />
           Stop
@@ -94,7 +102,7 @@ export const TimerRunning = ({ view }: { view: TimerView }) => {
           rather than leaving it running the length it was given. A waiting run
           has no remaining time to correct, so it is not offered one. */}
       <div
-        hidden={view.awaiting}
+        hidden={run.awaiting}
         className="bg-panel border-line flex flex-col gap-2 rounded-[9px] border p-3.5"
       >
         <p className="text-ink-dim text-[11px]">
@@ -119,7 +127,10 @@ export const TimerRunning = ({ view }: { view: TimerView }) => {
             onClick={() => {
               const minutes = Number(remainingInput)
               if (!Number.isFinite(minutes) || minutes < 0) return
-              void window.klokki.setRemaining(minutes * MS_PER_MINUTE)
+              void window.klokki.setRemaining(
+                run.runId,
+                minutes * MS_PER_MINUTE,
+              )
               setRemainingInput('')
             }}
           >

@@ -8,7 +8,11 @@ const surface = () => ({
   showOverlay: vi.fn(),
 })
 
-const alert: Alert = { completedLabel: 'Focus', nextLabel: 'Break' }
+const alert: Alert = {
+  runId: 'pomodoro',
+  completedLabel: 'Focus',
+  nextLabel: 'Break',
+}
 
 describe('presenting an alert', () => {
   it('shows both halves, because either one alone is missable', () => {
@@ -43,27 +47,29 @@ describe('presenting an alert', () => {
     const present = createAlertPresenter(platform, vi.fn())
 
     present(alert)
-    present({ completedLabel: 'Break', nextLabel: 'Focus' })
+    present({ runId: 'pomodoro', completedLabel: 'Break', nextLabel: 'Focus' })
 
     expect(platform.showOverlay).toHaveBeenCalledTimes(2)
     expect(platform.showOverlay).toHaveBeenLastCalledWith({
+      runId: 'pomodoro',
       completedLabel: 'Break',
       nextLabel: 'Focus',
     })
   })
 
-  it('gives the notification a Stop button that takes the overlay path', () => {
+  it('gives the notification a Stop button that stops the run it names', () => {
     const platform = surface()
     const stop = vi.fn()
 
     createAlertPresenter(platform, stop)(alert)
 
-    // Both halves of one alert must stop the same thing the same way.
+    // Both halves of one alert must stop the same thing the same way — and with
+    // several runs going, the same *run*: the alert says which.
     const text = platform.notify.mock.calls[0]?.[0] as {
       actions: readonly { label: string; run: () => void }[]
     }
     expect(text.actions.map((action) => action.label)).toEqual(['Stop Timer'])
     text.actions[0]?.run()
-    expect(stop).toHaveBeenCalledOnce()
+    expect(stop).toHaveBeenCalledExactlyOnceWith('pomodoro')
   })
 })

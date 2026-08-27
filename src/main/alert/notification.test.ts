@@ -4,7 +4,11 @@ import { notificationFor } from './notification'
 describe('what the notification says', () => {
   it('names the phase that ended and the one starting now', () => {
     expect(
-      notificationFor({ completedLabel: 'Focus', nextLabel: 'Break' }),
+      notificationFor({
+        runId: 'pomodoro',
+        completedLabel: 'Focus',
+        nextLabel: 'Break',
+      }),
     ).toEqual({
       title: 'Focus finished',
       body: 'Break starting now',
@@ -16,7 +20,7 @@ describe('what the notification says', () => {
     const stop = vi.fn()
 
     const text = notificationFor(
-      { completedLabel: 'Focus', nextLabel: 'Break' },
+      { runId: 'pomodoro', completedLabel: 'Focus', nextLabel: 'Break' },
       stop,
     )
 
@@ -30,14 +34,20 @@ describe('what the notification says', () => {
 
   it('leaves the Stop button off a run that has already finished', () => {
     expect(
-      notificationFor({ completedLabel: 'Only', nextLabel: null }, vi.fn())
-        .actions,
+      notificationFor(
+        { runId: 'pomodoro', completedLabel: 'Only', nextLabel: null },
+        vi.fn(),
+      ).actions,
     ).toEqual([])
   })
 
   it('says the timer is done when no phase follows', () => {
     expect(
-      notificationFor({ completedLabel: 'Only', nextLabel: null }),
+      notificationFor({
+        runId: 'pomodoro',
+        completedLabel: 'Only',
+        nextLabel: null,
+      }),
     ).toEqual({
       title: 'Only finished',
       body: 'Timer finished',

@@ -61,7 +61,7 @@ export type AppPorts = {
   readonly history: History
   readonly reminderHistory: ReminderHistory
   readonly snapshot: SnapshotStore & {
-    readonly load: () => TimerState | null
+    readonly load: () => readonly TimerState[]
   }
   readonly reminderStore: ReminderStore
   readonly reminderService: ReminderService
@@ -242,19 +242,33 @@ export const wireApp = (ports: AppPorts): WiredApp => {
     window.onClosed(() => broadcaster.unregister(window.target))
   })
 
-  // Stopping the timer, from wherever: the tray, the settings window, the
+  // Turns the timer's boundaries into overlays, and owns which run's alert is on
+  // screen — because two runs can each reach a boundary and the overlay window
+  // is one (see alert/queue.ts). Built before the stop closure below, which
+  // needs it, and subscribed here rather than at the bottom so a resumed run's
+  // drained boundary still reaches it.
+  const timerAlerts = wireAlerts(
+    ports.service,
+    // The notification's Stop button stops the run named by the alert it is
+    // attached to, which is the same run the overlay's Stop stops.
+    createAlertPresenter(ports.alerts, (runId) => stopTimer(runId)),
+    voidTimerAlert,
+  )
+
+  // Stopping one run, from wherever: the tray, the settings window, the
   // overlay's own Stop, the notification's Stop button. The run ends and the
-  // alert announcing a boundary goes with it, because a boundary of a stopped
-  // run has nothing left to answer.
+  // alert announcing its boundary goes with it, because a boundary of a stopped
+  // run has nothing left to answer — and only that run's, so a second run's
+  // overlay is left alone and its own boundary comes forward if it was queued.
   //
   // The timer is the one kind with no store behind its stop, so this closure is
   // what the reminder and Sports store subscriptions are for the other two —
   // and it has to be a closure rather than a subscription to `service`, because
-  // a run reaching its own last phase also lands on idle, and *that* alert is
-  // the one thing the user still wants to see.
-  const stopTimer = (): void => {
-    ports.service.stop()
-    voidTimerAlert()
+  // a run reaching its own last phase also leaves the collection, and *that*
+  // alert is the one thing the user still wants to see.
+  const stopTimer = (runId: string): void => {
+    ports.service.stop(runId)
+    timerAlerts.answered(runId)
   }
 
   registerIpc({
@@ -264,7 +278,7 @@ export const wireApp = (ports: AppPorts): WiredApp => {
     loginItem: ports.loginItem,
     history: ports.history,
     reminderHistory: ports.reminderHistory,
-    overlay: { close: voidTimerAlert },
+    answerAlert: timerAlerts.answered,
     reminderStore: ports.reminderStore,
     reminderViews: reminderViewSource.views,
     reminderAnswers: reminderAlerts,
@@ -295,18 +309,15 @@ export const wireApp = (ports: AppPorts): WiredApp => {
     appInfo: ports.appInfo,
   })
 
-  const unwireAlerts = wireAlerts(
-    ports.service,
-    createAlertPresenter(ports.alerts, stopTimer),
-  )
   const unwireHistory = recordHistory(ports.service, ports.history.append)
   const unwireSnapshot = persistSnapshot(ports.service, ports.snapshot)
 
   // Loaded after the listeners above are wired, so a run that finished or
   // advanced while the app was closed still reaches history and the alert
   // surface — the same as a boundary the poll drains after waking from sleep.
-  const saved = ports.snapshot.load()
-  if (saved) ports.service.resume(saved)
+  // Every run comes back, not the last one saved: the snapshot is the whole
+  // collection (see timer/persist.ts).
+  ports.service.resume(ports.snapshot.load())
 
   const menubar = createMenubar(
     ports.menubar,
@@ -318,14 +329,20 @@ export const wireApp = (ports: AppPorts): WiredApp => {
     },
     {
       stop: stopTimer,
-      skip: () => {
-        ports.service.skip()
+      // Skipping and confirming both settle the run's boundary, so its alert is
+      // answered with them — the same move the overlay's own affirmative makes,
+      // and the reason a boundary answered from the tray does not leave its
+      // overlay standing over a phase that has already started.
+      skip: (runId) => {
+        ports.service.skip(runId)
+        timerAlerts.answered(runId)
       },
-      confirm: () => {
-        ports.service.confirm()
+      confirm: (runId) => {
+        ports.service.confirm(runId)
+        timerAlerts.answered(runId)
       },
-      addTime: () => {
-        ports.service.addTime(ADD_TIME_MS)
+      addTime: (runId) => {
+        ports.service.addTime(runId, ADD_TIME_MS)
       },
       start: (id) => startPresetById(ports.service, ports.store, id),
       startReminder: (id) =>
@@ -345,7 +362,7 @@ export const wireApp = (ports: AppPorts): WiredApp => {
     menubar,
     broadcaster,
     dispose: () => {
-      unwireAlerts()
+      timerAlerts.dispose()
       unwireHistory()
       unwireSnapshot()
       unwireReminderStore()

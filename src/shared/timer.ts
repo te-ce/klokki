@@ -24,10 +24,22 @@ export type PhaseView = {
   readonly minutes: number
 }
 
-export type TimerView = {
-  readonly running: boolean
+/**
+ * One running preset, as every view of the app reads it.
+ *
+ * Named by `runId` — the id of the preset it is running — because a run is what
+ * every run-scoped command has to name: the tray's Stop, the Timer pane's
+ * buttons, and the overlay that a boundary of *this* run raised. Starting a
+ * preset that is already running restarts that run rather than adding a second
+ * copy, which is what makes the preset id enough of an identity (see AGENTS.md).
+ *
+ * There is no `running` field: a run in `TimerView.runs` is running by being
+ * there, and one that ends is gone from the list.
+ */
+export type RunView = {
+  readonly runId: string
   /**
-   * Whether the run is holding at a boundary nobody has answered yet.
+   * Whether this run is holding at a boundary nobody has answered yet.
    *
    * A waiting run is still running — it has a preset, a phase list, and a phase
    * about to start — but its countdown is not moving, and a view that drew it
@@ -36,7 +48,7 @@ export type TimerView = {
    * full configured length, because that is what confirming the boundary gets.
    */
   readonly awaiting: boolean
-  readonly presetName: string | null
+  readonly presetName: string
   readonly phaseLabel: string | null
   /**
    * What starts when this phase ends, or null when nothing does — the preset is
@@ -52,7 +64,7 @@ export type TimerView = {
   readonly remainingMs: number
   readonly countdown: string
   /**
-   * The phases the run started with, in order — empty while idle.
+   * The phases this run started with, in order.
    *
    * The settings window draws them as one bar, at their real proportions, which
    * is the whole reason this is pushed: the phase list a run is on is the
@@ -60,7 +72,7 @@ export type TimerView = {
    * while it runs (see AGENTS.md).
    */
   readonly phases: readonly PhaseView[]
-  /** Which of `phases` is running, or -1 while idle. */
+  /** Which of `phases` is running. -1 only for a state whose index is out of range. */
   readonly phaseIndex: number
   readonly loop: boolean
   /**
@@ -72,4 +84,20 @@ export type TimerView = {
    * filling up once.
    */
   readonly phaseProgress: number
+}
+
+/**
+ * Every run in progress, in the order they were started.
+ *
+ * Several presets run at once, so the view is a list rather than one run's
+ * fields (see AGENTS.md). Empty is idle — no window, and no tray title, has to
+ * be told that separately, because "nothing is running" is `runs.length === 0`
+ * and that is arithmetic over this one payload rather than a second push.
+ *
+ * The order is the order the runs were started, and a restart keeps a run where
+ * it was: the menubar title concatenates these, and parts that reshuffled every
+ * time a preset was restarted would be unreadable at a glance.
+ */
+export type TimerView = {
+  readonly runs: readonly RunView[]
 }

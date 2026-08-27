@@ -23,6 +23,7 @@ import type { SportRunState } from './sports/engine'
 import type { SportRunStore } from './sports/run-store'
 import { createSportsService } from './sports/service'
 import type { SportStore } from './sports/store'
+import type { TimerView } from '../shared/timer'
 import type { TimerState } from './timer/machine'
 import { createTimerService } from './timer/service'
 import type { SnapshotStore } from './timer/snapshot'
@@ -110,15 +111,15 @@ const fakeWindow = () => {
   }
 }
 
-/** A snapshot store with no file behind it, seeded with an optional saved run. */
-const fakeSnapshot = (initial: TimerState | null = null) => {
+/** A snapshot store with no file behind it, seeded with optional saved runs. */
+const fakeSnapshot = (initial: readonly TimerState[] = []) => {
   let saved = initial
-  const store: SnapshotStore & { load: () => TimerState | null } = {
-    save: (state) => {
-      saved = state
+  const store: SnapshotStore & { load: () => readonly TimerState[] } = {
+    save: (states) => {
+      saved = states
     },
     clear: () => {
-      saved = null
+      saved = []
     },
     load: () => saved,
   }
@@ -213,15 +214,16 @@ let now = 0
 const clock = { now: () => now }
 
 const build = (
-  initialSnapshot: TimerState | null = null,
+  initialSnapshot: readonly TimerState[] = [],
   options: {
+    presets?: readonly Preset[]
     reminders?: readonly ReminderDefinition[]
     reminderRun?: RemindersState
     sports?: SportSettings
     sportsRun?: SportRunState
   } = {},
 ) => {
-  const store = fakeStore()
+  const store = fakeStore(options.presets)
   const history = createHistory(
     mkdtempSync(join(tmpdir(), 'klokki-wire-')),
     clock,
@@ -367,6 +369,7 @@ describe('a phase boundary, all the way out', () => {
       }),
     )
     expect(wired.alerts.showOverlay).toHaveBeenCalledWith({
+      runId: 'pomodoro',
       completedLabel: 'Focus',
       nextLabel: 'Break',
     })
@@ -385,7 +388,7 @@ describe('a phase boundary, all the way out', () => {
     elapse(25 * MINUTE)
 
     // The user answers the overlay a moment after the boundary.
-    expect(wired.invoke(IPC.snoozeAlert, 5 * MINUTE)).toBe(true)
+    expect(wired.invoke(IPC.snoozeAlert, 'pomodoro', 5 * MINUTE)).toBe(true)
     expect(wired.overlay.close).toHaveBeenCalledOnce()
     elapse(5 * MINUTE)
 
@@ -399,11 +402,11 @@ describe('a phase boundary, all the way out', () => {
     wired.invoke(IPC.startPreset, 'pomodoro')
     elapse(25 * MINUTE)
 
-    wired.invoke(IPC.stopFromAlert)
+    wired.invoke(IPC.stopFromAlert, 'pomodoro')
 
     // The run is over rather than parked at the boundary, and the window that
     // announced it is gone: there is nothing left to answer.
-    expect(wired.service.getView().running).toBe(false)
+    expect(wired.service.getView().runs).toEqual([])
     expect(wired.overlay.close).toHaveBeenCalledOnce()
     expect(wired.menubar.title()).toBe('')
 
@@ -425,7 +428,7 @@ describe('a phase boundary, all the way out', () => {
     expect(text?.actions.map((action) => action.label)).toEqual(['Stop Timer'])
     text?.actions[0]?.run()
 
-    expect(wired.service.getView().running).toBe(false)
+    expect(wired.service.getView().runs).toEqual([])
     expect(wired.overlay.close).toHaveBeenCalledOnce()
   })
 
@@ -434,14 +437,14 @@ describe('a phase boundary, all the way out', () => {
     wired.menubar.clickMenuItem('Start Pomodoro')
     elapse(25 * MINUTE)
 
-    wired.menubar.clickMenuItem('Stop')
+    wired.menubar.clickMenuItem('Stop · Pomodoro')
 
     // Both halves of the alert go: the overlay would name a boundary that no
     // longer exists, and the notification sitting in Notification Center is the
     // half that outlives the window.
     expect(wired.overlay.close).toHaveBeenCalledOnce()
     expect(wired.alerts.withdraw).toHaveBeenCalledOnce()
-    expect(wired.service.getView().running).toBe(false)
+    expect(wired.service.getView().runs).toEqual([])
   })
 
   it('voids the alert when the run is stopped from the settings window', () => {
@@ -449,11 +452,11 @@ describe('a phase boundary, all the way out', () => {
     wired.invoke(IPC.startPreset, 'pomodoro')
     elapse(25 * MINUTE)
 
-    wired.invoke(IPC.stopTimer)
+    wired.invoke(IPC.stopTimer, 'pomodoro')
 
     expect(wired.overlay.close).toHaveBeenCalledOnce()
     expect(wired.alerts.withdraw).toHaveBeenCalledOnce()
-    expect(wired.service.getView().running).toBe(false)
+    expect(wired.service.getView().runs).toEqual([])
   })
 
   it('leaves the alert of a run that finished on its own standing', () => {
@@ -463,13 +466,13 @@ describe('a phase boundary, all the way out', () => {
 
     // Answering the first boundary voids its own alert, and that is the only
     // one voided here.
-    wired.invoke(IPC.dismissAlert)
+    wired.invoke(IPC.dismissAlert, 'pomodoro')
     elapse(5 * MINUTE)
 
     // The last phase of a preset that does not loop ends the run, so the timer
     // is idle — and "Timer finished" is exactly the alert the user still wants
     // on screen. A stop is a stop; reaching the end is not one.
-    expect(wired.service.getView().running).toBe(false)
+    expect(wired.service.getView().runs).toEqual([])
     expect(wired.alerts.notify).toHaveBeenLastCalledWith(
       expect.objectContaining({ title: 'Break finished' }),
     )
@@ -483,7 +486,7 @@ describe('a phase boundary, all the way out', () => {
     wired.invoke(IPC.startPreset, 'pomodoro')
     elapse(10 * MINUTE)
 
-    expect(wired.invoke(IPC.skipPhase)).toBe(true)
+    expect(wired.invoke(IPC.skipPhase, 'pomodoro')).toBe(true)
 
     // The user asked for this boundary, so nothing interrupts them for it.
     expect(wired.alerts.notify).not.toHaveBeenCalled()
@@ -504,7 +507,7 @@ describe('a phase boundary, all the way out', () => {
     wired.menubar.clickMenuItem('Start Pomodoro')
     elapse(MINUTE)
 
-    expect(wired.menubar.clickMenuItem('Skip to Break')).toBe(true)
+    expect(wired.menubar.clickMenuItem('Skip to Break · Pomodoro')).toBe(true)
 
     expect(wired.menubar.title()).toBe(' Break 05:00')
   })
@@ -514,13 +517,13 @@ describe('a phase boundary, all the way out', () => {
     wired.invoke(IPC.startPreset, 'pomodoro')
     elapse(25 * MINUTE)
     // The Focus boundary, confirmed: Break is running and is the last phase.
-    expect(wired.invoke(IPC.confirmNext)).toBe(true)
+    expect(wired.invoke(IPC.confirmNext, 'pomodoro')).toBe(true)
     elapse(MINUTE)
 
-    expect(wired.invoke(IPC.skipPhase)).toBe(true)
+    expect(wired.invoke(IPC.skipPhase, 'pomodoro')).toBe(true)
 
     expect(wired.menubar.title()).toBe('')
-    expect(wired.invoke(IPC.skipPhase)).toBe(false)
+    expect(wired.invoke(IPC.skipPhase, 'pomodoro')).toBe(false)
   })
 
   it('holds the tray at the boundary until it is confirmed', () => {
@@ -535,7 +538,7 @@ describe('a phase boundary, all the way out', () => {
       { label: 'Focus', minutes: 25 },
     ])
 
-    expect(wired.menubar.clickMenuItem('Start Break')).toBe(true)
+    expect(wired.menubar.clickMenuItem('Start Break · Pomodoro')).toBe(true)
 
     expect(wired.menubar.title()).toBe(' Break 05:00')
   })
@@ -547,8 +550,252 @@ describe('a phase boundary, all the way out', () => {
     // The overlay sat unanswered for longer than the snooze it was offering.
     elapse(6 * MINUTE)
 
-    expect(wired.invoke(IPC.snoozeAlert, 5 * MINUTE)).toBe(false)
+    expect(wired.invoke(IPC.snoozeAlert, 'pomodoro', 5 * MINUTE)).toBe(false)
     expect(wired.overlay.close).toHaveBeenCalledOnce()
+  })
+})
+
+/**
+ * Two presets at once, all the way out. This is the only test that can say a
+ * concurrent boundary reaches a notification, the log, the tray and every open
+ * window — and that the run beside it is untouched by any of it.
+ */
+describe('two presets running at once', () => {
+  /** A second preset whose phases are short enough to collide with Pomodoro's. */
+  const sitStand: Preset = {
+    id: 'sit-stand',
+    name: 'Sit/Stand',
+    loop: true,
+    phases: [
+      { label: 'Sitting', minutes: 30, notify: true },
+      { label: 'Standing', minutes: 15, notify: true },
+    ],
+  }
+
+  const both = (): readonly Preset[] => [pomodoro, sitStand]
+
+  it('names both in the menubar title, in the order they were started', () => {
+    const wired = build([], { presets: both() })
+
+    wired.invoke(IPC.startPreset, 'pomodoro')
+    wired.invoke(IPC.startPreset, 'sit-stand')
+    elapse(MINUTE)
+
+    expect(wired.menubar.title()).toBe(' Focus 24:00 · Sitting 29:00')
+    // A section each, in run order, and the Sports heading below them intact.
+    expect(wired.menubar.menuLabels().filter((label) => label !== '')).toEqual([
+      'Pomodoro — Focus',
+      'Skip to Break · Pomodoro',
+      '+5 min · Pomodoro',
+      'Stop · Pomodoro',
+      'Sit/Stand — Sitting',
+      'Skip to Standing · Sit/Stand',
+      '+5 min · Sit/Stand',
+      'Stop · Sit/Stand',
+      'Restart Pomodoro',
+      'Restart Sit/Stand',
+      'Sports',
+      'Start Sports',
+      'Log Sports Now',
+      'Settings…',
+      'Quit Klokki',
+    ])
+  })
+
+  it('gives each run its own boundary, alert, log line and pushed view', () => {
+    const wired = build([], { presets: both() })
+    const window = wired.openWindow()
+    wired.invoke(IPC.startPreset, 'pomodoro')
+    wired.invoke(IPC.startPreset, 'sit-stand')
+
+    // Focus ends at 25 minutes; Sitting runs on to 30.
+    elapse(25 * MINUTE)
+
+    expect(wired.alerts.showOverlay).toHaveBeenCalledExactlyOnceWith({
+      runId: 'pomodoro',
+      completedLabel: 'Focus',
+      nextLabel: 'Break',
+    })
+    expect(wired.history.stats().today.minutesByLabel).toEqual([
+      { label: 'Focus', minutes: 25 },
+    ])
+    // Both runs are in the pushed view, and only one of them is holding.
+    const pushed = window.on(PUSH.timerView).at(-1)?.payload as TimerView
+    expect(pushed.runs.map((run) => [run.runId, run.awaiting])).toEqual([
+      ['pomodoro', true],
+      ['sit-stand', false],
+    ])
+    expect(wired.menubar.title()).toBe(' Break ready · Sitting 05:00')
+
+    // Sitting reaches its own boundary five minutes later, and Pomodoro has not
+    // moved an inch behind the one it is holding at.
+    elapse(5 * MINUTE)
+    expect(wired.history.stats().today.minutesByLabel).toEqual([
+      { label: 'Sitting', minutes: 30 },
+      { label: 'Focus', minutes: 25 },
+    ])
+    expect(wired.menubar.title()).toBe(' Break ready · Standing ready')
+  })
+
+  /**
+   * The documented answer to two boundaries at once (see AGENTS.md): the overlay
+   * window is one, so the second waits rather than being lost — and the run
+   * behind it waits with it, because nothing starts unanswered.
+   */
+  it('queues a boundary raised while another run’s overlay is up', () => {
+    const twin: Preset = { ...sitStand, phases: pomodoro.phases }
+    const wired = build([], { presets: [pomodoro, twin] })
+    wired.invoke(IPC.startPreset, 'pomodoro')
+    wired.invoke(IPC.startPreset, 'sit-stand')
+
+    elapse(25 * MINUTE)
+
+    // One overlay, for the first run — and the second run is holding, named in
+    // the tray, with nothing lost.
+    expect(wired.alerts.showOverlay).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ runId: 'pomodoro' }),
+    )
+    expect(wired.menubar.title()).toBe(' Break ready · Break ready')
+    expect(wired.menubar.menuLabels()).toContain('Start Break · Sit/Stand')
+
+    // Answering the one on screen brings the other forward.
+    wired.invoke(IPC.dismissAlert, 'pomodoro')
+    expect(wired.overlay.close).toHaveBeenCalledOnce()
+    expect(wired.alerts.showOverlay).toHaveBeenLastCalledWith({
+      runId: 'sit-stand',
+      completedLabel: 'Focus',
+      nextLabel: 'Break',
+    })
+    expect(wired.menubar.title()).toBe(' Break 05:00 · Break ready')
+
+    wired.invoke(IPC.dismissAlert, 'sit-stand')
+    expect(wired.overlay.close).toHaveBeenCalledTimes(2)
+    expect(wired.menubar.title()).toBe(' Break 05:00 · Break 05:00')
+  })
+
+  it('answers a queued boundary from the tray without disturbing the overlay', () => {
+    const twin: Preset = { ...sitStand, phases: pomodoro.phases }
+    const wired = build([], { presets: [pomodoro, twin] })
+    wired.invoke(IPC.startPreset, 'pomodoro')
+    wired.invoke(IPC.startPreset, 'sit-stand')
+    elapse(25 * MINUTE)
+
+    // The queued run, started from the tray while the other's overlay is up.
+    expect(wired.menubar.clickMenuItem('Start Break · Sit/Stand')).toBe(true)
+
+    // The window on screen is still the first run's: it is announcing a
+    // boundary that is still perfectly answerable.
+    expect(wired.overlay.close).not.toHaveBeenCalled()
+    expect(wired.alerts.showOverlay).toHaveBeenCalledOnce()
+    expect(wired.menubar.title()).toBe(' Break ready · Break 05:00')
+
+    // And the answered run never comes round with an overlay of its own.
+    wired.invoke(IPC.dismissAlert, 'pomodoro')
+    expect(wired.alerts.showOverlay).toHaveBeenCalledOnce()
+    expect(wired.overlay.close).toHaveBeenCalledOnce()
+  })
+
+  it('stops one run and voids only its alert', () => {
+    const twin: Preset = { ...sitStand, phases: pomodoro.phases }
+    const wired = build([], { presets: [pomodoro, twin] })
+    wired.invoke(IPC.startPreset, 'pomodoro')
+    wired.invoke(IPC.startPreset, 'sit-stand')
+    elapse(25 * MINUTE)
+
+    // The overlay's own Stop, for the run it is showing.
+    wired.invoke(IPC.stopFromAlert, 'pomodoro')
+
+    expect(wired.service.getView().runs.map((run) => run.runId)).toEqual([
+      'sit-stand',
+    ])
+    // Both halves of that run's alert are gone, and the queued run's boundary
+    // has taken the window it left.
+    expect(wired.alerts.withdraw).toHaveBeenCalledOnce()
+    expect(wired.alerts.showOverlay).toHaveBeenLastCalledWith(
+      expect.objectContaining({ runId: 'sit-stand' }),
+    )
+    expect(wired.menubar.title()).toBe(' Break ready')
+  })
+
+  it('stops the run the notification names, not whichever ran last', () => {
+    const wired = build([], { presets: both() })
+    wired.invoke(IPC.startPreset, 'pomodoro')
+    wired.invoke(IPC.startPreset, 'sit-stand')
+    elapse(25 * MINUTE)
+
+    const [text] = wired.alerts.notify.mock.calls.at(-1) ?? []
+    text?.actions[0]?.run()
+
+    expect(wired.service.getView().runs.map((run) => run.runId)).toEqual([
+      'sit-stand',
+    ])
+  })
+
+  it('commands from the settings window reach only the run they name', () => {
+    const wired = build([], { presets: both() })
+    wired.invoke(IPC.startPreset, 'pomodoro')
+    wired.invoke(IPC.startPreset, 'sit-stand')
+    elapse(10 * MINUTE)
+
+    expect(wired.invoke(IPC.skipPhase, 'pomodoro')).toBe(true)
+    expect(wired.invoke(IPC.addTime, 'sit-stand', 5 * MINUTE)).toBe(true)
+
+    expect(wired.menubar.title()).toBe(' Break 05:00 · Sitting 25:00')
+    // The skip is logged against the run that was skipped, and only it.
+    expect(wired.history.stats().today.minutesByLabel).toEqual([
+      { label: 'Focus', minutes: 10 },
+    ])
+  })
+
+  it('restarting one preset leaves the other where it was', () => {
+    const wired = build([], { presets: both() })
+    wired.invoke(IPC.startPreset, 'pomodoro')
+    wired.invoke(IPC.startPreset, 'sit-stand')
+    elapse(10 * MINUTE)
+
+    wired.invoke(IPC.startPreset, 'pomodoro')
+
+    // One run per preset, still in the order they were started.
+    expect(wired.menubar.title()).toBe(' Focus 25:00 · Sitting 20:00')
+  })
+
+  it('saves and restores every run across a restart', () => {
+    const wired = build([], { presets: both() })
+    wired.invoke(IPC.startPreset, 'pomodoro')
+    wired.invoke(IPC.startPreset, 'sit-stand')
+    elapse(10 * MINUTE)
+
+    const saved = wired.snapshot.load()
+    expect(
+      saved.map((state) => (state.status === 'idle' ? null : state.preset.id)),
+    ).toEqual(['pomodoro', 'sit-stand'])
+
+    // A restart, sixteen minutes later: Pomodoro's Focus elapsed while the app
+    // was shut and comes back holding; sit/stand is still counting.
+    now = 26 * MINUTE
+    const restarted = build(saved, { presets: both() })
+
+    expect(restarted.menubar.title()).toBe(' Break ready · Sitting 04:00')
+    expect(restarted.history.stats().today.minutesByLabel).toEqual([
+      { label: 'Focus', minutes: 25 },
+    ])
+    expect(restarted.alerts.showOverlay).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ runId: 'pomodoro' }),
+    )
+  })
+
+  it('stopping one run keeps the other in the snapshot', () => {
+    const wired = build([], { presets: both() })
+    wired.invoke(IPC.startPreset, 'pomodoro')
+    wired.invoke(IPC.startPreset, 'sit-stand')
+
+    wired.menubar.clickMenuItem('Stop · Pomodoro')
+
+    expect(
+      wired.snapshot
+        .load()
+        .map((state) => (state.status === 'idle' ? null : state.preset.id)),
+    ).toEqual(['sit-stand'])
   })
 })
 
@@ -557,59 +804,60 @@ describe('the running timer, saved for a restart', () => {
     const wired = build()
     wired.invoke(IPC.startPreset, 'pomodoro')
 
-    expect(wired.snapshot.load()).toMatchObject({
-      status: 'running',
-      phaseIndex: 0,
-    })
+    expect(wired.snapshot.load()).toMatchObject([
+      { status: 'running', phaseIndex: 0 },
+    ])
 
     elapse(25 * MINUTE)
     // A boundary waiting to be answered is a run in progress, so it is saved:
     // a relaunch must not lose the phase the user was about to start.
-    expect(wired.snapshot.load()).toMatchObject({
-      status: 'awaiting',
-      phaseIndex: 1,
-      completedIndex: 0,
-    })
+    expect(wired.snapshot.load()).toMatchObject([
+      { status: 'awaiting', phaseIndex: 1, completedIndex: 0 },
+    ])
 
-    wired.invoke(IPC.confirmNext)
+    wired.invoke(IPC.confirmNext, 'pomodoro')
     elapse(5 * MINUTE)
-    wired.invoke(IPC.confirmNext)
-    expect(wired.snapshot.load()).toBeNull()
+    wired.invoke(IPC.confirmNext, 'pomodoro')
+    expect(wired.snapshot.load()).toEqual([])
   })
 
   it('clears the saved state when the run is stopped', () => {
     const wired = build()
     wired.invoke(IPC.startPreset, 'pomodoro')
 
-    wired.menubar.clickMenuItem('Stop')
+    wired.menubar.clickMenuItem('Stop · Pomodoro')
 
-    expect(wired.snapshot.load()).toBeNull()
+    expect(wired.snapshot.load()).toEqual([])
   })
 
   it('resumes a saved run still in progress, picking up where wall-clock time says it should be', () => {
     now = 10 * MINUTE
-    const wired = build({
-      status: 'running',
-      preset: pomodoro,
-      phaseIndex: 0,
-      phaseStartedAt: 0,
-      phaseEndsAt: 25 * MINUTE,
-      snoozedMs: 0,
-    })
+    const wired = build([
+      {
+        status: 'running',
+        preset: pomodoro,
+        phaseIndex: 0,
+        phaseStartedAt: 0,
+        phaseEndsAt: 25 * MINUTE,
+        snoozedMs: 0,
+      },
+    ])
 
     expect(wired.menubar.title()).toBe(' Focus 15:00')
   })
 
   it('drains a phase that finished while the app was closed, reaching history and the alert', () => {
     now = 26 * MINUTE
-    const wired = build({
-      status: 'running',
-      preset: pomodoro,
-      phaseIndex: 0,
-      phaseStartedAt: 0,
-      phaseEndsAt: 25 * MINUTE,
-      snoozedMs: 0,
-    })
+    const wired = build([
+      {
+        status: 'running',
+        preset: pomodoro,
+        phaseIndex: 0,
+        phaseStartedAt: 0,
+        phaseEndsAt: 25 * MINUTE,
+        snoozedMs: 0,
+      },
+    ])
 
     expect(wired.alerts.notify).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -621,23 +869,25 @@ describe('the running timer, saved for a restart', () => {
     // Not one minute into Break: it has not started, and starting it is what
     // the user is being asked about.
     expect(wired.menubar.title()).toBe(' Break ready')
-    expect(wired.invoke(IPC.confirmNext)).toBe(true)
+    expect(wired.invoke(IPC.confirmNext, 'pomodoro')).toBe(true)
     expect(wired.menubar.title()).toBe(' Break 05:00')
   })
 
   it('resumes a boundary that was still waiting when the app was closed', () => {
     now = 40 * MINUTE
-    const wired = build({
-      status: 'awaiting',
-      preset: pomodoro,
-      phaseIndex: 1,
-      completedIndex: 0,
-      boundaryAt: 25 * MINUTE,
-    })
+    const wired = build([
+      {
+        status: 'awaiting',
+        preset: pomodoro,
+        phaseIndex: 1,
+        completedIndex: 0,
+        boundaryAt: 25 * MINUTE,
+      },
+    ])
 
     // Fifteen minutes of the app being shut is not fifteen minutes of Break.
     expect(wired.menubar.title()).toBe(' Break ready')
-    expect(wired.invoke(IPC.confirmNext)).toBe(true)
+    expect(wired.invoke(IPC.confirmNext, 'pomodoro')).toBe(true)
     expect(wired.menubar.title()).toBe(' Break 05:00')
   })
 })
@@ -652,7 +902,7 @@ describe('reminders, saved for a restart', () => {
   }
 
   it('schedules a reminder from the store on launch and persists it', () => {
-    const wired = build(null, { reminders: [water] })
+    const wired = build([], { reminders: [water] })
 
     expect(wired.reminderRunStore.load()).toEqual([
       { definitionId: 'water', nextFireAt: 30 * MINUTE, stepIndex: 0 },
@@ -661,7 +911,7 @@ describe('reminders, saved for a restart', () => {
 
   it('resumes a saved schedule instead of rescheduling fresh', () => {
     now = 10 * MINUTE
-    const wired = build(null, {
+    const wired = build([], {
       reminders: [water],
       reminderRun: [
         { definitionId: 'water', nextFireAt: 20 * MINUTE, stepIndex: 0 },
@@ -675,7 +925,7 @@ describe('reminders, saved for a restart', () => {
 
   it('fires a reminder that came due while the app was closed, and waits', () => {
     now = 31 * MINUTE
-    const wired = build(null, {
+    const wired = build([], {
       reminders: [water],
       reminderRun: [
         { definitionId: 'water', nextFireAt: 30 * MINUTE, stepIndex: 0 },
@@ -690,7 +940,7 @@ describe('reminders, saved for a restart', () => {
   })
 
   it('starts a reminder from the tray menu, interval running from the click', () => {
-    const wired = build(null, { reminders: [water] })
+    const wired = build([], { reminders: [water] })
     elapse(20 * MINUTE)
 
     expect(wired.menubar.clickMenuItem('Restart Drink water')).toBe(true)
@@ -704,7 +954,7 @@ describe('reminders, saved for a restart', () => {
   })
 
   it('enables a disabled reminder started from the tray menu', () => {
-    const wired = build(null, {
+    const wired = build([], {
       reminders: [{ ...water, enabled: false }],
     })
 
@@ -717,7 +967,7 @@ describe('reminders, saved for a restart', () => {
   })
 
   it('starts the next interval from the answer, not from the boundary', () => {
-    const wired = build(null, { reminders: [water] })
+    const wired = build([], { reminders: [water] })
     elapse(30 * MINUTE)
     // Five minutes to get to the overlay: the next glass is thirty minutes
     // after the answer, so the wait is not taken out of the interval.
@@ -741,7 +991,7 @@ describe('reminders, saved for a restart', () => {
   })
 
   it('drops the schedule when a reminder is disabled', () => {
-    const wired = build(null, { reminders: [water] })
+    const wired = build([], { reminders: [water] })
 
     wired.reminderStore.setEnabled('water', false)
 
@@ -764,7 +1014,7 @@ describe('reminders, saved for a restart', () => {
   })
 
   it('reflects a disabled reminder losing its schedule in the pushed list', () => {
-    const wired = build(null, { reminders: [water] })
+    const wired = build([], { reminders: [water] })
     const window = wired.openWindow()
 
     wired.reminderStore.setEnabled('water', false)
@@ -778,7 +1028,7 @@ describe('reminders, saved for a restart', () => {
   })
 
   it('shows both halves of the alert when a reminder comes due', () => {
-    const wired = build(null, { reminders: [water] })
+    const wired = build([], { reminders: [water] })
 
     elapse(30 * MINUTE)
 
@@ -790,7 +1040,7 @@ describe('reminders, saved for a restart', () => {
   })
 
   it('reschedules the same step on snooze rather than skipping it', () => {
-    const wired = build(null, { reminders: [water] })
+    const wired = build([], { reminders: [water] })
     elapse(30 * MINUTE)
 
     expect(wired.invoke(IPC.snoozeReminder, 10 * MINUTE)).toBe(true)
@@ -802,7 +1052,7 @@ describe('reminders, saved for a restart', () => {
   })
 
   it('closes the overlay and lets the engine advance on Done', () => {
-    const wired = build(null, { reminders: [water] })
+    const wired = build([], { reminders: [water] })
     elapse(30 * MINUTE)
 
     wired.invoke(IPC.completeReminder, null)
@@ -811,7 +1061,7 @@ describe('reminders, saved for a restart', () => {
   })
 
   it('disables the reminder the overlay was showing, leaving nothing half-fired', () => {
-    const wired = build(null, { reminders: [water] })
+    const wired = build([], { reminders: [water] })
     elapse(30 * MINUTE)
 
     wired.invoke(IPC.stopReminderFromAlert)
@@ -832,7 +1082,7 @@ describe('reminders, saved for a restart', () => {
   })
 
   it('stops the reminder from the notification the same alert raised', () => {
-    const wired = build(null, { reminders: [water] })
+    const wired = build([], { reminders: [water] })
     elapse(30 * MINUTE)
 
     const [text] = wired.reminderAlerts.notify.mock.calls[0] ?? []
@@ -853,7 +1103,7 @@ describe('reminders, saved for a restart', () => {
       steps: [{ label: 'Pushups', unit: 'reps' }],
       enabled: true,
     }
-    const wired = build(null, { reminders: [water, pushups] })
+    const wired = build([], { reminders: [water, pushups] })
 
     elapse(30 * MINUTE)
 
@@ -869,7 +1119,7 @@ describe('reminders, saved for a restart', () => {
   })
 
   it('voids the alert of a reminder turned off from the settings window', () => {
-    const wired = build(null, { reminders: [water] })
+    const wired = build([], { reminders: [water] })
     elapse(30 * MINUTE)
 
     wired.invoke(IPC.setReminderEnabled, 'water', false)
@@ -882,7 +1132,7 @@ describe('reminders, saved for a restart', () => {
   })
 
   it('voids the alert of a reminder deleted while it was waiting', () => {
-    const wired = build(null, { reminders: [water] })
+    const wired = build([], { reminders: [water] })
     elapse(30 * MINUTE)
 
     wired.invoke(IPC.deleteReminder, 'water')
@@ -892,7 +1142,7 @@ describe('reminders, saved for a restart', () => {
   })
 
   it('voids the alert of a reminder stopped from the tray', () => {
-    const wired = build(null, { reminders: [water] })
+    const wired = build([], { reminders: [water] })
     elapse(30 * MINUTE)
 
     expect(wired.menubar.clickMenuItem('Stop Drink water')).toBe(true)
@@ -909,7 +1159,7 @@ describe('reminders, saved for a restart', () => {
       steps: [{ label: 'Pushups', unit: 'reps' }],
       enabled: true,
     }
-    const wired = build(null, { reminders: [water, pushups] })
+    const wired = build([], { reminders: [water, pushups] })
     elapse(30 * MINUTE)
 
     // Water is showing; pushups is queued behind it.
@@ -932,7 +1182,7 @@ describe('reminders, saved for a restart', () => {
       steps: [{ label: 'Pushups', unit: 'reps' }],
       enabled: true,
     }
-    const wired = build(null, { reminders: [pushups] })
+    const wired = build([], { reminders: [pushups] })
     const window = wired.openWindow()
     elapse(30 * MINUTE)
 
@@ -945,7 +1195,7 @@ describe('reminders, saved for a restart', () => {
   })
 
   it('logs a successful Snooze answer to reminder history', () => {
-    const wired = build(null, { reminders: [water] })
+    const wired = build([], { reminders: [water] })
     const window = wired.openWindow()
     elapse(30 * MINUTE)
 
@@ -968,7 +1218,7 @@ describe('Sports, all the way out', () => {
   }
 
   it('schedules Sports from the store on launch and persists it', () => {
-    const wired = build(null, { sports: settings })
+    const wired = build([], { sports: settings })
 
     expect(wired.sportsRunStore.load()).toEqual({
       scheduled: true,
@@ -978,7 +1228,7 @@ describe('Sports, all the way out', () => {
 
   it('resumes a saved schedule instead of scheduling fresh', () => {
     now = 10 * MINUTE
-    const wired = build(null, {
+    const wired = build([], {
       sports: settings,
       sportsRun: { scheduled: true, nextFireAt: 20 * MINUTE },
     })
@@ -991,7 +1241,7 @@ describe('Sports, all the way out', () => {
 
   it('fires Sports that came due while the app was closed, and waits', () => {
     now = 61 * MINUTE
-    const wired = build(null, {
+    const wired = build([], {
       sports: settings,
       sportsRun: { scheduled: true, nextFireAt: 60 * MINUTE },
     })
@@ -1006,7 +1256,7 @@ describe('Sports, all the way out', () => {
   })
 
   it('starts Sports from the tray menu, interval running from the click', () => {
-    const wired = build(null, { sports: settings })
+    const wired = build([], { sports: settings })
     elapse(20 * MINUTE)
 
     expect(wired.menubar.clickMenuItem('Restart Sports')).toBe(true)
@@ -1022,7 +1272,7 @@ describe('Sports, all the way out', () => {
   })
 
   it('enables Sports that was off, started from the tray menu', () => {
-    const wired = build(null, { sports: { ...settings, enabled: false } })
+    const wired = build([], { sports: { ...settings, enabled: false } })
 
     expect(wired.menubar.clickMenuItem('Start Sports')).toBe(true)
 
@@ -1034,7 +1284,7 @@ describe('Sports, all the way out', () => {
   })
 
   it('starts the next interval from the answer, not from the boundary', () => {
-    const wired = build(null, { sports: settings })
+    const wired = build([], { sports: settings })
     elapse(60 * MINUTE)
     elapse(5 * MINUTE)
 
@@ -1047,7 +1297,7 @@ describe('Sports, all the way out', () => {
   })
 
   it('fires Sports immediately from the tray, without waiting for the schedule', () => {
-    const wired = build(null, { sports: settings })
+    const wired = build([], { sports: settings })
     elapse(20 * MINUTE)
 
     expect(wired.menubar.clickMenuItem('Log Sports Now')).toBe(true)
@@ -1062,7 +1312,7 @@ describe('Sports, all the way out', () => {
   })
 
   it('enables Sports that was off when fired from the tray', () => {
-    const wired = build(null, { sports: { ...settings, enabled: false } })
+    const wired = build([], { sports: { ...settings, enabled: false } })
 
     expect(wired.menubar.clickMenuItem('Log Sports Now')).toBe(true)
 
@@ -1074,7 +1324,7 @@ describe('Sports, all the way out', () => {
   })
 
   it('restarts the interval from the answer to a firing forced from the tray, same as a scheduled one', () => {
-    const wired = build(null, { sports: settings })
+    const wired = build([], { sports: settings })
     elapse(20 * MINUTE)
     wired.menubar.clickMenuItem('Log Sports Now')
     elapse(5 * MINUTE)
@@ -1088,14 +1338,14 @@ describe('Sports, all the way out', () => {
   })
 
   it('hides Log Sports Now from the tray while a firing is already awaiting', () => {
-    const wired = build(null, { sports: settings })
+    const wired = build([], { sports: settings })
     elapse(60 * MINUTE)
 
     expect(wired.menubar.menuLabels()).not.toContain('Log Sports Now')
   })
 
   it('drops the schedule when Sports is disabled', () => {
-    const wired = build(null, { sports: settings })
+    const wired = build([], { sports: settings })
 
     wired.sportsStore.save({ ...settings, enabled: false })
 
@@ -1110,7 +1360,7 @@ describe('Sports, all the way out', () => {
   })
 
   it('pushes the Sports view, joined with its schedule, to every open window', () => {
-    const wired = build(null, { sports: { ...settings, enabled: false } })
+    const wired = build([], { sports: { ...settings, enabled: false } })
     const window = wired.openWindow()
 
     wired.sportsStore.save(settings)
@@ -1128,7 +1378,7 @@ describe('Sports, all the way out', () => {
   })
 
   it('shows both halves of the alert when Sports comes due', () => {
-    const wired = build(null, { sports: settings })
+    const wired = build([], { sports: settings })
 
     elapse(60 * MINUTE)
 
@@ -1139,7 +1389,7 @@ describe('Sports, all the way out', () => {
   })
 
   it('reschedules by extraMs on snooze', () => {
-    const wired = build(null, { sports: settings })
+    const wired = build([], { sports: settings })
     elapse(60 * MINUTE)
 
     expect(wired.invoke(IPC.snoozeSports, 10 * MINUTE)).toBe(true)
@@ -1152,7 +1402,7 @@ describe('Sports, all the way out', () => {
   })
 
   it('closes the overlay and lets the engine advance on Done', () => {
-    const wired = build(null, { sports: settings })
+    const wired = build([], { sports: settings })
     elapse(60 * MINUTE)
 
     wired.invoke(IPC.confirmSports, { situps: 10, squats: 5 })
@@ -1161,7 +1411,7 @@ describe('Sports, all the way out', () => {
   })
 
   it('disables Sports from the overlay it raised, leaving nothing half-fired', () => {
-    const wired = build(null, { sports: settings })
+    const wired = build([], { sports: settings })
     elapse(60 * MINUTE)
 
     wired.invoke(IPC.stopSportsFromAlert)
@@ -1183,7 +1433,7 @@ describe('Sports, all the way out', () => {
   })
 
   it('stops Sports from the notification the same alert raised', () => {
-    const wired = build(null, { sports: settings })
+    const wired = build([], { sports: settings })
     elapse(60 * MINUTE)
 
     const [text] = wired.sportsAlerts.notify.mock.calls[0] ?? []
@@ -1195,7 +1445,7 @@ describe('Sports, all the way out', () => {
   })
 
   it('voids the Sports alert when Sports is stopped from the settings window', () => {
-    const wired = build(null, { sports: settings })
+    const wired = build([], { sports: settings })
     // A phase boundary is waiting too, with an overlay of its own up.
     wired.invoke(IPC.startPreset, 'pomodoro')
     elapse(60 * MINUTE)
@@ -1211,7 +1461,7 @@ describe('Sports, all the way out', () => {
   })
 
   it('voids the Sports alert when Sports is stopped from the tray', () => {
-    const wired = build(null, { sports: settings })
+    const wired = build([], { sports: settings })
     elapse(60 * MINUTE)
 
     expect(wired.menubar.clickMenuItem('Stop Sports')).toBe(true)
@@ -1225,7 +1475,7 @@ describe('Sports, all the way out', () => {
   })
 
   it('logs a Done answer to Sports history, one line per activity, and tells every open window', () => {
-    const wired = build(null, { sports: settings })
+    const wired = build([], { sports: settings })
     const window = wired.openWindow()
     elapse(60 * MINUTE)
 
@@ -1239,7 +1489,7 @@ describe('Sports, all the way out', () => {
   })
 
   it('logs Sports activity from the tab without touching the running schedule', () => {
-    const wired = build(null, { sports: settings })
+    const wired = build([], { sports: settings })
 
     wired.invoke(IPC.logSports, { situps: 30 })
 
@@ -1261,7 +1511,7 @@ describe('the menubar, wired', () => {
     expect(wired.menubar.clickMenuItem('Start Pomodoro')).toBe(true)
 
     expect(wired.menubar.title()).toBe(' Focus 25:00')
-    expect(wired.menubar.menuLabels()).toContain('Stop')
+    expect(wired.menubar.menuLabels()).toContain('Stop · Pomodoro')
   })
 
   it('shows an edited preset without a relaunch', () => {
@@ -1276,7 +1526,7 @@ describe('the menubar, wired', () => {
     const wired = build()
     wired.menubar.clickMenuItem('Start Pomodoro')
 
-    wired.menubar.clickMenuItem('Stop')
+    wired.menubar.clickMenuItem('Stop · Pomodoro')
 
     expect(wired.menubar.title()).toBe('')
   })

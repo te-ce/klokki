@@ -32,13 +32,17 @@ export type MenubarSources = {
   }
 }
 
-/** What the menubar can ask the app to do. Starting is by id, as everywhere. */
+/**
+ * What the menubar can ask the app to do. Starting is by id, as everywhere — and
+ * so is everything else about a run, because the menu offers a section per
+ * running preset rather than one "the timer" section.
+ */
 export type MenubarActions = {
-  readonly stop: () => void
-  readonly skip: () => void
+  readonly stop: (runId: string) => void
+  readonly skip: (runId: string) => void
   /** Starts the phase a waiting run is holding — the tray's answer to a boundary. */
-  readonly confirm: () => void
-  readonly addTime: () => void
+  readonly confirm: (runId: string) => void
+  readonly addTime: (runId: string) => void
   readonly start: (presetId: string) => void
   readonly startReminder: (reminderId: string) => void
   readonly stopReminder: (reminderId: string) => void
@@ -79,16 +83,16 @@ export const createMenubar = (
   const performTimer = (action: MenubarAction): boolean => {
     switch (action.kind) {
       case 'stop':
-        actions.stop()
+        actions.stop(action.runId)
         return true
       case 'skip':
-        actions.skip()
+        actions.skip(action.runId)
         return true
       case 'confirm':
-        actions.confirm()
+        actions.confirm(action.runId)
         return true
       case 'addTime':
-        actions.addTime()
+        actions.addTime(action.runId)
         return true
       case 'start':
         actions.start(action.presetId)

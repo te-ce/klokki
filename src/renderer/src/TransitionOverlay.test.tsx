@@ -10,7 +10,11 @@ describe('TransitionOverlay', () => {
     mockApi()
     render(
       <TransitionOverlay
-        alert={{ completedLabel: 'Focus', nextLabel: 'Break' }}
+        alert={{
+          runId: 'pomodoro',
+          completedLabel: 'Focus',
+          nextLabel: 'Break',
+        }}
       />,
     )
 
@@ -21,7 +25,9 @@ describe('TransitionOverlay', () => {
   it('says the timer is done when no phase follows', () => {
     mockApi()
     render(
-      <TransitionOverlay alert={{ completedLabel: 'Only', nextLabel: null }} />,
+      <TransitionOverlay
+        alert={{ runId: 'pomodoro', completedLabel: 'Only', nextLabel: null }}
+      />,
     )
 
     expect(screen.getByText('Only finished')).toBeVisible()
@@ -32,7 +38,11 @@ describe('TransitionOverlay', () => {
     const api = mockApi()
     render(
       <TransitionOverlay
-        alert={{ completedLabel: 'Focus', nextLabel: 'Break' }}
+        alert={{
+          runId: 'pomodoro',
+          completedLabel: 'Focus',
+          nextLabel: 'Break',
+        }}
       />,
     )
 
@@ -41,31 +51,37 @@ describe('TransitionOverlay', () => {
     expect(api.dismissAlert).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: 'Start Break' }))
 
-    expect(api.dismissAlert).toHaveBeenCalledOnce()
+    expect(api.dismissAlert).toHaveBeenCalledExactlyOnceWith('pomodoro')
   })
 
   it('has only itself to dismiss when the run is over', () => {
     const api = mockApi()
     render(
-      <TransitionOverlay alert={{ completedLabel: 'Only', nextLabel: null }} />,
+      <TransitionOverlay
+        alert={{ runId: 'pomodoro', completedLabel: 'Only', nextLabel: null }}
+      />,
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
 
-    expect(api.dismissAlert).toHaveBeenCalledOnce()
+    expect(api.dismissAlert).toHaveBeenCalledExactlyOnceWith('pomodoro')
   })
 
   it('offers five more minutes of what the user was doing', () => {
     const api = mockApi()
     render(
       <TransitionOverlay
-        alert={{ completedLabel: 'Focus', nextLabel: 'Break' }}
+        alert={{
+          runId: 'pomodoro',
+          completedLabel: 'Focus',
+          nextLabel: 'Break',
+        }}
       />,
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Snooze 5 minutes' }))
 
-    expect(api.snoozeAlert).toHaveBeenCalledWith(5 * 60_000)
+    expect(api.snoozeAlert).toHaveBeenCalledWith('pomodoro', 5 * 60_000)
     expect(api.dismissAlert).not.toHaveBeenCalled()
   })
 
@@ -73,19 +89,25 @@ describe('TransitionOverlay', () => {
     const api = mockApi()
     render(
       <TransitionOverlay
-        alert={{ completedLabel: 'Focus', nextLabel: 'Break' }}
+        alert={{
+          runId: 'pomodoro',
+          completedLabel: 'Focus',
+          nextLabel: 'Break',
+        }}
       />,
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Snooze 30 minutes' }))
 
-    expect(api.snoozeAlert).toHaveBeenCalledWith(30 * 60_000)
+    expect(api.snoozeAlert).toHaveBeenCalledWith('pomodoro', 30 * 60_000)
   })
 
   it('offers no snooze when there is no phase left to push back', () => {
     mockApi()
     render(
-      <TransitionOverlay alert={{ completedLabel: 'Only', nextLabel: null }} />,
+      <TransitionOverlay
+        alert={{ runId: 'pomodoro', completedLabel: 'Only', nextLabel: null }}
+      />,
     )
 
     expect(screen.queryByRole('button', { name: /Snooze/ })).toBeNull()
@@ -95,7 +117,11 @@ describe('TransitionOverlay', () => {
     const api = mockApi()
     render(
       <TransitionOverlay
-        alert={{ completedLabel: 'Focus', nextLabel: 'Break' }}
+        alert={{
+          runId: 'pomodoro',
+          completedLabel: 'Focus',
+          nextLabel: 'Break',
+        }}
       />,
     )
 
@@ -103,7 +129,7 @@ describe('TransitionOverlay', () => {
 
     // One call, the main process's own stop-and-close: confirming the boundary
     // would start the very break the user just said they were done with.
-    expect(api.stopFromAlert).toHaveBeenCalledOnce()
+    expect(api.stopFromAlert).toHaveBeenCalledExactlyOnceWith('pomodoro')
     expect(api.dismissAlert).not.toHaveBeenCalled()
     expect(api.snoozeAlert).not.toHaveBeenCalled()
   })
@@ -111,7 +137,9 @@ describe('TransitionOverlay', () => {
   it('offers no stop when the run has already finished', () => {
     mockApi()
     render(
-      <TransitionOverlay alert={{ completedLabel: 'Only', nextLabel: null }} />,
+      <TransitionOverlay
+        alert={{ runId: 'pomodoro', completedLabel: 'Only', nextLabel: null }}
+      />,
     )
 
     // Nothing is running to stop — the same reason the snooze is left off.
@@ -122,7 +150,11 @@ describe('TransitionOverlay', () => {
     mockApi()
     render(
       <TransitionOverlay
-        alert={{ completedLabel: 'Focus', nextLabel: 'Break' }}
+        alert={{
+          runId: 'pomodoro',
+          completedLabel: 'Focus',
+          nextLabel: 'Break',
+        }}
       />,
     )
 

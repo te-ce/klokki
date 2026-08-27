@@ -8,6 +8,15 @@
  */
 
 export type Alert = {
+  /**
+   * The run whose boundary this is — the id of the preset it is running.
+   *
+   * Several presets run at once, so an overlay that only said which phase ended
+   * could not be answered: Snooze, the affirmative and Stop all have to reach
+   * one run. It travels in the URL with the rest of the alert, so the window
+   * knows which run it is about before its first render.
+   */
+  readonly runId: string
   readonly completedLabel: string
   /** null when the preset ran out of phases: nothing is starting now. */
   readonly nextLabel: string | null
@@ -16,7 +25,10 @@ export type Alert = {
 export const OVERLAY_ROUTE = '/overlay'
 
 export const alertRoute = (alert: Alert): string => {
-  const params = new URLSearchParams({ completed: alert.completedLabel })
+  const params = new URLSearchParams({
+    run: alert.runId,
+    completed: alert.completedLabel,
+  })
   if (alert.nextLabel !== null) params.set('next', alert.nextLabel)
   return `${OVERLAY_ROUTE}?${params.toString()}`
 }
@@ -28,8 +40,11 @@ export const alertFromRoute = (hash: string): Alert | null => {
   if (path !== OVERLAY_ROUTE) return null
 
   const params = new URLSearchParams(query ?? '')
+  const runId = params.get('run')
   const completedLabel = params.get('completed')
-  if (completedLabel === null) return null
+  // Both or neither: an overlay that knew the phase but not the run would draw
+  // controls that could not answer anything.
+  if (runId === null || completedLabel === null) return null
 
-  return { completedLabel, nextLabel: params.get('next') }
+  return { runId, completedLabel, nextLabel: params.get('next') }
 }

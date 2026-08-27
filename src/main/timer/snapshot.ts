@@ -4,7 +4,7 @@ import { isPreset, isRecord, type Preset } from '../../shared/preset'
 import type { TimerState } from './machine'
 
 /** Bumped only when the on-disk shape changes; a migration hooks in here. */
-export const SNAPSHOT_SCHEMA_VERSION = 1
+export const SNAPSHOT_SCHEMA_VERSION = 2
 
 const FILE_NAME = 'timer-state.json'
 
@@ -48,24 +48,18 @@ const indexInRange = (preset: Preset, index: number): boolean =>
   index >= 0 && index < preset.phases.length
 
 /**
- * The file is as hand-editable as presets.json, so every field is untrusted.
- * Anything that does not decode to a runnable state is treated as no saved run
- * at all — starting idle is always safe, replaying a bad state is not.
+ * One saved run. The file is as hand-editable as presets.json, so every field is
+ * untrusted: anything that does not decode to a runnable state is dropped rather
+ * than replayed, because starting one run short is safe and replaying a bad
+ * state is not.
  *
  * A boundary waiting to be answered is saved too: it is a run in progress that
  * happens not to be counting, and losing it on a relaunch would drop the phase
  * the user was about to start.
  */
-const decode = (raw: string): TimerState | null => {
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(raw)
-  } catch {
-    return null
-  }
-
-  if (!isRecord(parsed) || !isRecord(parsed.state)) return null
-  const { state } = parsed
+const decodeRun = (candidate: unknown): TimerState | null => {
+  if (!isRecord(candidate)) return null
+  const state = candidate
 
   if (isRunningCandidate(state))
     return indexInRange(state.preset, state.phaseIndex)
@@ -82,27 +76,53 @@ const decode = (raw: string): TimerState | null => {
 }
 
 /**
- * The last state the timer was in while a run existed, so a restart can resume
- * it instead of losing it. Idle is never written — see `SnapshotStore`.
+ * Every run in progress, in the order they were started, so a restart resumes
+ * all of them rather than whichever one happened to be saved last.
+ *
+ * A v1 file held a single `state`, which reads as a one-run list — one line,
+ * because a user who left one preset running before an update should find it
+ * still running after. A bad run is dropped on its own: one hand-edited entry
+ * must not cost the others.
+ */
+const decode = (raw: string): readonly TimerState[] => {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    return []
+  }
+
+  if (!isRecord(parsed)) return []
+  const candidates = Array.isArray(parsed.runs) ? parsed.runs : [parsed.state]
+
+  return candidates.flatMap((candidate: unknown) => {
+    const state = decodeRun(candidate)
+    return state ? [state] : []
+  })
+}
+
+/**
+ * The runs the timer had while any existed, so a restart can resume them instead
+ * of losing them. No runs is never written — see `SnapshotStore`.
  */
 export type SnapshotStore = {
-  readonly save: (state: TimerState) => void
+  readonly save: (states: readonly TimerState[]) => void
   readonly clear: () => void
 }
 
 export const createSnapshotStore = (
   dir: string,
-): SnapshotStore & { readonly load: () => TimerState | null } => {
+): SnapshotStore & { readonly load: () => readonly TimerState[] } => {
   const path = join(dir, FILE_NAME)
 
   return {
-    save: (state) => {
+    save: (states) => {
       // Best-effort, like the preset file: an unwritable disk must not take the
       // timer down, and a lost write costs at most a restart's worth of progress.
       try {
         writeFileSync(
           path,
-          `${JSON.stringify({ schemaVersion: SNAPSHOT_SCHEMA_VERSION, state })}\n`,
+          `${JSON.stringify({ schemaVersion: SNAPSHOT_SCHEMA_VERSION, runs: states })}\n`,
           'utf8',
         )
       } catch {
@@ -121,7 +141,7 @@ export const createSnapshotStore = (
       try {
         raw = readFileSync(path, 'utf8')
       } catch {
-        return null
+        return []
       }
       return decode(raw)
     },

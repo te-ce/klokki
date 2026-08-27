@@ -30,11 +30,29 @@ const running = {
   snoozedMs: 0,
 }
 
+const sitStand: Preset = {
+  id: 'sit-stand',
+  name: 'Sit/Stand',
+  loop: true,
+  phases: [
+    { label: 'Sitting', minutes: 30, notify: true },
+    { label: 'Standing', minutes: 15, notify: true },
+  ],
+}
+
+const secondRun = {
+  status: 'awaiting' as const,
+  preset: sitStand,
+  phaseIndex: 1,
+  completedIndex: 0,
+  boundaryAt: 30 * 60_000,
+}
+
 describe('no saved run', () => {
-  it('returns null when there is no file yet', () => {
+  it('returns no runs when there is no file yet', () => {
     const dir = testDir()
 
-    expect(createSnapshotStore(dir).load()).toBeNull()
+    expect(createSnapshotStore(dir).load()).toEqual([])
   })
 })
 
@@ -43,19 +61,54 @@ describe('a saved run', () => {
     const dir = testDir()
     const store = createSnapshotStore(dir)
 
-    store.save(running)
+    store.save([running])
 
-    expect(store.load()).toEqual(running)
+    expect(store.load()).toEqual([running])
+  })
+
+  // Several presets run at once, so a restart has to bring all of them back —
+  // in the order they were started, which is the order the tray title reads.
+  it('round-trips every run, in order', () => {
+    const dir = testDir()
+    const store = createSnapshotStore(dir)
+
+    store.save([running, secondRun])
+
+    expect(store.load()).toEqual([running, secondRun])
+  })
+
+  // A file written before concurrent runs existed held one `state`. The user
+  // left a preset running; it should still be running after the update.
+  it('reads a v1 single-run file as one run', () => {
+    const dir = testDir()
+    write(dir, JSON.stringify({ schemaVersion: 1, state: running }))
+
+    expect(createSnapshotStore(dir).load()).toEqual([running])
+  })
+
+  // One hand-edited entry must not cost the others: starting one run short is
+  // safe, and replaying a bad state is not.
+  it('drops only the run it cannot decode', () => {
+    const dir = testDir()
+    write(
+      dir,
+      JSON.stringify({
+        schemaVersion: 2,
+        runs: [{ ...running, phaseIndex: 5 }, secondRun],
+      }),
+    )
+
+    expect(createSnapshotStore(dir).load()).toEqual([secondRun])
   })
 
   it('is removed by clear', () => {
     const dir = testDir()
     const store = createSnapshotStore(dir)
-    store.save(running)
+    store.save([running])
 
     store.clear()
 
-    expect(store.load()).toBeNull()
+    expect(store.load()).toEqual([])
   })
 
   it('clearing when nothing was saved does not throw', () => {
@@ -66,56 +119,56 @@ describe('a saved run', () => {
 })
 
 describe('a file the app cannot use', () => {
-  it('returns null when the JSON is malformed', () => {
+  it('returns no runs when the JSON is malformed', () => {
     const dir = testDir()
-    write(dir, '{ "state": ')
+    write(dir, '{ "runs": ')
 
-    expect(createSnapshotStore(dir).load()).toBeNull()
+    expect(createSnapshotStore(dir).load()).toEqual([])
   })
 
-  it('returns null when the shape is wrong', () => {
+  it('returns no runs when the shape is wrong', () => {
     const dir = testDir()
-    write(dir, JSON.stringify({ schemaVersion: 1, state: { status: 'idle' } }))
+    write(dir, JSON.stringify({ schemaVersion: 2, runs: [{ status: 'idle' }] }))
 
-    expect(createSnapshotStore(dir).load()).toBeNull()
+    expect(createSnapshotStore(dir).load()).toEqual([])
   })
 
-  it('returns null when the embedded preset fails validation', () => {
+  it('drops a run whose embedded preset fails validation', () => {
     const dir = testDir()
     write(
       dir,
       JSON.stringify({
-        schemaVersion: 1,
-        state: { ...running, preset: { ...pomodoro, phases: 'nope' } },
+        schemaVersion: 2,
+        runs: [{ ...running, preset: { ...pomodoro, phases: 'nope' } }],
       }),
     )
 
-    expect(createSnapshotStore(dir).load()).toBeNull()
+    expect(createSnapshotStore(dir).load()).toEqual([])
   })
 
-  it('returns null when the saved phase index is out of range', () => {
+  it('drops a run whose saved phase index is out of range', () => {
     const dir = testDir()
     write(
       dir,
       JSON.stringify({
-        schemaVersion: 1,
-        state: { ...running, phaseIndex: 5 },
+        schemaVersion: 2,
+        runs: [{ ...running, phaseIndex: 5 }],
       }),
     )
 
-    expect(createSnapshotStore(dir).load()).toBeNull()
+    expect(createSnapshotStore(dir).load()).toEqual([])
   })
 })
 
 describe('a directory it cannot write', () => {
-  it('still returns null from load instead of throwing', () => {
+  it('still returns no runs from load instead of throwing', () => {
     const dir = testDir()
     chmodSync(dir, 0o500)
 
     try {
       const store = createSnapshotStore(dir)
-      expect(() => store.save(running)).not.toThrow()
-      expect(store.load()).toBeNull()
+      expect(() => store.save([running])).not.toThrow()
+      expect(store.load()).toEqual([])
     } finally {
       chmodSync(dir, 0o700)
     }
@@ -123,12 +176,12 @@ describe('a directory it cannot write', () => {
 })
 
 describe('reading back what was written', () => {
-  it('writes a schema version alongside the state', () => {
+  it('writes a schema version alongside the runs', () => {
     const dir = testDir()
-    createSnapshotStore(dir).save(running)
+    createSnapshotStore(dir).save([running, secondRun])
 
     expect(
       JSON.parse(readFileSync(join(dir, 'timer-state.json'), 'utf8')),
-    ).toEqual({ schemaVersion: 1, state: running })
+    ).toEqual({ schemaVersion: 2, runs: [running, secondRun] })
   })
 })

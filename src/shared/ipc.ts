@@ -64,7 +64,7 @@ export const IPC = {
  * to the main process.
  */
 export const PUSH = {
-  /** A fresh view, once a second while the timer runs. */
+  /** Every run in progress, once a second while any of them counts. */
   timerView: 'klokki:timer-view',
   /** The saved preset list, whenever it changes — from any window, or the tray. */
   presets: 'klokki:presets',
@@ -85,8 +85,8 @@ export interface KlokkiApi {
   getAppInfo(): Promise<AppInfo>
   listPresets(): Promise<readonly Preset[]>
   /**
-   * The current view, for a window that has just opened: waiting for the next
-   * push would leave it blank for up to a second.
+   * Every run in progress, for a window that has just opened: waiting for the
+   * next push would leave it blank for up to a second.
    */
   getTimerView(): Promise<TimerView>
   /**
@@ -100,36 +100,55 @@ export interface KlokkiApi {
    * counterpart to `getStats`.
    */
   getReminderStats(): Promise<ReminderHistoryStats>
+  /**
+   * Starts a preset, or restarts it if it is already running — the run is keyed
+   * on the preset id, so a preset never has two runs at once (see AGENTS.md).
+   * Every other preset in progress keeps going.
+   */
   startPreset(id: string): Promise<void>
-  stopTimer(): Promise<void>
   /**
-   * Ends the running phase now and starts the next one — for standing up before
-   * the sitting phase is out. Raises no transition alert: the user chose this
-   * boundary. Resolves to whether anything moved; nothing does while idle.
+   * Ends one run. Several presets can be running, so this names the one to stop
+   * rather than "the" timer — `runId` is the id of the preset it is running,
+   * which is what `TimerView.runs` carries.
    */
-  skipPhase(): Promise<boolean>
+  stopTimer(runId: string): Promise<void>
   /**
-   * Starts the phase a boundary is holding, because the user said they are
-   * ready — the same thing dismissing the transition overlay does, for a window
-   * that is looking at a waiting run instead. The phase gets its full length
-   * from now. Resolves to whether anything moved; nothing does unless the run is
-   * waiting.
+   * Ends a run's current phase now and starts its next one — for standing up
+   * before the sitting phase is out. Raises no transition alert: the user chose
+   * this boundary. Resolves to whether anything moved; nothing does for a run
+   * that is not going.
    */
-  confirmNext(): Promise<boolean>
+  skipPhase(runId: string): Promise<boolean>
   /**
-   * Corrects the running phase's remaining time to `targetMs` — for a timer
+   * Starts the phase a run's boundary is holding, because the user said they are
+   * ready — the same thing dismissing that run's transition overlay does, for a
+   * window that is looking at a waiting run instead. The phase gets its full
+   * length from now. Resolves to whether anything moved; nothing does unless the
+   * run is waiting.
+   */
+  confirmNext(runId: string): Promise<boolean>
+  /**
+   * Corrects a run's current phase's remaining time to `targetMs` — for a timer
    * started late, so the web UI can pull it back in sync with the wall clock.
-   * Resolves to whether anything moved; nothing does while idle.
+   * Resolves to whether anything moved.
    */
-  setRemaining(targetMs: number): Promise<boolean>
+  setRemaining(runId: string, targetMs: number): Promise<boolean>
   /**
-   * Adds `extraMs` to the running phase's remaining time — for running long, so
-   * a keystroke or tray click adds minutes without naming a target time.
-   * Resolves to whether anything moved; nothing does while idle.
+   * Adds `extraMs` to a run's current phase's remaining time — for running long,
+   * so a keystroke or tray click adds minutes without naming a target time.
+   * Resolves to whether anything moved.
    */
-  addTime(extraMs: number): Promise<boolean>
-  /** Closes the transition overlay. The only way out of it — it never times out. */
-  dismissAlert(): Promise<void>
+  addTime(runId: string, extraMs: number): Promise<boolean>
+  /**
+   * Answers the boundary the transition overlay is announcing, and closes it.
+   * The only way out of the overlay — it never times out.
+   *
+   * The run comes from the alert the overlay was opened with (`Alert.runId`),
+   * because two runs can each be holding at a boundary and only one of them is
+   * on screen. Answering also raises whichever boundary was queued behind this
+   * one.
+   */
+  dismissAlert(runId: string): Promise<void>
   /**
    * Stops the run the transition overlay is announcing, and closes the overlay
    * — the same `stopTimer` the tray and the Timer pane call, plus the close the
@@ -137,7 +156,7 @@ export interface KlokkiApi {
    * when they decide they are done for the day, so the decision is offered
    * there rather than only in a window they would have to open first.
    */
-  stopFromAlert(): Promise<void>
+  stopFromAlert(runId: string): Promise<void>
   /**
    * Defers the boundary the overlay is showing and closes it, by `extraMs` —
    * one of the fixed +5/+10/+15/+30 options, matching `snoozeReminder`'s
@@ -147,7 +166,7 @@ export interface KlokkiApi {
    * end has already gone by is declined, and the overlay closes either way — but
    * the two are different events, so they do not answer the same.
    */
-  snoozeAlert(extraMs: number): Promise<boolean>
+  snoozeAlert(runId: string, extraMs: number): Promise<boolean>
   /**
    * Upsert by id. The main process validates again — it owns presets.json — so a
    * rejected preset comes back with the reasons instead of throwing.

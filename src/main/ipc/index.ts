@@ -24,10 +24,11 @@ export type RequestSink = {
 }
 
 /**
- * The transition overlay, as much of it as answering a renderer needs.
+ * An overlay window, as much of one as the app above it needs.
  *
- * Closing it is voiding the alert it belongs to — wire.ts hands in a `close`
- * that withdraws the notification too, because the two are one alert.
+ * Closing it is half of voiding the alert it belongs to — the other half is
+ * withdrawing the notification, which is why `voidAlert` pairs it with the
+ * surface rather than either one doing it alone (see alert/void.ts).
  */
 export type OverlayControl = {
   readonly close: () => void
@@ -60,7 +61,6 @@ export type IpcDeps = {
   readonly loginItem: LoginItem
   readonly history: History
   readonly reminderHistory: ReminderHistory
-  readonly overlay: OverlayControl
   readonly reminderStore: ReminderStore
   /** The reminder list joined with the engine's live schedule — see wire.ts. */
   readonly reminderViews: () => readonly ReminderView[]
@@ -74,12 +74,21 @@ export type IpcDeps = {
   readonly startSports: () => void
   readonly stopSports: () => void
   /**
-   * Stopping the timer, and voiding whatever alert the run had raised. One
-   * closure in wire.ts, shared with the tray and the notification's own Stop
-   * button, which is why `stopTimer` and `stopFromAlert` are the same move on
-   * two channels: an alert of a stopped run is void however the stop arrived.
+   * Stopping one run, and voiding whatever alert it had raised. One closure in
+   * wire.ts, shared with the tray and the notification's own Stop button, which
+   * is why `stopTimer` and `stopFromAlert` are the same move on two channels: an
+   * alert of a stopped run is void however the stop arrived.
    */
-  readonly stopTimer: () => void
+  readonly stopTimer: (runId: string) => void
+  /**
+   * A run's boundary has been answered — from anywhere. Voids that run's alert
+   * and raises whichever boundary was queued behind it (see alert/wire.ts).
+   *
+   * It is a dependency rather than a call on `overlay` because answering is a
+   * decision about a queue, not a window: an alert answered from the Timer pane
+   * while a second run's overlay is up must leave that window alone.
+   */
+  readonly answerAlert: (runId: string) => void
   readonly logSports: SportsLog
   readonly appInfo: () => AppInfo
 }
@@ -171,7 +180,6 @@ export const registerIpc = (deps: IpcDeps): void => {
     loginItem,
     history,
     reminderHistory,
-    overlay,
     reminderStore,
     reminderViews,
     reminderAnswers,
@@ -199,34 +207,57 @@ export const registerIpc = (deps: IpcDeps): void => {
     getLaunchAtLogin: () => loginItem.isEnabled(),
     setLaunchAtLogin: (enabled) =>
       loginItem.setEnabled(expect(enabled, isBoolean, 'a boolean')),
-    stopTimer: () => deps.stopTimer(),
-    skipPhase: () => service.skip(),
-    confirmNext: () => service.confirm(),
-    setRemaining: (targetMs) =>
-      service.setRemaining(expect(targetMs, isNumber, 'a duration in ms')),
-    addTime: (extraMs) =>
-      service.addTime(expect(extraMs, isNumber, 'a duration in ms')),
+    stopTimer: (runId) => deps.stopTimer(expect(runId, isString, 'a run id')),
+    // A boundary answered here is answered everywhere: skipping and confirming
+    // both settle the run's boundary, so its overlay closes with them rather
+    // than being left standing over a phase that has already started.
+    skipPhase: (runId) => {
+      const id = expect(runId, isString, 'a run id')
+      const skipped = service.skip(id)
+      deps.answerAlert(id)
+      return skipped
+    },
+    confirmNext: (runId) => {
+      const id = expect(runId, isString, 'a run id')
+      const confirmed = service.confirm(id)
+      deps.answerAlert(id)
+      return confirmed
+    },
+    setRemaining: (runId, targetMs) =>
+      service.setRemaining(
+        expect(runId, isString, 'a run id'),
+        expect(targetMs, isNumber, 'a duration in ms'),
+      ),
+    addTime: (runId, extraMs) =>
+      service.addTime(
+        expect(runId, isString, 'a run id'),
+        expect(extraMs, isNumber, 'a duration in ms'),
+      ),
     // Dismissing the overlay is the confirmation the waiting run is holding for:
     // the boundary was announced, the user answered it, and the phase it names
     // starts now. Closing without starting anything would leave the run parked.
-    dismissAlert: () => {
-      service.confirm()
-      overlay.close()
+    dismissAlert: (runId) => {
+      const id = expect(runId, isString, 'a run id')
+      service.confirm(id)
+      deps.answerAlert(id)
     },
-    // The overlay closes whether or not the boundary moved: a snooze is declined
-    // only when its new end has already gone by, and leaving an overlay up that
-    // names a boundary long past is worse than closing it. The renderer is told
-    // which of the two happened rather than being left to assume the first.
     // The run ends and the alert goes with it: a boundary belonging to a run
     // that no longer exists has nothing left to answer, and an overlay naming it
     // would be a window with no true way out. The same closure as `stopTimer`,
     // because that is now true of a stop from anywhere.
-    stopFromAlert: () => deps.stopTimer(),
-    snoozeAlert: (extraMs) => {
+    stopFromAlert: (runId) =>
+      deps.stopTimer(expect(runId, isString, 'a run id')),
+    // The overlay closes whether or not the boundary moved: a snooze is declined
+    // only when its new end has already gone by, and leaving an overlay up that
+    // names a boundary long past is worse than closing it. The renderer is told
+    // which of the two happened rather than being left to assume the first.
+    snoozeAlert: (runId, extraMs) => {
+      const id = expect(runId, isString, 'a run id')
       const snoozed = service.snooze(
+        id,
         expect(extraMs, isNumber, 'a duration in ms'),
       )
-      overlay.close()
+      deps.answerAlert(id)
       return snoozed
     },
     listReminders: () => reminderViews(),

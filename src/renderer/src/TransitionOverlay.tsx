@@ -12,6 +12,10 @@ import { SnoozeChoice } from './SnoozeChoice'
  * is the other way out, because an alert that can only be acknowledged gets
  * turned off: it defers the boundary instead of skipping the phase.
  *
+ * Which run this is about comes from the alert the window was opened with, so
+ * every control here reaches the one run that raised it — several presets can be
+ * running, and a second boundary supersedes this window (see alert/queue.ts).
+ *
  * The run is holding at this boundary until one of the two is clicked, which is
  * why the acknowledgement is named after what it does — "Start Break", not
  * "Dismiss". A phase that began while the overlay sat unread would be a phase
@@ -45,11 +49,13 @@ export const TransitionOverlay = ({ alert }: { alert: Alert }) => (
               phase is still to come: a run that has finished is already over. */}
           <OverlayStop
             label="Stop timer"
-            onStop={() => void window.klokki.stopFromAlert()}
+            onStop={() => void window.klokki.stopFromAlert(alert.runId)}
           />
           <SnoozeChoice
             options={TIMER_SNOOZE_MINUTES_OPTIONS}
-            onSnooze={(extraMs) => void window.klokki.snoozeAlert(extraMs)}
+            onSnooze={(extraMs) =>
+              void window.klokki.snoozeAlert(alert.runId, extraMs)
+            }
           />
         </div>
       ) : (
@@ -58,7 +64,7 @@ export const TransitionOverlay = ({ alert }: { alert: Alert }) => (
       <button
         type="button"
         className="bg-ink text-ground h-9 rounded-lg px-5 font-medium"
-        onClick={() => void window.klokki.dismissAlert()}
+        onClick={() => void window.klokki.dismissAlert(alert.runId)}
       >
         {alert.nextLabel === null ? 'Dismiss' : `Start ${alert.nextLabel}`}
       </button>

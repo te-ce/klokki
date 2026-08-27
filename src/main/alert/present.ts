@@ -29,13 +29,15 @@ export const createAlertPresenter =
     /**
      * Stops the run and closes the overlay, for the notification's Stop button —
      * the same thing the overlay's own Stop does, because the two halves of one
-     * alert must not answer differently.
+     * alert must not answer differently. Which run that is comes from the alert
+     * itself, so a notification left standing over a second boundary cannot stop
+     * a run it was never about.
      */
-    stop: () => void,
+    stop: (runId: string) => void,
   ) =>
   (alert: Alert): void => {
     try {
-      surface.notify(notificationFor(alert, stop))
+      surface.notify(notificationFor(alert, () => stop(alert.runId)))
     } catch {
       /* empty */
     }

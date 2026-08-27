@@ -10,23 +10,153 @@ exports[`what the menubar says > matches its snapshot while running 1`] = `
     {
       "action": {
         "kind": "skip",
+        "runId": "pomodoro",
       },
       "kind": "command",
-      "label": "Skip to Break",
+      "label": "Skip to Break · Pomodoro",
     },
     {
       "action": {
         "kind": "addTime",
+        "runId": "pomodoro",
       },
       "kind": "command",
-      "label": "+5 min",
+      "label": "+5 min · Pomodoro",
     },
     {
       "action": {
         "kind": "stop",
+        "runId": "pomodoro",
       },
       "kind": "command",
-      "label": "Stop",
+      "label": "Stop · Pomodoro",
+    },
+    {
+      "kind": "separator",
+    },
+    {
+      "action": {
+        "kind": "start",
+        "presetId": "pomodoro",
+      },
+      "kind": "command",
+      "label": "Restart Pomodoro",
+    },
+    {
+      "action": {
+        "kind": "start",
+        "presetId": "sit-stand",
+      },
+      "kind": "command",
+      "label": "Start Sit / stand",
+    },
+    {
+      "kind": "separator",
+    },
+    {
+      "kind": "label",
+      "label": "Reminders",
+    },
+    {
+      "action": {
+        "kind": "startReminder",
+        "reminderId": "water",
+      },
+      "kind": "command",
+      "label": "Start Drink water",
+    },
+    {
+      "action": {
+        "kind": "stopReminder",
+        "reminderId": "water",
+      },
+      "kind": "command",
+      "label": "Stop Drink water",
+    },
+    {
+      "kind": "separator",
+    },
+    {
+      "action": {
+        "kind": "settings",
+      },
+      "kind": "command",
+      "label": "Settings…",
+    },
+    {
+      "action": {
+        "kind": "quit",
+      },
+      "kind": "command",
+      "label": "Quit Klokki",
+    },
+  ],
+  "title": " Focus 24:59",
+  "tooltip": "Klokki — Focus",
+}
+`;
+
+exports[`what the menubar says > matches its snapshot with two presets running at once 1`] = `
+{
+  "items": [
+    {
+      "kind": "label",
+      "label": "Pomodoro — Focus",
+    },
+    {
+      "action": {
+        "kind": "skip",
+        "runId": "pomodoro",
+      },
+      "kind": "command",
+      "label": "Skip to Break · Pomodoro",
+    },
+    {
+      "action": {
+        "kind": "addTime",
+        "runId": "pomodoro",
+      },
+      "kind": "command",
+      "label": "+5 min · Pomodoro",
+    },
+    {
+      "action": {
+        "kind": "stop",
+        "runId": "pomodoro",
+      },
+      "kind": "command",
+      "label": "Stop · Pomodoro",
+    },
+    {
+      "kind": "separator",
+    },
+    {
+      "kind": "label",
+      "label": "Sit/Stand — Sitting",
+    },
+    {
+      "action": {
+        "kind": "skip",
+        "runId": "sit-stand",
+      },
+      "kind": "command",
+      "label": "Skip to Standing · Sit/Stand",
+    },
+    {
+      "action": {
+        "kind": "addTime",
+        "runId": "sit-stand",
+      },
+      "kind": "command",
+      "label": "+5 min · Sit/Stand",
+    },
+    {
+      "action": {
+        "kind": "stop",
+        "runId": "sit-stand",
+      },
+      "kind": "command",
+      "label": "Stop · Sit/Stand",
     },
     {
       "kind": "separator",
@@ -88,7 +218,7 @@ exports[`what the menubar says > matches its snapshot while running 1`] = `
       "label": "Quit Klokki",
     },
   ],
-  "title": " Focus 24:59",
-  "tooltip": "Klokki — Focus",
+  "title": " Focus 25:00 · Sitting 30:00",
+  "tooltip": "Klokki — Focus · Sitting",
 }
 `;

@@ -3,10 +3,14 @@ import { beforeEach, expect, it, vi } from 'vitest'
 import { MS_PER_MINUTE, type Preset } from '../../shared/preset'
 import type { TimerView } from '../../shared/timer'
 import {
+  awaitingRun,
   awaitingView,
   fakeKlokki,
   IDLE_VIEW as IDLE,
+  pomodoroRun,
   runningView,
+  sitStandRun,
+  twoRunView,
 } from './test-support/fake-klokki'
 import { TimerPanel } from './TimerPanel'
 
@@ -21,9 +25,9 @@ const PRESETS: readonly Preset[] = [
   },
 ]
 
-const mockApi = (initial: TimerView) =>
+const mockApi = (initial: TimerView, presets: readonly Preset[] = PRESETS) =>
   fakeKlokki({
-    listPresets: () => Promise.resolve(PRESETS),
+    listPresets: () => Promise.resolve(presets),
     getTimerView: () => Promise.resolve(initial),
   })
 
@@ -88,7 +92,7 @@ it('renders each view the main process pushes', async () => {
   render(<TimerPanel />)
   await screen.findByText('25:00')
 
-  act(() => push({ ...RUNNING, countdown: '24:58' }))
+  act(() => push(runningView({ countdown: '24:58' })))
 
   expect(screen.getByText('24:58')).toBeInTheDocument()
   expect(screen.queryByText('25:00')).not.toBeInTheDocument()
@@ -179,7 +183,7 @@ it('stops the timer while one is running', async () => {
 
   fireEvent.click(await screen.findByRole('button', { name: 'Stop' }))
 
-  expect(api.stopTimer).toHaveBeenCalledOnce()
+  expect(api.stopTimer).toHaveBeenCalledExactlyOnceWith('pomodoro')
 })
 
 it('offers no stop button when nothing is running', async () => {
@@ -197,7 +201,7 @@ it('adds five minutes to the running phase on request', async () => {
 
   fireEvent.click(await screen.findByRole('button', { name: '5 min' }))
 
-  expect(api.addTime).toHaveBeenCalledWith(5 * MS_PER_MINUTE)
+  expect(api.addTime).toHaveBeenCalledWith('pomodoro', 5 * MS_PER_MINUTE)
 })
 
 it('offers to skip to the phase the view names, and asks main to do it', async () => {
@@ -206,11 +210,11 @@ it('offers to skip to the phase the view names, and asks main to do it', async (
 
   fireEvent.click(await screen.findByRole('button', { name: 'Skip to Break' }))
 
-  expect(api.skipPhase).toHaveBeenCalledOnce()
+  expect(api.skipPhase).toHaveBeenCalledExactlyOnceWith('pomodoro')
 })
 
 it('names the skip by the end when nothing follows the phase', async () => {
-  api = mockApi({ ...RUNNING, nextPhaseLabel: null })
+  api = mockApi(runningView({ nextPhaseLabel: null }))
   render(<TimerPanel />)
 
   expect(
@@ -238,7 +242,7 @@ it('starts the phase a waiting boundary is holding, instead of skipping it', asy
   ).not.toBeInTheDocument()
   fireEvent.click(await screen.findByRole('button', { name: 'Start Break' }))
 
-  expect(api.confirmNext).toHaveBeenCalledOnce()
+  expect(api.confirmNext).toHaveBeenCalledExactlyOnceWith('pomodoro')
   expect(api.skipPhase).not.toHaveBeenCalled()
 })
 
@@ -247,4 +251,89 @@ it('says a waiting run is waiting, so its still countdown is not read as stuck',
   render(<TimerPanel />)
 
   expect(await screen.findByText('waiting to start')).toBeVisible()
+})
+
+it('draws one panel per running preset, in the order they were started', async () => {
+  api = mockApi(twoRunView())
+  render(<TimerPanel />)
+
+  const phases = await screen.findAllByTestId('running-phase')
+  expect(phases.map((row) => row.textContent)).toEqual([
+    expect.stringContaining('Pomodoro'),
+    expect.stringContaining('Sit/Stand'),
+  ])
+  expect(
+    screen.getAllByTestId('countdown').map((node) => node.textContent),
+  ).toEqual(['25:00', '30:00'])
+})
+
+it('sends every command to the run whose panel it was clicked in', async () => {
+  api = mockApi(twoRunView())
+  render(<TimerPanel />)
+  await screen.findAllByTestId('countdown')
+
+  fireEvent.click(screen.getByRole('button', { name: 'Skip to Standing' }))
+  fireEvent.click(screen.getAllByRole('button', { name: '5 min' })[0]!)
+  fireEvent.click(screen.getAllByRole('button', { name: 'Stop' })[1]!)
+
+  expect(api.skipPhase).toHaveBeenCalledExactlyOnceWith('sit-stand')
+  expect(api.addTime).toHaveBeenCalledExactlyOnceWith(
+    'pomodoro',
+    5 * MS_PER_MINUTE,
+  )
+  expect(api.stopTimer).toHaveBeenCalledExactlyOnceWith('sit-stand')
+})
+
+it('corrects the remaining time of the run it was typed into', async () => {
+  api = mockApi(twoRunView())
+  render(<TimerPanel />)
+  await screen.findAllByTestId('countdown')
+
+  const inputs = screen.getAllByLabelText('Minutes remaining')
+  fireEvent.change(inputs[1]!, { target: { value: '12' } })
+  fireEvent.click(screen.getAllByRole('button', { name: 'Set remaining' })[1]!)
+
+  expect(api.setRemaining).toHaveBeenCalledExactlyOnceWith(
+    'sit-stand',
+    12 * MS_PER_MINUTE,
+  )
+})
+
+it('offers Restart for the presets running and Start for the rest', async () => {
+  api = mockApi(runningView(), [
+    ...PRESETS,
+    { id: 'tea', name: 'Tea', loop: false, phases: PRESETS[0]!.phases },
+  ])
+  render(<TimerPanel />)
+
+  expect(
+    await screen.findByRole('button', { name: 'Restart Pomodoro' }),
+  ).toBeInTheDocument()
+  // Clicking Tea would add a run of its own rather than replacing Pomodoro's.
+  expect(screen.getByRole('button', { name: 'Start Tea' })).toBeInTheDocument()
+})
+
+it('shows one waiting run beside one that is counting', async () => {
+  api = mockApi({ runs: [awaitingRun(), sitStandRun()] })
+  render(<TimerPanel />)
+
+  expect(await screen.findByText('waiting to start')).toBeVisible()
+  expect(
+    screen.getByRole('button', { name: 'Start Break' }),
+  ).toBeInTheDocument()
+  expect(
+    screen.getByRole('button', { name: 'Skip to Standing' }),
+  ).toBeInTheDocument()
+})
+
+it('says nothing is running only when no run is left', async () => {
+  api = mockApi(twoRunView())
+  render(<TimerPanel />)
+  await screen.findAllByTestId('countdown')
+
+  act(() => push({ runs: [pomodoroRun()] }))
+  expect(screen.queryByText('Nothing running.')).not.toBeInTheDocument()
+
+  act(() => push(IDLE))
+  expect(screen.getByText('Nothing running.')).toBeVisible()
 })

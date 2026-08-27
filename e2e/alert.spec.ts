@@ -119,7 +119,7 @@ test('the tray holds the boundary until it is started from the menu', async () =
     .poll(() => trayTitle(app), { timeout: 5_000 })
     .toMatch(/^\s*Tock ready$/)
 
-  expect(await clickMenuItem(app, 'Start Tock')).toBe(true)
+  expect(await clickMenuItem(app, 'Start Tock · Blink')).toBe(true)
 
   expect(await trayTitle(app)).toMatch(/^\s*Tock 05:00$/)
 

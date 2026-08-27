@@ -87,10 +87,62 @@ waits for the seam to appear, because `electron.launch()` resolves before
   with until it is restarted — a phase that shortened under the user's feet would
   fire at once, and one that lengthened would move a break they were counting on.
   `startPresetById` reads the store at the moment of the start, so the next start
-  picks the edit up. Deleting the running preset does not stop the timer.
+  picks the edit up. Deleting a preset does not stop the run it was driving.
+- **Several presets run at once, and a run is named by its preset.** The timer
+  service is a keyed collection of phase machines (`src/main/timer/service.ts`),
+  one entry per running preset, and `TimerView` is `{ runs }` — a list, in the
+  order the runs were started. A run in that list is running by being there, so
+  there is no `running` flag and "nothing is running" is `runs.length === 0`,
+  read off the one payload rather than pushed as a second fact. The key is the
+  preset id, which means **starting a preset that is already running restarts it
+  rather than adding a second copy**: two runs of "Pomodoro" would be
+  indistinguishable in the tray title and in the Timer pane, and every history
+  line is already keyed by `presetId`, so a second copy would be unattributable
+  in Stats. `Map.set` on a key already there leaves it in place, which is what
+  keeps a restart from reshuffling the menubar title under the user. Every
+  run-scoped command therefore names its run rather than implying a current one —
+  `stopTimer`, `skipPhase`, `confirmNext`, `setRemaining`, `addTime`,
+  `dismissAlert`, `snoozeAlert`, `stopFromAlert`, and the tray's per-run
+  Stop/Skip/+5 — and an id that is no longer running is a no-op answering
+  `false`, because a window or a menu can name a run that ended under it. The
+  machine itself is untouched: a run is one machine, and the collection hands each
+  state to the same pure functions a single run used.
+- **Two boundaries at once: the second waits, it is never dropped.** The overlay
+  is one window per kind and a new one supersedes the last (`windows.ts`), so a
+  boundary raised while another run's overlay is on screen is queued
+  (`src/main/alert/queue.ts`) rather than shown or lost — the same shape reminders
+  already use. Losing it would break the guarantee above: a boundary holds its
+  run until it is answered, so an alert nobody ever saw would leave a run parked
+  with nothing to explain it. Queued is not hidden, either: the run is still
+  `awaiting`, the tray names it (`<preset> — <phase> ready`, with
+  `Start <phase> · <preset>` beside it) and the Timer pane offers it, so the
+  boundary is answerable from two places while it waits its turn. `alertsFor`
+  speaks once per run rather than once per batch, because two runs crossing a
+  boundary in one poll are two things to be told and neither is news about the
+  other. Answering is one move wherever it comes from — the overlay's three
+  controls, the tray's Start/Skip/Stop, the Timer pane's buttons — and it all
+  reaches `answered(runId)`, which voids that run's alert only if it is the one on
+  screen and then brings the next boundary forward. That is also what stops a
+  boundary confirmed from the tray from leaving its overlay standing over a phase
+  that has already begun, and what stops a boundary answered from the pane from
+  coming round later announcing one.
+- **Every run is saved, so a restart brings all of them back.**
+  `timer-state.json` holds `{ schemaVersion: 2, runs: [...] }` and
+  `persistSnapshot` writes the whole collection after every change, because a run
+  that ended has to disappear from the file and there is no per-run delete.
+  Nothing running clears the file rather than writing it, so a finished or stopped
+  run cannot resurrect on next boot. Resume drains each run's elapsed boundaries
+  the way a poll drains one, independently: a run that finished while the app was
+  shut is gone and its transitions still reach history and the alert surface, and
+  one still in progress comes back counting. Every field is untrusted, and a run
+  that does not decode is dropped **on its own** — starting one run short is safe,
+  losing the others to one hand-edited entry is not. A v1 file held a single
+  `state`, which reads as a one-run list, so a preset left running before the
+  update is still running after it.
 - **State main owns is pushed, never inferred.** Anything a window has to keep
   fresh while it is open is a channel in `PUSH` (`src/shared/ipc.ts`): the timer
-  view, the preset list, and the fact that a line landed in the log. A view that
+  view — every run in it — the preset list, and the fact that a line landed in
+  the log. A view that
   reads once on mount is showing what was true when it opened, and a view that
   derives one push from another gets it wrong at the edges — "a stretch was
   logged" is not "the phase label changed", because a snooze and two phases
@@ -105,15 +157,15 @@ waits for the seam to appear, because `electron.launch()` resolves before
   Timer pane. The next phase then gets its full configured length from the moment
   of the answer, because minutes spent noticing an overlay are not minutes of the
   break it was announcing. Consequences worth knowing: one tick reports at most
-  one transition, a machine asleep for an hour comes back with one boundary to
-  answer rather than a night of phases already spent, and `TimerView.awaiting`
-  exists so no view draws a frozen countdown as a live one.
+  one transition per run, a machine asleep for an hour comes back with one
+  boundary per run to answer rather than a night of phases already spent, and
+  `RunView.awaiting` exists so no view draws a frozen countdown as a live one.
 - **A skip is a boundary the user asked for.** `skip` (tray menu and settings
   window, via `IPC.skipPhase`) ends the phase now and starts the next one at its
   full configured length — for standing up before the sitting phase is out. It
   raises no notification and no overlay, because the user just chose it, and it
   is logged as its own `skipped` outcome for the minutes that really passed:
-  `Transition.cause` is what tells `alertFor` to stay quiet and `recordHistory`
+  `Transition.cause` is what tells `alertsFor` to stay quiet and `recordHistory`
   which outcome to write. An elapsed boundary is drained first, so a skip taken a
   second after one the poll had not reported yet lands on the phase the user was
   actually looking at — and at a boundary still waiting to be answered, skipping
@@ -135,8 +187,8 @@ waits for the seam to appear, because `electron.launch()` resolves before
   re-subscribes rather than showing what was true when the window opened — the
   same shape every pane already had for being reopened.
 - **The phase sequence is pushed, like everything else the timer knows.** The
-  Timer pane draws the running preset's phases as one bar at their real
-  proportions, so `TimerView` carries `phases`, `phaseIndex`, `loop` and
+  Timer pane draws each running preset's phases as one bar at their real
+  proportions, so `RunView` carries `phases`, `phaseIndex`, `loop` and
   `phaseProgress`. All four are the machine's to answer: the phase list a run is
   on is not the one in the store the moment a preset is edited mid-run, and
   `phaseProgress` is a fraction rather than a length so no view divides one clock
@@ -149,10 +201,20 @@ waits for the seam to appear, because `electron.launch()` resolves before
   for a Tailwind palette shade is inventing a fifth grey. Icons are drawn in
   `src/renderer/src/icons.tsx` for the same reason the app icons are drawn by
   code: an icon font is a binary this repo would carry and never diff.
-- **The menubar title names the phase, not just the number.** "29:14" does not
-  say whether to sit or stand, which is the one thing a glance at the menubar is
-  for. Each phase already carries a label — that label is the tray text, so
-  naming a phase in the editor is how the user names what the menubar says.
+- **The menubar title names the phase, not just the number — and every run.**
+  "29:14" does not say whether to sit or stand, which is the one thing a glance
+  at the menubar is for. Each phase already carries a label, and that label is
+  the tray text, so naming a phase in the editor is how the user names what the
+  menubar says. With several presets running the title is all of them joined by
+  `·` (`RUN_SEPARATOR`), in the order they were started — `Sit 29:14 · Focus
+04:02` — rather than one headline with the rest hidden: a timer the user
+  started and cannot see is a timer they have stopped trusting, and the menubar
+  is the whole UI. Nothing is dropped or elided in code. A title long enough to
+  crowd the bar is elided by macOS itself, from the right, and the menu below it
+  carries a section per run, so a run pushed off the end of the title is still
+  named there, still answerable, and never only in the title. With no runs the
+  title is empty, exactly as it was with one timer, and each run reads
+  `<phase> ready` rather than a frozen countdown while it holds at a boundary.
 - **Save is offered only when there is something to save.** The preset editor
   keeps the preset it opened alongside the draft and compares them
   (`samePreset`); a draft typed back into its original shape is not a pending
@@ -178,7 +240,9 @@ waits for the seam to appear, because `electron.launch()` resolves before
   the moment the poll noticed — which is also why a confirmed phase starts at the
   confirmation and a snoozed one at the boundary it deferred, never at a poll
   tick. Nothing behind an unanswered boundary can have elapsed, so draining more
-  than one phase per tick is not a case that exists.
+  than one phase of one run per tick is not a case that exists — but one tick
+  drains every run, against a single reading of the clock, because two runs that
+  ended together must not be logged as ending a tick apart.
 - **An overlay is sized to the alert it shows, and “later” is one control.**
   The three overlays share a shape — title, rows, then a footer of Snooze on the
   left and the affirmative on the right — so a user who has learnt one has
@@ -205,7 +269,10 @@ waits for the seam to appear, because `electron.launch()` resolves before
   the existing channels are only half of it; `stopTimer` and `stopSports` are
   untouched. Which reminder is stopped is the controller's answer and never an
   id the renderer holds — an overlay stops what it is showing, and a stale id
-  would stop a reminder the user is not looking at. Disabling is the whole stop,
+  would stop a reminder the user is not looking at. The transition overlay is
+  the one that does carry an id, `Alert.runId`, because it is opened with the
+  alert in its URL: the run whose boundary this window is announcing is a fact
+  about the window, not about whichever run the main process saw last. Disabling is the whole stop,
   because the store's subscriber is what drops a schedule, which is also what
   keeps a stopped reminder or firing from being left awaiting an answer that can
   no longer be given. A stop writes no history: it is neither a "done" nor a
@@ -250,10 +317,11 @@ waits for the seam to appear, because `electron.launch()` resolves before
   service instead, because a run reaching its own last phase also lands on idle,
   and "Timer finished" is the one alert the user still wants standing. Only the
   matching alert is voided: the overlay windows are already separate per kind, and
-  for reminders the controller answers which one it is showing — the same
-  ownership its Stop already had — so a reminder stopped while another's overlay
-  is up leaves that overlay alone and merely drops itself from the queue it was
-  waiting in.
+  within a kind the controller answers which one it is showing — for reminders,
+  the same ownership its Stop already had, and for the timer `wireAlerts`'
+  queue — so a reminder stopped while another's overlay is up, or a run stopped
+  while a second run's boundary is on screen, leaves that overlay alone and
+  merely drops itself from the queue it was waiting in.
 - **Transitions are intrusive.** Native notification _plus_ a borderless
   always-on-top overlay that must be dismissed or snoozed. A notification alone
   is missed in Do Not Disturb and fullscreen — the exact moments it matters.
@@ -353,5 +421,6 @@ before picking something up.
 `app.getPath('userData')` = `~/Library/Application Support/Klokki/`
 
 - `presets.json` — carries `schemaVersion`
-- `history.jsonl` — one ended stretch of phase per line, `completed`, `snoozed`
-  or `skipped`
+- `timer-state.json` — every run in progress, so a restart resumes all of them
+- `history.jsonl` — one ended stretch of phase per line, keyed by `presetId`,
+  `completed`, `snoozed` or `skipped`
