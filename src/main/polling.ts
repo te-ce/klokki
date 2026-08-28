@@ -1,6 +1,6 @@
 /**
  * A start/stop wrapper around `setInterval`, shared by every service that polls
- * a pure state machine on a clock (see `timer/service.ts`, `reminders/service.ts`).
+ * a pure state machine on a clock (see `timer/service.ts`, `sports/service.ts`).
  * `start` is idempotent — restarting an already-running poll would leak the old
  * interval — and `stop` is safe to call whether or not one is running.
  */

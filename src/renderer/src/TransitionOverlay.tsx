@@ -25,8 +25,8 @@ import { SnoozeChoice } from './SnoozeChoice'
  * over — so the snooze is not offered at all rather than offered and ignored.
  *
  * The snooze is `SnoozeChoice` with the same fixed +5/+10/+15/+30 options the
- * reminder and Sports overlays offer (`TIMER_SNOOZE_MINUTES_OPTIONS`), and Stop
- * is `OverlayStop`, so the footer is the footer of the other two overlays.
+ * Sports overlay offers (`TIMER_SNOOZE_MINUTES_OPTIONS`), and Stop is
+ * `OverlayStop`, so the footer is the footer both overlays share.
  */
 export const TransitionOverlay = ({ alert }: { alert: Alert }) => (
   <section

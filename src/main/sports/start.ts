@@ -4,10 +4,9 @@ import type { SportsService } from './service'
 import type { SportStore } from './store'
 
 /**
- * Starting Sports from the tray — the single-schedule counterpart to
- * `startReminderById`. Enables it if it was off, then schedules one full
- * interval from now, so starting an already-running schedule restarts it —
- * "Restart" in the same menu.
+ * Starting Sports from the tray. Enables it if it was off, then schedules one
+ * full interval from now, so starting an already-running schedule restarts
+ * it — "Restart" in the same menu.
  */
 export const startSports = (
   store: SportStore,
@@ -71,8 +70,7 @@ export const logSports = (
 /**
  * Stopping Sports from the tray. Disabling is enough on its own — the
  * store's subscriber in wire.ts already feeds every save through
- * `service.setSettings`, which drops the schedule the same way a disabled
- * reminder does.
+ * `service.setSettings`, which drops the schedule.
  */
 export const stopSports = (store: SportStore): void => {
   const settings = store.get()

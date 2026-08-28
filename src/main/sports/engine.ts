@@ -3,18 +3,15 @@ import type { SportSettings } from '../../shared/sport'
 
 /**
  * Sports' live schedule: whether it is scheduled at all, and when it next
- * fires. There is only ever one, unlike `RemindersState` — Sports has a
- * single interval, not many independent definitions — so this carries no id
- * and no step cursor.
+ * fires. There is only ever one Sports schedule, not many independent
+ * definitions, so this carries no id and no step cursor.
  */
 export type SportRunState = {
   readonly scheduled: boolean
   /**
    * When Sports fires — or null while the last firing is still unanswered.
    *
-   * The next interval does not start on its own: answering is what starts
-   * it, the same reason a reminder's `nextFireAt` goes null at a boundary
-   * (see `reminders/engine.ts`).
+   * The next interval does not start on its own: answering is what starts it.
    */
   readonly nextFireAt: number | null
 }
@@ -40,9 +37,8 @@ export type SportsTickResult = {
 }
 
 /**
- * Fires Sports at most once, then waits for its answer — the same "ask once
- * however long it's been" guarantee `reminders/engine.ts`'s `tick` gives a
- * reminder that fired while the app was closed.
+ * Fires Sports at most once, then waits for its answer — "ask once however
+ * long it's been", for a firing that came due while the app was closed.
  *
  * Not scheduled, disabled, or with no activities to ask about: nothing to
  * fire, and the schedule is dropped rather than left dangling.

@@ -1,11 +1,10 @@
 import type { Preset } from '../../shared/preset'
-import type { ReminderView } from '../../shared/reminder'
 import type { SportsView } from '../../shared/sport'
 import type { TimerView } from '../../shared/timer'
 import { menuKey, menubarModel, type MenubarAction } from './model'
 import type { MenubarSurface } from './surface'
 
-/** The slices of the timer, the preset store and the reminder list the menubar reads. */
+/** The slices of the timer and the preset store the menubar reads. */
 export type MenubarSources = {
   readonly timer: {
     readonly getView: () => TimerView
@@ -15,14 +14,6 @@ export type MenubarSources = {
   }
   readonly presets: {
     readonly list: () => readonly Preset[]
-    readonly subscribe: (listener: () => void) => () => void
-  }
-  /**
-   * The same joined list the settings window is pushed, so the menu says
-   * "Restart" for exactly the reminders that window shows as scheduled.
-   */
-  readonly reminders: {
-    readonly views: () => readonly ReminderView[]
     readonly subscribe: (listener: () => void) => () => void
   }
   /** The same joined view the Sports tab is pushed, so the menu says "Restart" consistently. */
@@ -44,8 +35,6 @@ export type MenubarActions = {
   readonly confirm: (runId: string) => void
   readonly addTime: (runId: string) => void
   readonly start: (presetId: string) => void
-  readonly startReminder: (reminderId: string) => void
-  readonly stopReminder: (reminderId: string) => void
   readonly startSports: () => void
   readonly stopSports: () => void
   /** Fires Sports right now — the tray's "Log Sports Now". */
@@ -69,7 +58,7 @@ export type Menubar = {
  * menu is applied only when `menuKey` says it changed: rebuilding it every second
  * would be wasted work and would close it under the user's cursor. A preset saved
  * in the settings window changes that key, which is how an edit reaches the
- * menubar without a relaunch. A reminder firing changes it too: its next firing
+ * menubar without a relaunch. A Sports firing changes it too: its next firing
  * is what decides whether the menu says Start or Restart.
  */
 export const createMenubar = (
@@ -102,15 +91,9 @@ export const createMenubar = (
     }
   }
 
-  /** The reminder and Sports actions — the other half of `perform`. */
+  /** The Sports actions — the other half of `perform`. */
   const performSchedules = (action: MenubarAction): boolean => {
     switch (action.kind) {
-      case 'startReminder':
-        actions.startReminder(action.reminderId)
-        return true
-      case 'stopReminder':
-        actions.stopReminder(action.reminderId)
-        return true
       case 'startSports':
         actions.startSports()
         return true
@@ -139,7 +122,6 @@ export const createMenubar = (
     const model = menubarModel(
       view,
       sources.presets.list(),
-      sources.reminders.views(),
       sources.sports.view(),
     )
     surface.setTitle(model.title)
@@ -155,13 +137,8 @@ export const createMenubar = (
   const unsubscribePresets = sources.presets.subscribe(() =>
     render(sources.timer.getView()),
   )
-  // A reminder created, enabled or fired changes what this menu offers, for the
-  // same reason a saved preset does — so it is a subscription, not a read.
-  const unsubscribeReminders = sources.reminders.subscribe(() =>
-    render(sources.timer.getView()),
-  )
   // A Sports firing or edit changes what this menu offers, for the same
-  // reason a reminder does.
+  // reason a saved preset does.
   const unsubscribeSports = sources.sports.subscribe(() =>
     render(sources.timer.getView()),
   )
@@ -174,7 +151,6 @@ export const createMenubar = (
     dispose: () => {
       unsubscribeTimer()
       unsubscribePresets()
-      unsubscribeReminders()
       unsubscribeSports()
     },
   }

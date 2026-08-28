@@ -17,9 +17,7 @@ import {
   type KlokkiApp,
 } from '../e2e/harness.ts'
 import type { HistoryEvent } from '../src/shared/history.ts'
-import type { ReminderHistoryEvent } from '../src/shared/reminder-history.ts'
 import type { SportsHistoryEvent } from '../src/shared/sports-history.ts'
-import type { ReminderDefinition } from '../src/shared/reminder.ts'
 import type { SportSettings } from '../src/shared/sport.ts'
 
 const ROOT = resolve(import.meta.dirname, '..')
@@ -67,17 +65,6 @@ const phaseEvents = (): readonly HistoryEvent[] =>
     ]).flat(),
   )
 
-const reminderEvents = (): readonly ReminderHistoryEvent[] =>
-  WEEK.flatMap((rounds, daysAgo) =>
-    Array.from({ length: rounds }, (_, round): ReminderHistoryEvent => ({
-      loggedAt: atHour(daysAgo, 9 + round) + 20 * MINUTE_MS,
-      reminderId: 'eyes',
-      stepLabel: 'Look 20ft away',
-      quantity: null,
-      outcome: 'done',
-    })),
-  )
-
 const sportsEvents = (): readonly SportsHistoryEvent[] =>
   WEEK.flatMap((rounds, daysAgo) =>
     Array.from({ length: Math.max(1, rounds - 2) }, (_, round) =>
@@ -91,26 +78,6 @@ const sportsEvents = (): readonly SportsHistoryEvent[] =>
       })),
     ).flat(),
   )
-
-const REMINDERS: readonly ReminderDefinition[] = [
-  {
-    id: 'eyes',
-    name: 'Eyes',
-    intervalMinutes: 20,
-    steps: [
-      { label: 'Look 20ft away' },
-      { label: 'Blink slowly', unit: 'reps' },
-    ],
-    enabled: true,
-  },
-  {
-    id: 'water',
-    name: 'Water',
-    intervalMinutes: 45,
-    steps: [{ label: 'Drink a glass', unit: 'glasses' }],
-    enabled: false,
-  },
-]
 
 const SPORTS: SportSettings = {
   intervalMinutes: 60,
@@ -132,18 +99,8 @@ const jsonl = (events: readonly unknown[]): string =>
 const seed = (dir: string): void => {
   writeFileSync(join(dir, 'history.jsonl'), jsonl(phaseEvents()), 'utf8')
   writeFileSync(
-    join(dir, 'reminders-history.jsonl'),
-    jsonl(reminderEvents()),
-    'utf8',
-  )
-  writeFileSync(
     join(dir, 'sports-history.jsonl'),
     jsonl(sportsEvents()),
-    'utf8',
-  )
-  writeFileSync(
-    join(dir, 'reminders.json'),
-    `${JSON.stringify({ schemaVersion: 1, reminders: REMINDERS }, null, 2)}\n`,
     'utf8',
   )
   writeFileSync(

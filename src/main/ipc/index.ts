@@ -1,12 +1,10 @@
 import { IPC, type AppInfo } from '../../shared/ipc'
 import type { Phase, Preset } from '../../shared/preset'
-import { isReminderDefinition, type ReminderView } from '../../shared/reminder'
 import { isSportSettings, type SportsView } from '../../shared/sport'
-import type { History, ReminderHistory, SportsHistory } from '../history'
+import type { History, SportsHistory } from '../history'
 import type { LoginItem } from '../login-item'
 import { startPresetById } from '../presets/start'
 import type { PresetStore } from '../presets/store'
-import type { ReminderStore } from '../reminders/store'
 import type { SportsService } from '../sports/service'
 import type { SportStore } from '../sports/store'
 import type { TimerService } from '../timer/service'
@@ -34,13 +32,6 @@ export type OverlayControl = {
   readonly close: () => void
 }
 
-/** Answering the reminder overlay currently showing — see reminders/wire.ts. */
-export type ReminderAnswers = {
-  readonly snooze: (extraMs: number) => boolean
-  readonly complete: (quantity: number | null) => void
-  readonly stop: () => void
-}
-
 /** Answering the Sports overlay currently showing — see sports/wire.ts. */
 export type SportsAnswers = {
   readonly snooze: (extraMs: number) => boolean
@@ -60,11 +51,6 @@ export type IpcDeps = {
   readonly store: PresetStore
   readonly loginItem: LoginItem
   readonly history: History
-  readonly reminderHistory: ReminderHistory
-  readonly reminderStore: ReminderStore
-  /** The reminder list joined with the engine's live schedule — see wire.ts. */
-  readonly reminderViews: () => readonly ReminderView[]
-  readonly reminderAnswers: ReminderAnswers
   readonly sportsHistory: SportsHistory
   readonly sportsStore: SportStore
   /** The Sports settings joined with the engine's live schedule — see wire.ts. */
@@ -151,8 +137,6 @@ const isString = (value: unknown): value is string => typeof value === 'string'
 const isNumber = (value: unknown): value is number => typeof value === 'number'
 const isBoolean = (value: unknown): value is boolean =>
   typeof value === 'boolean'
-const isNumberOrNull = (value: unknown): value is number | null =>
-  value === null || typeof value === 'number'
 
 /** Quantities keyed by activity id, as the Sports overlay and tab both send them. */
 const isQuantities = (
@@ -179,10 +163,6 @@ export const registerIpc = (deps: IpcDeps): void => {
     store,
     loginItem,
     history,
-    reminderHistory,
-    reminderStore,
-    reminderViews,
-    reminderAnswers,
     sportsHistory,
     sportsStore,
     sportsViews,
@@ -199,7 +179,6 @@ export const registerIpc = (deps: IpcDeps): void => {
     // Summarised per call, from the log's tail: the window is open rarely and a
     // cached summary would be wrong the moment a phase ended behind it.
     getStats: () => history.stats(),
-    getReminderStats: () => reminderHistory.stats(),
     startPreset: (id) =>
       startPresetById(service, store, expect(id, isString, 'a preset id')),
     savePreset: (preset) => store.save(expect(preset, isPreset, 'a preset')),
@@ -260,27 +239,6 @@ export const registerIpc = (deps: IpcDeps): void => {
       deps.answerAlert(id)
       return snoozed
     },
-    listReminders: () => reminderViews(),
-    saveReminder: (definition) =>
-      reminderStore.save(
-        expect(definition, isReminderDefinition, 'a reminder'),
-      ),
-    deleteReminder: (id) =>
-      reminderStore.remove(expect(id, isString, 'a reminder id')),
-    setReminderEnabled: (id, enabled) =>
-      reminderStore.setEnabled(
-        expect(id, isString, 'a reminder id'),
-        expect(enabled, isBoolean, 'a boolean'),
-      ),
-    snoozeReminder: (extraMs) =>
-      reminderAnswers.snooze(expect(extraMs, isNumber, 'a duration in ms')),
-    completeReminder: (quantity) =>
-      reminderAnswers.complete(
-        expect(quantity, isNumberOrNull, 'a quantity or null'),
-      ),
-    // Which reminder is stopped is the controller's answer, not the renderer's:
-    // the overlay stops the reminder it is showing (see reminders/wire.ts).
-    stopReminderFromAlert: () => reminderAnswers.stop(),
     stopSportsFromAlert: () => sportsAnswers.stop(),
     getSportsStats: () => sportsHistory.stats(),
     getSportsSettings: () => sportsViews(),

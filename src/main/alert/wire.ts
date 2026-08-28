@@ -38,10 +38,10 @@ export type TimerAlertController = {
  * platform-shaped lives behind those two callbacks.
  *
  * Unlike a single run, a batch can raise more than one alert — two presets can
- * cross a boundary in the same poll — so alerts are queued rather than dropped,
- * the same shape reminders already use (reminders/queue.ts). The run behind a
- * queued boundary is still holding: no time passes, the tray names it, and the
- * Timer pane offers it, so a superseded boundary is never lost, only later.
+ * cross a boundary in the same poll — so alerts are queued rather than dropped
+ * (see alert/queue.ts). The run behind a queued boundary is still holding: no
+ * time passes, the tray names it, and the Timer pane offers it, so a
+ * superseded boundary is never lost, only later.
  */
 export const wireAlerts = (
   source: AlertSource,

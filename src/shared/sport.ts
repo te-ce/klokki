@@ -1,9 +1,8 @@
 /**
- * Sports is one interval schedule that asks about every activity at once,
- * rather than a reminder's cycling steps — see AGENTS.md and the Sports
- * feature plan. It ships with defaults (situps, squats, pushups) instead of
- * starting empty like reminders, because the request is a routine the app
- * already knows, not one the user has to invent first.
+ * Sports is one interval schedule that asks about every activity at once —
+ * see AGENTS.md and the Sports feature plan. It ships with defaults (situps,
+ * squats, pushups) rather than starting empty, because the request is a
+ * routine the app already knows, not one the user has to invent first.
  */
 
 import { isRecord } from './preset'
@@ -20,8 +19,8 @@ export type SportSettings = {
 }
 
 /**
- * The settings plus when Sports next fires — the Sports counterpart to
- * `ReminderView`. There is only ever one, so this has no id.
+ * The settings plus when Sports next fires. There is only ever one Sports
+ * schedule, so this has no id.
  */
 export type SportsView = SportSettings & {
   readonly nextFireAt: number | null
@@ -46,7 +45,7 @@ export const isSportSettings = (value: unknown): value is SportSettings =>
 
 /**
  * Settings with no activities, or an interval of zero, would fire forever
- * with nothing to ask about — the Sports counterpart to `isRunnableReminder`.
+ * with nothing to ask about.
  */
 export const isRunnableSportSettings = (settings: SportSettings): boolean =>
   settings.activities.length > 0 && settings.intervalMinutes > 0
@@ -54,7 +53,7 @@ export const isRunnableSportSettings = (settings: SportSettings): boolean =>
 const sameActivity = (a: SportActivity, b: SportActivity): boolean =>
   a.id === b.id && a.name === b.name
 
-/** The Sports counterpart to `sameReminder` — the editor's dirty-check. */
+/** The Sports settings tab's dirty-check. */
 export const sameSportSettings = (
   a: SportSettings,
   b: SportSettings,

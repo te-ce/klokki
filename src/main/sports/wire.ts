@@ -10,7 +10,7 @@ type SportsAlertSource = {
   readonly confirm: () => boolean
   /**
    * The tray's stop path (`stopSports`) — a disable the store owns, after
-   * which its subscriber drops the schedule, exactly as it does for a reminder.
+   * which its subscriber drops the schedule.
    */
   readonly stop: () => void
 }
@@ -50,13 +50,12 @@ const toAlert = (settings: SportSettings): SportsAlert => ({
 })
 
 /**
- * Turns the Sports service's firings into overlays — the single-schedule
- * counterpart to `wireReminderAlerts`. There is no queue: one schedule can
- * never have a second firing due while the first is still unanswered.
+ * Turns the Sports service's firings into overlays. There is no queue: one
+ * schedule can never have a second firing due while the first is still
+ * unanswered.
  *
  * Answering is also what starts the next interval — Done confirms it,
- * Snooze defers the same firing — the same "holds until answered" shape a
- * reminder gives its cycling steps.
+ * Snooze defers the same firing — so the schedule holds until it is answered.
  */
 export const wireSportsAlerts = (
   source: SportsAlertSource,

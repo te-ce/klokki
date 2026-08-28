@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Preset } from '../../shared/preset'
-import type { ReminderView } from '../../shared/reminder'
 import type { SportsView } from '../../shared/sport'
 import { runningView } from '../../shared/test-support/timer-view'
 import type { TimerView } from '../../shared/timer'
@@ -26,8 +25,6 @@ const fakeSources = () => {
   const timer = new Set<(update: TimerUpdate) => void>()
   const presets = new Set<(presets: readonly Preset[]) => void>()
   const history = new Set<() => void>()
-  const reminderHistory = new Set<() => void>()
-  const reminders = new Set<(reminders: readonly ReminderView[]) => void>()
   const sportsHistory = new Set<() => void>()
   const sports = new Set<(view: SportsView) => void>()
 
@@ -43,8 +40,6 @@ const fakeSources = () => {
       timer: { subscribe: subscriber(timer) },
       presets: { subscribe: subscriber(presets) },
       history: { subscribe: subscriber(history) },
-      reminderHistory: { subscribe: subscriber(reminderHistory) },
-      reminders: { subscribe: subscriber(reminders) },
       sportsHistory: { subscribe: subscriber(sportsHistory) },
       sports: { subscribe: subscriber(sports) },
     } satisfies BroadcastSources,
@@ -58,12 +53,6 @@ const fakeSources = () => {
     pushHistory: () => {
       for (const listener of history) listener()
     },
-    pushReminderHistory: () => {
-      for (const listener of reminderHistory) listener()
-    },
-    pushReminders: (next: readonly ReminderView[]) => {
-      for (const listener of reminders) listener(next)
-    },
     pushSportsHistory: () => {
       for (const listener of sportsHistory) listener()
     },
@@ -74,8 +63,6 @@ const fakeSources = () => {
       timer.size +
       presets.size +
       history.size +
-      reminderHistory.size +
-      reminders.size +
       sportsHistory.size +
       sports.size,
   }
@@ -131,38 +118,6 @@ describe('createViewBroadcaster', () => {
       'klokki:history-changed',
       undefined,
     )
-  })
-
-  it('announces a line written to the reminder log, on the same channel as history', () => {
-    const broadcaster = createViewBroadcaster(source.sources)
-    const target = fakeTarget()
-
-    broadcaster.register(target)
-    source.pushReminderHistory()
-
-    expect(target.send).toHaveBeenCalledWith(
-      'klokki:history-changed',
-      undefined,
-    )
-  })
-
-  it('pushes the saved reminder list, so no window has to re-ask for it', () => {
-    const broadcaster = createViewBroadcaster(source.sources)
-    const target = fakeTarget()
-    const water: ReminderView = {
-      id: 'water',
-      name: 'Drink water',
-      intervalMinutes: 30,
-      steps: [{ label: 'Drink a glass of water' }],
-      enabled: true,
-      nextFireAt: 1_800_000,
-      awaiting: false,
-    }
-
-    broadcaster.register(target)
-    source.pushReminders([water])
-
-    expect(target.send).toHaveBeenCalledWith('klokki:reminders', [water])
   })
 
   it('announces a line written to the sports log, on the same channel as history', () => {
@@ -249,7 +204,7 @@ describe('createViewBroadcaster', () => {
 
   it('subscribes to each source once and releases them all on dispose', () => {
     const broadcaster = createViewBroadcaster(source.sources)
-    expect(source.listenerCount()).toBe(7)
+    expect(source.listenerCount()).toBe(5)
 
     broadcaster.dispose()
 

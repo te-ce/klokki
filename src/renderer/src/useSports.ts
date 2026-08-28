@@ -13,9 +13,9 @@ const IDLE_SPORTS_VIEW: SportsView = {
 
 /**
  * The Sports settings joined with its live schedule, kept fresh by the main
- * process — the Sports counterpart to `useReminders`: read once, then
- * subscribe, so a window that has just opened is never blank while it waits
- * for the first push.
+ * process — the same shape as `usePresets`: read once, then subscribe, so a
+ * window that has just opened is never blank while it waits for the first
+ * push.
  */
 export const useSports = (): SportsView => {
   const [sports, setSports] = useState<SportsView>(IDLE_SPORTS_VIEW)

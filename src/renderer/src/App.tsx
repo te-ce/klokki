@@ -3,7 +3,6 @@ import type { AppInfo } from '../../shared/ipc'
 import { GeneralSection } from './GeneralSection'
 import { PresetsSection } from './PresetsSection'
 import { Rail, type Section } from './Rail'
-import { RemindersSection } from './RemindersSection'
 import { SportsSection } from './SportsSection'
 import { StatsSection } from './StatsSection'
 import { TimerPanel } from './TimerPanel'
@@ -11,7 +10,6 @@ import { TimerPanel } from './TimerPanel'
 const PANES: Record<Section, () => React.ReactNode> = {
   timer: TimerPanel,
   presets: PresetsSection,
-  reminders: RemindersSection,
   sports: SportsSection,
   stats: StatsSection,
   general: GeneralSection,

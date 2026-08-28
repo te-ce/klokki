@@ -1,7 +1,6 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import type { HistoryStats } from '../../shared/history'
-import type { ReminderHistoryStats } from '../../shared/reminder-history'
 import type { SportsHistoryStats } from '../../shared/sports-history'
 import { StatsSection } from './StatsSection'
 import { fakeKlokki, runningView, TODAY } from './test-support/fake-klokki'
@@ -33,34 +32,6 @@ const stats = (overrides: Partial<HistoryStats> = {}): HistoryStats =>
     ...overrides,
   }) as HistoryStats
 
-const reminderDay = (date: string, quantityByLabel: unknown[] = []) => ({
-  date,
-  quantityByLabel,
-})
-
-const reminderStats = (
-  overrides: Partial<ReminderHistoryStats> = {},
-): ReminderHistoryStats =>
-  ({
-    today: reminderDay(TODAY, [
-      { label: 'Pushups', quantity: 60 },
-      { label: 'Squats', quantity: 40 },
-    ]),
-    days: [
-      reminderDay(TODAY, [
-        { label: 'Pushups', quantity: 60 },
-        { label: 'Squats', quantity: 40 },
-      ]),
-      reminderDay('2026-08-19', [{ label: 'Pushups', quantity: 25 }]),
-      reminderDay('2026-08-18', [{ label: 'Pushups', quantity: 20 }]),
-      reminderDay('2026-08-17'),
-      reminderDay('2026-08-16'),
-      reminderDay('2026-08-15'),
-      reminderDay('2026-08-14'),
-    ],
-    ...overrides,
-  }) as ReminderHistoryStats
-
 const sportsDay = (date: string, quantityByLabel: unknown[] = []) => ({
   date,
   quantityByLabel,
@@ -70,11 +41,20 @@ const sportsStats = (
   overrides: Partial<SportsHistoryStats> = {},
 ): SportsHistoryStats =>
   ({
-    today: sportsDay(TODAY, [{ label: 'Situps', quantity: 20 }]),
+    today: sportsDay(TODAY, [
+      { label: 'Squats', quantity: 40 },
+      { label: 'Situps', quantity: 20 },
+    ]),
     days: [
-      sportsDay(TODAY, [{ label: 'Situps', quantity: 20 }]),
-      sportsDay('2026-08-19'),
-      sportsDay('2026-08-18', [{ label: 'Squats', quantity: 15 }]),
+      sportsDay(TODAY, [
+        { label: 'Squats', quantity: 40 },
+        { label: 'Situps', quantity: 20 },
+      ]),
+      sportsDay('2026-08-19', [{ label: 'Pushups', quantity: 25 }]),
+      sportsDay('2026-08-18', [
+        { label: 'Pushups', quantity: 20 },
+        { label: 'Squats', quantity: 15 },
+      ]),
       sportsDay('2026-08-17'),
       sportsDay('2026-08-16'),
       sportsDay('2026-08-15'),
@@ -85,12 +65,10 @@ const sportsStats = (
 
 const mockApi = (
   value: HistoryStats = stats(),
-  reminderValue: ReminderHistoryStats = reminderStats(),
   sportsValue: SportsHistoryStats = sportsStats(),
 ) =>
   fakeKlokki({
     getStats: () => Promise.resolve(value),
-    getReminderStats: () => Promise.resolve(reminderValue),
     getSportsStats: () => Promise.resolve(sportsValue),
   })
 
@@ -111,13 +89,12 @@ describe('StatsSection', () => {
     expect(today).toHaveTextContent('45m')
   })
 
-  it("counts today's reminder steps and Sports beside the minutes", async () => {
+  it("counts today's Sports activity beside the minutes", async () => {
     mockApi()
     render(<StatsSection />)
 
-    // One card, not three: the reps happened on the day the minutes did.
+    // One card, not two: the reps happened on the day the minutes did.
     const today = await screen.findByRole('group', { name: /Today/ })
-    expect(today).toHaveTextContent('Pushups 60')
     expect(today).toHaveTextContent('Squats 40')
     expect(today).toHaveTextContent('Situps 20')
   })
@@ -125,9 +102,6 @@ describe('StatsSection', () => {
   it('says so when nothing at all was recorded today', async () => {
     mockApi(
       stats({ today: day(TODAY) as HistoryStats['today'] }),
-      reminderStats({
-        today: reminderDay(TODAY) as ReminderHistoryStats['today'],
-      }),
       sportsStats({ today: sportsDay(TODAY) as SportsHistoryStats['today'] }),
     )
     render(<StatsSection />)
@@ -151,7 +125,7 @@ describe('StatsSection', () => {
     render(<StatsSection />)
 
     const rows = within(await spine()).getAllByRole('listitem')
-    // 18 Aug: half an hour of sitting, twenty pushups and fifteen squats — three
+    // 18 Aug: half an hour of sitting, twenty pushups and fifteen squats — two
     // logs, one row.
     expect(rows[2]).toHaveTextContent('Tue 18')
     expect(rows[2]).toHaveTextContent('30m')
@@ -197,7 +171,6 @@ describe('StatsSection', () => {
 
     api.pushHistoryChanged()
     await waitFor(() => expect(api.getStats).toHaveBeenCalledTimes(2))
-    await waitFor(() => expect(api.getReminderStats).toHaveBeenCalledTimes(2))
     await waitFor(() => expect(api.getSportsStats).toHaveBeenCalledTimes(2))
   })
 

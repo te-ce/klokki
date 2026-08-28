@@ -1,19 +1,11 @@
 import { BrowserWindow, app } from 'electron'
 import { electronAlertSurface } from './alert/surface'
-import {
-  createHistory,
-  createReminderHistory,
-  createSportsHistory,
-} from './history'
+import { createHistory, createSportsHistory } from './history'
 import { electronAppInfo, electronRequestSink } from './ipc/sink'
 import { createLoginItem } from './login-item'
 import { electronMenubarSurface } from './menubar/surface'
 import { startPresetById } from './presets/start'
 import { createPresetStore } from './presets/store'
-import { createReminderRunStore } from './reminders/run-store'
-import { createReminderService } from './reminders/service'
-import { electronReminderAlertSurface } from './reminders/surface'
-import { createReminderStore } from './reminders/store'
 import { createSportRunStore } from './sports/run-store'
 import { createSportsService } from './sports/service'
 import { electronSportsAlertSurface } from './sports/surface'
@@ -23,7 +15,6 @@ import { createSnapshotStore } from './timer/snapshot'
 import { wireApp, type WiredApp } from './wire'
 import {
   closeOverlayWindow,
-  closeReminderOverlayWindow,
   closeSportsOverlayWindow,
   openSettingsWindow,
   overlayState,
@@ -63,12 +54,8 @@ const bootstrap = (): void => {
 
     const store = createPresetStore(app.getPath('userData'))
     const history = createHistory(app.getPath('userData'))
-    const reminderHistory = createReminderHistory(app.getPath('userData'))
     const snapshot = createSnapshotStore(app.getPath('userData'))
     const service = createTimerService()
-    const reminderStore = createReminderStore(app.getPath('userData'))
-    const reminderService = createReminderService()
-    const reminderRunStore = createReminderRunStore(app.getPath('userData'))
     const sportsHistory = createSportsHistory(app.getPath('userData'))
     const sportsStore = createSportStore(app.getPath('userData'))
     const sportsService = createSportsService()
@@ -78,11 +65,7 @@ const bootstrap = (): void => {
       service,
       store,
       history,
-      reminderHistory,
       snapshot,
-      reminderStore,
-      reminderService,
-      reminderRunStore,
       sportsHistory,
       sportsStore,
       sportsService,
@@ -93,8 +76,6 @@ const bootstrap = (): void => {
       menubar: electronMenubarSurface(),
       alerts: electronAlertSurface(),
       overlay: { close: closeOverlayWindow },
-      reminderAlerts: electronReminderAlertSurface(),
-      reminderOverlay: { close: closeReminderOverlayWindow },
       sportsAlerts: electronSportsAlertSurface(),
       sportsOverlay: { close: closeSportsOverlayWindow },
       windows: {

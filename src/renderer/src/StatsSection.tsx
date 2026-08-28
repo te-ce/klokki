@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import type { HistoryStats } from '../../shared/history'
-import type { ReminderHistoryStats } from '../../shared/reminder-history'
 import type { SportsHistoryStats } from '../../shared/sports-history'
 import { DayBars } from './DayBars'
 import { DaySpine } from './DaySpine'
@@ -19,15 +18,13 @@ import { accentFor, zipWeek } from './week'
  * changed" is a different predicate, and misses a snooze and two phases that
  * share a label. Which stretches end, and when, is the main process's to know.
  *
- * The three logs are drawn as one week rather than as three lists of their own
- * (`zipWeek`): the day a stretch of standing landed on is the day the pushups
+ * The two logs are drawn as one week rather than as two lists of their own
+ * (`zipWeek`): the day a stretch of standing landed on is the day the situps
  * did or did not, and reading that off two lists of `YYYY-MM-DD` was the one
  * thing the pane could not do.
  */
 export const StatsSection = () => {
   const [stats, setStats] = useState<HistoryStats | null>(null)
-  const [reminderStats, setReminderStats] =
-    useState<ReminderHistoryStats | null>(null)
   const [sportsStats, setSportsStats] = useState<SportsHistoryStats | null>(
     null,
   )
@@ -37,9 +34,6 @@ export const StatsSection = () => {
     const read = (): void => {
       void window.klokki.getStats().then((next) => {
         if (!cancelled) setStats(next)
-      })
-      void window.klokki.getReminderStats().then((next) => {
-        if (!cancelled) setReminderStats(next)
       })
       void window.klokki.getSportsStats().then((next) => {
         if (!cancelled) setSportsStats(next)
@@ -55,9 +49,9 @@ export const StatsSection = () => {
     }
   }, [])
 
-  if (!stats || !reminderStats || !sportsStats) return null
+  if (!stats || !sportsStats) return null
 
-  const week = zipWeek(stats, reminderStats, sportsStats)
+  const week = zipWeek(stats, sportsStats)
   const { today } = week
 
   return (

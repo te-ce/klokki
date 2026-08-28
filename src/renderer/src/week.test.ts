@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import type { HistoryStats } from '../../shared/history'
-import type { ReminderHistoryStats } from '../../shared/reminder-history'
 import type { SportsHistoryStats } from '../../shared/sports-history'
 import { accentFor, zipWeek } from './week'
 
@@ -34,33 +33,21 @@ const stats: HistoryStats = {
   ],
 }
 
-const reminderStats: ReminderHistoryStats = {
-  today: counted('2026-08-20', [{ label: 'Pushups', quantity: 60 }]),
-  days: [
-    counted('2026-08-20', [{ label: 'Pushups', quantity: 60 }]),
-    counted('2026-08-19'),
-    counted('2026-08-18', [{ label: 'Pushups', quantity: 20 }]),
-  ],
-}
-
 const sportsStats: SportsHistoryStats = {
   today: counted('2026-08-20', [{ label: 'Run', quantity: 5 }]),
   days: [
     counted('2026-08-20', [{ label: 'Run', quantity: 5 }]),
     counted('2026-08-19'),
-    counted('2026-08-18'),
+    counted('2026-08-18', [{ label: 'Run', quantity: 2 }]),
   ],
 }
 
 describe('zipWeek', () => {
-  const week = zipWeek(stats, reminderStats, sportsStats)
+  const week = zipWeek(stats, sportsStats)
 
-  it('joins the three logs on the calendar day', () => {
-    expect(week.days[0]?.counts).toEqual([
-      { label: 'Pushups', quantity: 60 },
-      { label: 'Run', quantity: 5 },
-    ])
-    expect(week.days[2]?.counts).toEqual([{ label: 'Pushups', quantity: 20 }])
+  it('joins both logs on the calendar day', () => {
+    expect(week.days[0]?.counts).toEqual([{ label: 'Run', quantity: 5 }])
+    expect(week.days[2]?.counts).toEqual([{ label: 'Run', quantity: 2 }])
   })
 
   it('totals each day and the week', () => {
@@ -82,8 +69,8 @@ describe('zipWeek', () => {
     expect(accentFor(week.labels, 'Sitting')).toBe('bg-rest')
   })
 
-  it('calls a day empty only when all three logs are', () => {
-    // 18 Aug has no phases at all, but it does have twenty pushups.
+  it('calls a day empty only when both logs are', () => {
+    // 18 Aug has no phases at all, but it does have a Sports entry.
     expect(week.days[2]?.minutes).toBe(0)
     expect(week.days[2]?.empty).toBe(false)
     expect(week.days[1]?.empty).toBe(false)
@@ -93,7 +80,6 @@ describe('zipWeek', () => {
     const bare = zipWeek(
       { today: phases('2026-08-20'), days: [phases('2026-08-20')] },
       { today: counted('2026-08-20'), days: [counted('2026-08-20')] },
-      { today: counted('2026-08-20'), days: [counted('2026-08-20')] },
     )
 
     expect(bare.today.empty).toBe(true)
@@ -102,14 +88,13 @@ describe('zipWeek', () => {
   })
 
   it('survives a log whose window does not line up, rather than shifting a day', () => {
-    // Three lists that agree on length today are still three lists: the join is
-    // by date, so a short reminder log leaves days without counts, not counts on
+    // Two lists that agree on length today are still two lists: the join is
+    // by date, so a short Sports log leaves days without counts, not counts on
     // the wrong day.
-    const short = zipWeek(
-      stats,
-      { today: counted('2026-08-20'), days: [counted('2026-08-20')] },
-      sportsStats,
-    )
+    const short = zipWeek(stats, {
+      today: counted('2026-08-20'),
+      days: [counted('2026-08-20')],
+    })
 
     expect(short.days).toHaveLength(3)
     expect(short.days[2]?.counts).toEqual([])

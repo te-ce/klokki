@@ -2,12 +2,7 @@ import { BrowserWindow, screen, shell } from 'electron'
 import { join } from 'node:path'
 import { alertRoute, type Alert } from '../shared/alert'
 import {
-  reminderAlertRoute,
-  type ReminderAlert,
-} from '../shared/reminder-alert'
-import {
   OVERLAY_WIDTH,
-  reminderOverlayHeight,
   sportsOverlayHeight,
   transitionOverlayHeight,
 } from '../shared/overlay-size'
@@ -79,7 +74,7 @@ type OverlayState = {
 
 /**
  * An intrusive alert window — the platform config that makes a boundary
- * impossible to miss, shared by the phase overlay and the reminder overlay.
+ * impossible to miss, shared by the phase overlay and the Sports overlay.
  *
  * Every option here is load-bearing, and together they are the substance of the
  * feature (see AGENTS.md):
@@ -90,9 +85,10 @@ type OverlayState = {
  *   Space is active, rather than politely waiting on the one it was created on.
  * - `focusable: false` plus `showInactive()` keep the user's keystrokes going to
  *   whatever they were typing in. Mouse clicks still land, so Dismiss works.
- *   The reminder overlay opts out of this (`focusable: true`, shown with
+ *   The Sports overlay opts out of this (`focusable: true`, shown with
  *   `show()`) because it is the one overlay that asks for typed input — a
- *   quantity — and a window that can never become key can never receive it.
+ *   quantity per activity — and a window that can never become key can never
+ *   receive it.
  * - `skipTaskbar`, with the Dock already hidden, keeps Klokki a menubar app: an
  *   overlay must not put it in the app switcher.
  * - `movable: true` is the one option here that isn't about being impossible to
@@ -184,29 +180,13 @@ export const closeOverlayWindow = (): void => phaseOverlay.close()
 /** The e2e suite's view of the overlay — the platform config is the feature. */
 export const overlayState = (): OverlayState | null => phaseOverlay.state()
 
-const reminderOverlay = createOverlay({ focusable: true })
-
-/**
- * The reminder overlay — same intrusive-alert platform config as the phase
- * overlay, kept as its own window so a reminder due mid-transition never
- * fights the phase overlay for the same window.
- */
-export const openReminderOverlayWindow = (alert: ReminderAlert): void =>
-  reminderOverlay.open(
-    reminderAlertRoute(alert),
-    reminderOverlayHeight(alert.unit !== null),
-  )
-
-/** Answering the overlay is the only thing that closes it; there is no timer. */
-export const closeReminderOverlayWindow = (): void => reminderOverlay.close()
-
 const sportsOverlay = createOverlay({ focusable: true })
 
 /**
- * The Sports overlay — same intrusive-alert platform config, kept as its own
- * window so a Sports firing mid-transition never fights the phase or
- * reminder overlay for the same window. Focusable for the same reason the
- * reminder overlay is: it asks for typed input, a quantity per activity.
+ * The Sports overlay — same intrusive-alert platform config as the phase
+ * overlay, kept as its own window so a Sports firing mid-transition never
+ * fights the phase overlay for the same window. Focusable because it is the
+ * one overlay that asks for typed input, a quantity per activity.
  */
 export const openSportsOverlayWindow = (alert: SportsAlert): void =>
   sportsOverlay.open(

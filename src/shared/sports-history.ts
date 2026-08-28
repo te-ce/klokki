@@ -1,7 +1,6 @@
 /**
  * What the app remembers about logged Sports activity, and the shape the
- * stats view reads for it — the Sports counterpart to
- * shared/reminder-history.ts. Only a completed answer (overlay Done or a
+ * stats view reads for it. Only a completed answer (overlay Done or a
  * manual log) is ever recorded: a snooze defers the schedule but has no
  * quantities to log, so it writes nothing.
  */

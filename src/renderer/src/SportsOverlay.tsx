@@ -8,10 +8,9 @@ import { SnoozeChoice } from './SnoozeChoice'
 
 /**
  * The whole content of the Sports overlay: one row per activity, and three
- * ways out — Snooze, Done or Stop, never a plain dismiss, the same shape
- * `ReminderOverlay` gives a single step. An activity left blank is logged as
- * zero rather than skipped: the overlay is a full round, and "didn't do this
- * one" is itself worth a number.
+ * ways out — Snooze, Done or Stop, never a plain dismiss. An activity left
+ * blank is logged as zero rather than skipped: the overlay is a full round,
+ * and "didn't do this one" is itself worth a number.
  *
  * One activity is one row — name left, field right — rather than a wrapping
  * strip of columns, so the fourth activity costs a row of height the main

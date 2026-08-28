@@ -8,8 +8,6 @@
 
 import type { HistoryStats } from './history'
 import type { Preset, SaveResult } from './preset'
-import type { ReminderDefinition, ReminderView } from './reminder'
-import type { ReminderHistoryStats } from './reminder-history'
 import type { SportSettings, SportsView } from './sport'
 import type { SportsHistoryStats } from './sports-history'
 import type { TimerView } from './timer'
@@ -20,7 +18,6 @@ export const IPC = {
   listPresets: 'klokki:list-presets',
   getTimerView: 'klokki:get-timer-view',
   getStats: 'klokki:get-stats',
-  getReminderStats: 'klokki:get-reminder-stats',
   startPreset: 'klokki:start-preset',
   savePreset: 'klokki:save-preset',
   deletePreset: 'klokki:delete-preset',
@@ -34,13 +31,6 @@ export const IPC = {
   addTime: 'klokki:add-time',
   dismissAlert: 'klokki:dismiss-alert',
   snoozeAlert: 'klokki:snooze-alert',
-  listReminders: 'klokki:list-reminders',
-  saveReminder: 'klokki:save-reminder',
-  deleteReminder: 'klokki:delete-reminder',
-  setReminderEnabled: 'klokki:set-reminder-enabled',
-  snoozeReminder: 'klokki:snooze-reminder',
-  stopReminderFromAlert: 'klokki:stop-reminder-from-alert',
-  completeReminder: 'klokki:complete-reminder',
   getSportsSettings: 'klokki:get-sports-settings',
   saveSportsSettings: 'klokki:save-sports-settings',
   startSports: 'klokki:start-sports',
@@ -70,8 +60,6 @@ export const PUSH = {
   presets: 'klokki:presets',
   /** A stretch of phase was written to the log. Carries nothing: re-read. */
   historyChanged: 'klokki:history-changed',
-  /** The saved reminder list, whenever it changes — mirrors `presets`. */
-  reminders: 'klokki:reminders',
   /** The Sports settings joined with its live schedule, whenever either changes. */
   sports: 'klokki:sports',
 } as const
@@ -94,12 +82,6 @@ export interface KlokkiApi {
    * every call — the renderer keeps no copy to go stale.
    */
   getStats(): Promise<HistoryStats>
-  /**
-   * Today plus the last seven days of answered reminder steps, derived from
-   * the tail of reminders-history.jsonl on every call — the reminder
-   * counterpart to `getStats`.
-   */
-  getReminderStats(): Promise<ReminderHistoryStats>
   /**
    * Starts a preset, or restarts it if it is already running — the run is keyed
    * on the preset id, so a preset never has two runs at once (see AGENTS.md).
@@ -159,8 +141,8 @@ export interface KlokkiApi {
   stopFromAlert(runId: string): Promise<void>
   /**
    * Defers the boundary the overlay is showing and closes it, by `extraMs` —
-   * one of the fixed +5/+10/+15/+30 options, matching `snoozeReminder`'s
-   * convention of the renderer picking among fixed increments.
+   * one of the fixed +5/+10/+15/+30 options, the renderer picking among fixed
+   * increments.
    *
    * Resolves to whether the boundary was actually deferred. A snooze whose new
    * end has already gone by is declined, and the overlay closes either way — but
@@ -173,37 +155,6 @@ export interface KlokkiApi {
    */
   savePreset(preset: Preset): Promise<SaveResult>
   deletePreset(id: string): Promise<void>
-  /**
-   * A second, independent list from presets — see issues/open/08. Each entry
-   * carries its own `nextFireAt`, joined from the reminder engine's live
-   * schedule (see src/main/reminders/view.ts).
-   */
-  listReminders(): Promise<readonly ReminderView[]>
-  /** Upsert by id. The main process validates again — it owns reminders.json. */
-  saveReminder(definition: ReminderDefinition): Promise<SaveResult>
-  deleteReminder(id: string): Promise<void>
-  setReminderEnabled(id: string, enabled: boolean): Promise<void>
-  /**
-   * Defers the reminder the overlay is currently showing, by `extraMs` — one of
-   * the fixed +5/+10/+15/+30 options, matching `snoozeAlert`'s convention of the
-   * main process owning the amount. Resolves to whether it was actually
-   * deferred; declined the same way a phase snooze is when its new time has
-   * already passed.
-   */
-  snoozeReminder(extraMs: number): Promise<boolean>
-  /**
-   * Answers the reminder the overlay is currently showing as done, with a
-   * quantity for a step that has a `unit` or null for one that doesn't. Closes
-   * the overlay and lets the engine's normal advance stand.
-   */
-  completeReminder(quantity: number | null): Promise<void>
-  /**
-   * Stops the reminder the overlay is currently showing — by which one is
-   * showing, never by an id the renderer holds — and closes the overlay. The
-   * same disable the tray's Stop does, so the reminder keeps its definition and
-   * its history and simply stops asking.
-   */
-  stopReminderFromAlert(): Promise<void>
   /** Read from the OS login item, never from a value the app stored. */
   getLaunchAtLogin(): Promise<boolean>
   /** Returns the state the OS has after the write, which may differ. */
@@ -220,9 +171,6 @@ export interface KlokkiApi {
    * predicate — a snooze, and two phases sharing a label, both write without it.
    */
   onHistoryChanged(listener: () => void): () => void
-  onReminders(
-    listener: (reminders: readonly ReminderView[]) => void,
-  ): () => void
   /** Read once for a window that has just opened, then kept fresh by `onSports`. */
   getSportsSettings(): Promise<SportsView>
   /** Upsert whole: there is only ever one Sports schedule to save. */
@@ -232,7 +180,7 @@ export interface KlokkiApi {
   stopSports(): Promise<void>
   /**
    * Defers the current Sports firing by `extraMs` — one of the fixed
-   * +5/+10/+15/+30 options, matching `snoozeReminder`'s convention. Resolves to
+   * +5/+10/+15/+30 options, matching `snoozeAlert`'s convention. Resolves to
    * whether it was actually deferred.
    */
   snoozeSports(extraMs: number): Promise<boolean>

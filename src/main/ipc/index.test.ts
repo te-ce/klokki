@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { IPC, PUSH } from '../../shared/ipc'
 import type { Preset } from '../../shared/preset'
-import type { ReminderDefinition, ReminderView } from '../../shared/reminder'
 import type { SportSettings, SportsView } from '../../shared/sport'
 import { IDLE_VIEW } from '../../shared/test-support/timer-view'
 import { registerIpc, type IpcDeps, type RequestSink } from './index'
@@ -11,20 +10,6 @@ const pomodoro: Preset = {
   name: 'Pomodoro',
   loop: true,
   phases: [{ label: 'Focus', minutes: 25, notify: true }],
-}
-
-const water: ReminderDefinition = {
-  id: 'water',
-  name: 'Drink water',
-  intervalMinutes: 30,
-  steps: [{ label: 'Drink a glass of water' }],
-  enabled: true,
-}
-
-const waterView: ReminderView = {
-  ...water,
-  nextFireAt: 1_800_000,
-  awaiting: false,
 }
 
 const sportsSettings: SportSettings = {
@@ -95,28 +80,7 @@ const wire = (overrides: Partial<IpcDeps> = {}) => {
     })),
     subscribe: vi.fn(() => () => {}),
   }
-  const reminderHistory = {
-    append: vi.fn(),
-    stats: vi.fn(() => ({
-      today: { date: '2026-08-20', quantityByLabel: [] },
-      days: [],
-    })),
-    subscribe: vi.fn(() => () => {}),
-  }
   const answerAlert = vi.fn()
-  const reminderAnswers = {
-    snooze: vi.fn(() => true),
-    complete: vi.fn(),
-    stop: vi.fn(),
-  }
-  const reminderStore = {
-    list: vi.fn((): readonly ReminderDefinition[] => [water]),
-    save: vi.fn(() => ({ ok: true }) as const),
-    remove: vi.fn(),
-    setEnabled: vi.fn(),
-    subscribe: vi.fn(() => () => {}),
-  }
-  const reminderViews = vi.fn((): readonly ReminderView[] => [waterView])
   const sportsHistory = {
     append: vi.fn(),
     stats: vi.fn(() => ({
@@ -160,11 +124,7 @@ const wire = (overrides: Partial<IpcDeps> = {}) => {
     store,
     loginItem,
     history,
-    reminderHistory,
     answerAlert,
-    reminderStore,
-    reminderViews,
-    reminderAnswers,
     sportsHistory,
     sportsStore,
     sportsViews,
@@ -185,11 +145,7 @@ const wire = (overrides: Partial<IpcDeps> = {}) => {
     store,
     loginItem,
     history,
-    reminderHistory,
     answerAlert,
-    reminderStore,
-    reminderViews,
-    reminderAnswers,
     sportsHistory,
     sportsStore,
     sportsViews,
@@ -393,91 +349,6 @@ describe('what the handlers do', () => {
     app.invoke(IPC.getStats)
 
     expect(app.history.stats).toHaveBeenCalledTimes(2)
-  })
-
-  it('reads the reminder list per call, joined with its schedule', () => {
-    const app = wire()
-
-    expect(app.invoke(IPC.listReminders)).toEqual([waterView])
-    expect(app.reminderViews).toHaveBeenCalledTimes(1)
-  })
-
-  it('saves a reminder, upserting by id', () => {
-    const app = wire()
-
-    expect(app.invoke(IPC.saveReminder, water)).toEqual({ ok: true })
-    expect(app.reminderStore.save).toHaveBeenCalledWith(water)
-  })
-
-  it('returns the reasons a reminder was rejected rather than throwing', () => {
-    const app = wire()
-    app.reminderStore.save.mockReturnValue({
-      ok: false,
-      problems: ['A reminder needs a name.'],
-    } as never)
-
-    expect(app.invoke(IPC.saveReminder, water)).toEqual({
-      ok: false,
-      problems: ['A reminder needs a name.'],
-    })
-  })
-
-  it('deletes a reminder by id', () => {
-    const app = wire()
-
-    app.invoke(IPC.deleteReminder, 'water')
-
-    expect(app.reminderStore.remove).toHaveBeenCalledWith('water')
-  })
-
-  it('enables and disables a reminder by id', () => {
-    const app = wire()
-
-    app.invoke(IPC.setReminderEnabled, 'water', false)
-
-    expect(app.reminderStore.setEnabled).toHaveBeenCalledWith('water', false)
-  })
-
-  it('defers the reminder currently showing, and says whether it moved', () => {
-    const app = wire()
-
-    expect(app.invoke(IPC.snoozeReminder, 600_000)).toBe(true)
-
-    expect(app.reminderAnswers.snooze).toHaveBeenCalledWith(600_000)
-  })
-
-  it('stops the reminder currently showing, without being told which', () => {
-    const app = wire()
-
-    app.invoke(IPC.stopReminderFromAlert)
-
-    expect(app.reminderAnswers.stop).toHaveBeenCalledOnce()
-    expect(app.reminderAnswers.complete).not.toHaveBeenCalled()
-  })
-
-  it('answers the reminder currently showing as done, with its quantity', () => {
-    const app = wire()
-
-    app.invoke(IPC.completeReminder, 20)
-
-    expect(app.reminderAnswers.complete).toHaveBeenCalledWith(20)
-  })
-
-  it('completes a unit-less reminder with a null quantity', () => {
-    const app = wire()
-
-    app.invoke(IPC.completeReminder, null)
-
-    expect(app.reminderAnswers.complete).toHaveBeenCalledWith(null)
-  })
-
-  it('summarises the reminder log per call, never from a cache', () => {
-    const app = wire()
-
-    app.invoke(IPC.getReminderStats)
-    app.invoke(IPC.getReminderStats)
-
-    expect(app.reminderHistory.stats).toHaveBeenCalledTimes(2)
   })
 
   it('reads the Sports view per call, joined with its schedule', () => {

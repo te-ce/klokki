@@ -2,8 +2,6 @@ import { vi, type Mock } from 'vitest'
 import type { HistoryStats } from '../../../shared/history'
 import type { KlokkiApi } from '../../../shared/ipc'
 import type { Preset } from '../../../shared/preset'
-import type { ReminderView } from '../../../shared/reminder'
-import type { ReminderHistoryStats } from '../../../shared/reminder-history'
 import type { SportsView } from '../../../shared/sport'
 import type { SportsHistoryStats } from '../../../shared/sports-history'
 // One owner, shared with the main-process suite: see src/shared/test-support.
@@ -26,11 +24,6 @@ export const TODAY = '2026-08-20'
 export const emptyStats: HistoryStats = {
   today: { date: TODAY, completed: 0, minutesByLabel: [] },
   days: [{ date: TODAY, completed: 0, minutesByLabel: [] }],
-}
-
-export const emptyReminderStats: ReminderHistoryStats = {
-  today: { date: TODAY, quantityByLabel: [] },
-  days: [{ date: TODAY, quantityByLabel: [] }],
 }
 
 export const emptySportsStats: SportsHistoryStats = {
@@ -57,8 +50,6 @@ export type FakeKlokki = Mocked & {
   readonly pushPresets: (presets: readonly Preset[]) => void
   /** Announces a line written to the log. */
   readonly pushHistoryChanged: () => void
-  /** Pushes the saved reminder list, the way the store does after a save. */
-  readonly pushReminders: (reminders: readonly ReminderView[]) => void
   /** Pushes the Sports view, the way the store does after a save. */
   readonly pushSports: (view: SportsView) => void
   /** How many listeners are still registered — unmount should leave none. */
@@ -82,7 +73,6 @@ export const fakeKlokki = (overrides: Partial<KlokkiApi> = {}): FakeKlokki => {
   const views = new Set<(view: TimerView) => void>()
   const presets = new Set<(presets: readonly Preset[]) => void>()
   const history = new Set<() => void>()
-  const reminders = new Set<(reminders: readonly ReminderView[]) => void>()
   const sports = new Set<(view: SportsView) => void>()
 
   const subscriber =
@@ -99,7 +89,6 @@ export const fakeKlokki = (overrides: Partial<KlokkiApi> = {}): FakeKlokki => {
     listPresets: () => Promise.resolve([]),
     getTimerView: () => Promise.resolve(IDLE_VIEW),
     getStats: () => Promise.resolve(emptyStats),
-    getReminderStats: () => Promise.resolve(emptyReminderStats),
     startPreset: () => Promise.resolve(),
     stopTimer: () => Promise.resolve(),
     confirmNext: () => Promise.resolve(true),
@@ -113,13 +102,6 @@ export const fakeKlokki = (overrides: Partial<KlokkiApi> = {}): FakeKlokki => {
     deletePreset: () => Promise.resolve(),
     getLaunchAtLogin: () => Promise.resolve(false),
     setLaunchAtLogin: (enabled) => Promise.resolve(enabled),
-    listReminders: () => Promise.resolve([]),
-    saveReminder: () => Promise.resolve({ ok: true }),
-    deleteReminder: () => Promise.resolve(),
-    setReminderEnabled: () => Promise.resolve(),
-    snoozeReminder: () => Promise.resolve(true),
-    completeReminder: () => Promise.resolve(),
-    stopReminderFromAlert: () => Promise.resolve(),
     getSportsSettings: () => Promise.resolve(IDLE_SPORTS_VIEW),
     saveSportsSettings: () => Promise.resolve({ ok: true }),
     startSports: () => Promise.resolve(),
@@ -134,7 +116,6 @@ export const fakeKlokki = (overrides: Partial<KlokkiApi> = {}): FakeKlokki => {
     onTimerView: subscriber(views),
     onPresets: subscriber(presets),
     onHistoryChanged: subscriber(history),
-    onReminders: subscriber(reminders),
     onSports: subscriber(sports),
   }
 
@@ -155,14 +136,10 @@ export const fakeKlokki = (overrides: Partial<KlokkiApi> = {}): FakeKlokki => {
     pushHistoryChanged: () => {
       for (const listener of history) listener()
     },
-    pushReminders: (next: readonly ReminderView[]) => {
-      for (const listener of reminders) listener(next)
-    },
     pushSports: (next: SportsView) => {
       for (const listener of sports) listener(next)
     },
-    listenerCount: () =>
-      views.size + presets.size + history.size + reminders.size + sports.size,
+    listenerCount: () => views.size + presets.size + history.size + sports.size,
   })
 
   window.klokki = fake

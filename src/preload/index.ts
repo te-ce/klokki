@@ -1,7 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC, PUSH, type KlokkiApi } from '../shared/ipc'
 import type { Preset } from '../shared/preset'
-import type { ReminderView } from '../shared/reminder'
 import type { SportsView } from '../shared/sport'
 import type { TimerView } from '../shared/timer'
 
@@ -26,7 +25,6 @@ const api: KlokkiApi = {
   listPresets: () => ipcRenderer.invoke(IPC.listPresets),
   getTimerView: () => ipcRenderer.invoke(IPC.getTimerView),
   getStats: () => ipcRenderer.invoke(IPC.getStats),
-  getReminderStats: () => ipcRenderer.invoke(IPC.getReminderStats),
   startPreset: (id) => ipcRenderer.invoke(IPC.startPreset, id),
   stopTimer: (runId) => ipcRenderer.invoke(IPC.stopTimer, runId),
   skipPhase: (runId) => ipcRenderer.invoke(IPC.skipPhase, runId),
@@ -43,16 +41,6 @@ const api: KlokkiApi = {
   getLaunchAtLogin: () => ipcRenderer.invoke(IPC.getLaunchAtLogin),
   setLaunchAtLogin: (enabled) =>
     ipcRenderer.invoke(IPC.setLaunchAtLogin, enabled),
-  listReminders: () => ipcRenderer.invoke(IPC.listReminders),
-  saveReminder: (definition) =>
-    ipcRenderer.invoke(IPC.saveReminder, definition),
-  deleteReminder: (id) => ipcRenderer.invoke(IPC.deleteReminder, id),
-  setReminderEnabled: (id, enabled) =>
-    ipcRenderer.invoke(IPC.setReminderEnabled, id, enabled),
-  snoozeReminder: (extraMs) => ipcRenderer.invoke(IPC.snoozeReminder, extraMs),
-  completeReminder: (quantity) =>
-    ipcRenderer.invoke(IPC.completeReminder, quantity),
-  stopReminderFromAlert: () => ipcRenderer.invoke(IPC.stopReminderFromAlert),
   getSportsSettings: () => ipcRenderer.invoke(IPC.getSportsSettings),
   saveSportsSettings: (settings) =>
     ipcRenderer.invoke(IPC.saveSportsSettings, settings),
@@ -70,8 +58,6 @@ const api: KlokkiApi = {
   onTimerView: (listener) => on<TimerView>(PUSH.timerView, listener),
   onPresets: (listener) => on<readonly Preset[]>(PUSH.presets, listener),
   onHistoryChanged: (listener) => on(PUSH.historyChanged, listener),
-  onReminders: (listener) =>
-    on<readonly ReminderView[]>(PUSH.reminders, listener),
   onSports: (listener) => on<SportsView>(PUSH.sports, listener),
 }
 

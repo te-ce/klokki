@@ -11,7 +11,7 @@ export type SportsActivityRowProps = {
   readonly onDelete: () => void
 }
 
-/** One editable activity — name only, the Sports counterpart to `ReminderStepRow`. */
+/** One editable activity — name only, reorderable and deletable in place. */
 export const SportsActivityRow = ({
   activity,
   index,

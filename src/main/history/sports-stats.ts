@@ -50,8 +50,8 @@ const summariseDay = (
 
 /**
  * The Sports half of the stats view's data set, derived from the Sports
- * log's tail — the counterpart to `summariseReminders`, same day-boundary
- * rules for the same reason.
+ * log's tail — the same day-boundary rules `summarise` uses for the phase
+ * log.
  */
 export const summariseSports = (
   events: readonly SportsHistoryEvent[],

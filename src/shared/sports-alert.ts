@@ -1,9 +1,8 @@
 /**
  * What the user is told when Sports comes due, and how it reaches the
- * overlay — the Sports counterpart to shared/reminder-alert.ts. It carries a
- * list rather than a single label+unit, because every activity is logged in
- * one firing, so the activity list is JSON-encoded into the query string
- * instead of flat params.
+ * overlay. It carries a list rather than a single value, because every
+ * activity is logged in one firing, so the activity list is JSON-encoded
+ * into the query string instead of flat params.
  */
 
 export type SportsAlertActivity = {
@@ -15,7 +14,7 @@ export type SportsAlert = {
   readonly activities: readonly SportsAlertActivity[]
 }
 
-/** Matches `REMINDER_SNOOZE_MINUTES_OPTIONS` — the same fixed increments. */
+/** Matches `TIMER_SNOOZE_MINUTES_OPTIONS` — the same fixed increments. */
 export const SPORTS_SNOOZE_MINUTES_OPTIONS = [5, 10, 15, 30] as const
 
 export const SPORTS_OVERLAY_ROUTE = '/sports-overlay'

@@ -9,7 +9,7 @@ import type { AlertSurface } from './present'
  * void all stay testable without a display.
  *
  * The notifier is this surface's own, so withdrawing the timer's notification
- * cannot take a reminder's with it.
+ * cannot take Sports' with it.
  */
 export const electronAlertSurface = (): AlertSurface => {
   const notifier = createNotifier()

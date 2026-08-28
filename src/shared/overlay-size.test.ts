@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  reminderOverlayHeight,
-  sportsOverlayHeight,
-  transitionOverlayHeight,
-} from './overlay-size'
+import { sportsOverlayHeight, transitionOverlayHeight } from './overlay-size'
 
 describe('overlay size', () => {
   const WORK_AREA = 1_000
@@ -26,20 +22,12 @@ describe('overlay size', () => {
     expect(sportsOverlayHeight(50, 600)).toBe(480)
   })
 
-  it('gives a reminder with a unit the same window as a one-activity round', () => {
-    expect(reminderOverlayHeight(true)).toBe(sportsOverlayHeight(1, WORK_AREA))
-  })
-
-  it('leaves out the input row for a reminder that asks for no quantity', () => {
-    expect(reminderOverlayHeight(false)).toBeLessThan(
-      reminderOverlayHeight(true),
-    )
-  })
-
   it('gives the phase overlay room for its eyebrow and no input', () => {
     expect(transitionOverlayHeight()).toBeGreaterThan(
-      reminderOverlayHeight(false),
+      sportsOverlayHeight(0, WORK_AREA),
     )
-    expect(transitionOverlayHeight()).toBeLessThan(reminderOverlayHeight(true))
+    expect(transitionOverlayHeight()).toBeLessThan(
+      sportsOverlayHeight(1, WORK_AREA),
+    )
   })
 })

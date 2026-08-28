@@ -22,13 +22,10 @@ export type SportsService = {
    * transition to `enabled: false` drops the schedule, and one to `true`
    * schedules fresh — editing the interval or activities while a run is in
    * progress does not disturb the current countdown, matching the "editing
-   * never disturbs a run in progress" rule presets and reminders both keep.
+   * never disturbs a run in progress" rule presets keep too.
    */
   readonly setSettings: (settings: SportSettings) => void
-  /**
-   * Restores a schedule loaded from disk instead of scheduling fresh — the
-   * Sports counterpart to `ReminderService.resume`.
-   */
+  /** Restores a schedule loaded from disk instead of scheduling fresh. */
   readonly resume: (loaded: SportRunState, settings: SportSettings) => void
   /** Defers the current firing. Answers whether anything moved. */
   readonly snooze: (extraMs: number) => boolean
@@ -59,14 +56,14 @@ export type SportsService = {
   readonly fireNow: () => boolean
   readonly getState: () => SportRunState
   readonly subscribe: (listener: () => void) => () => void
-  /** Every change to the schedule, not just a firing — see `ReminderService`. */
+  /** Every change to the schedule, not just a firing. */
   readonly onScheduleChange: (listener: () => void) => () => void
   readonly dispose: () => void
 }
 
 /**
  * The impure shell around the Sports engine — owns the poll timer and the
- * live schedule, the single-schedule counterpart to `createReminderService`.
+ * live schedule.
  */
 export const createSportsService = (
   clock: Clock = systemClock,
@@ -115,8 +112,7 @@ export const createSportsService = (
 
       // Newly enabled, or enabled but not actually scheduled yet — e.g. right
       // after `resume` loaded nothing to restore: either way this is the
-      // moment to give it a fresh schedule, the same two conditions
-      // `ReminderService.setDefinitions` checks per definition.
+      // moment to give it a fresh schedule.
       if (
         next.enabled &&
         isRunnableSportSettings(next) &&

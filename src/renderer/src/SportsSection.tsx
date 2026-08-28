@@ -26,11 +26,9 @@ const swap = <T,>(items: readonly T[], a: number, b: number): T[] => {
 
 /**
  * The Sports tab: one schedule, its activities, and a way to log any of them
- * on demand. Shaped like `RemindersSection` but for a single settings object
- * rather than a list — the draft/opened dirty-check is the same idea,
- * compared with `sameSportSettings` instead of `sameReminder`. Starting and
- * stopping bypass the draft entirely: they act on the live schedule, the
- * same as a reminder row's enable checkbox.
+ * on demand. The draft/opened dirty-check is the same idea the preset editor
+ * uses, compared with `sameSportSettings` instead of `samePreset`. Starting
+ * and stopping bypass the draft entirely: they act on the live schedule.
  */
 export const SportsSection = () => {
   const sports = useSports()

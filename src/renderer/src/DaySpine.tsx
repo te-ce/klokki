@@ -13,8 +13,8 @@ const countLine = (day: WeekDay): string =>
  * today card does. A row has to be readable against its neighbours here, and a
  * quiet Saturday drawn to its own scale looks exactly like a full Monday.
  *
- * Reminder and Sports totals sit under the bar on the day they happened, which is
- * the reading the pane could not offer while each log had a list of its own.
+ * Sports totals sit under the bar on the day they happened, which is the
+ * reading the pane could not offer while each log had a list of its own.
  */
 export const DaySpine = ({ week }: { week: Week }) => (
   <ul

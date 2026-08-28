@@ -3,9 +3,9 @@
  *
  * An alert is where the user is standing when they decide they are done for the
  * day, and until now the only answers it took were "later" and "yes" — so
- * stopping meant finding the tray while an overlay sat over it. It is on all
- * three overlays for the same reason the footer is: a user who has learnt one
- * has learnt all three.
+ * stopping meant finding the tray while an overlay sat over it. It is on both
+ * overlays for the same reason the footer is: a user who has learnt one has
+ * learnt the other.
  *
  * It is deliberately the quietest control in the window and the furthest from
  * the affirmative — text where Done is filled, and at the opposite end of the
@@ -18,7 +18,7 @@ export const OverlayStop = ({
   label,
   onStop,
 }: {
-  /** What is being stopped: "Stop timer", "Stop reminder", "Stop Sports". */
+  /** What is being stopped: "Stop timer", "Stop Sports". */
   readonly label: string
   readonly onStop: () => void
 }) => (

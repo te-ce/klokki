@@ -51,10 +51,6 @@ const overlayHeight = (rows: number): number =>
 export const transitionOverlayHeight = (): number =>
   overlayHeight(0) + EYEBROW + GAP
 
-/** The reminder overlay: one row when the step carries a unit, none otherwise. */
-export const reminderOverlayHeight = (hasUnit: boolean): number =>
-  overlayHeight(hasUnit ? 1 : 0)
-
 /**
  * The Sports overlay: one row per activity, clamped to a share of the work
  * area. Enough activities would otherwise ask for a window taller than the

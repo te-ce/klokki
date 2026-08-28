@@ -110,8 +110,8 @@ waits for the seam to appear, because `electron.launch()` resolves before
 - **Two boundaries at once: the second waits, it is never dropped.** The overlay
   is one window per kind and a new one supersedes the last (`windows.ts`), so a
   boundary raised while another run's overlay is on screen is queued
-  (`src/main/alert/queue.ts`) rather than shown or lost — the same shape reminders
-  already use. Losing it would break the guarantee above: a boundary holds its
+  (`src/main/alert/queue.ts`) rather than shown or lost. Losing it would break
+  the guarantee above: a boundary holds its
   run until it is answered, so an alert nobody ever saw would leave a run parked
   with nothing to explain it. Queued is not hidden, either: the run is still
   `awaiting`, the tray names it (`<preset> — <phase> ready`, with
@@ -171,13 +171,6 @@ waits for the seam to appear, because `electron.launch()` resolves before
   actually looking at — and at a boundary still waiting to be answered, skipping
   and confirming are the same move, so `skip` confirms rather than inventing a
   phase to cut short.
-- **The tray starts reminders too.** Reminders sit under a `Reminders` heading in
-  the tray menu, one item each, and clicking one enables it and schedules it a
-  full interval from now (`src/main/reminders/start.ts`) — "Restart" for one
-  already scheduled, the same promise the preset items make. Acting without
-  opening a window is what the menubar is for, and half the app was missing from
-  it. The menubar therefore subscribes to the reminder view source, because
-  whether an item says Start or Restart is a fact about the live schedule.
 - **The settings window is a rail and one pane.** Four destinations — Timer,
   Presets, Stats, General — sit in a permanent left rail (`src/renderer/src/Rail.tsx`),
   and the pane on the right is the only one mounted. Which pane is open is the
@@ -244,9 +237,9 @@ waits for the seam to appear, because `electron.launch()` resolves before
   drains every run, against a single reading of the clock, because two runs that
   ended together must not be logged as ending a tick apart.
 - **An overlay is sized to the alert it shows, and “later” is one control.**
-  The three overlays share a shape — title, rows, then a footer of Snooze on the
+  The two overlays share a shape — title, rows, then a footer of Snooze on the
   left and the affirmative on the right — so a user who has learnt one has
-  learnt all three. Sports is the only one whose content grows, and one row per
+  learnt the other. Sports is the only one whose content grows, and one row per
   activity (name left, field right) grows it in a direction the main process can
   predict: `src/shared/overlay-size.ts` turns the alert into a window height,
   because the activity count is known before the window opens and a window
@@ -261,24 +254,21 @@ waits for the seam to appear, because `electron.launch()` resolves before
   place the user could not say "not today": Snooze and the affirmative were the
   only answers, so stopping meant finding the tray behind a window that sits
   above everything. Each overlay now has a third control — the transition's
-  stops the timer, a reminder's disables that reminder, Sports' disables Sports
-  — and each takes the path the tray already took (`service.stop`,
-  `stopReminderById`, `stopSports`) plus the close the overlay would otherwise
-  wait forever for. `IPC.stopFromAlert`, `IPC.stopReminderFromAlert` and
-  `IPC.stopSportsFromAlert` exist because "stop it and close me" is one move and
-  the existing channels are only half of it; `stopTimer` and `stopSports` are
-  untouched. Which reminder is stopped is the controller's answer and never an
-  id the renderer holds — an overlay stops what it is showing, and a stale id
-  would stop a reminder the user is not looking at. The transition overlay is
-  the one that does carry an id, `Alert.runId`, because it is opened with the
-  alert in its URL: the run whose boundary this window is announcing is a fact
-  about the window, not about whichever run the main process saw last. Disabling is the whole stop,
-  because the store's subscriber is what drops a schedule, which is also what
-  keeps a stopped reminder or firing from being left awaiting an answer that can
-  no longer be given. A stop writes no history: it is neither a "done" nor a
-  "later", and minutes that were not spent are not a stretch. The transition
-  overlay offers it only while a phase is still to come, for the same reason its
-  snooze is left off a run that has already finished.
+  stops the timer, Sports' disables Sports — and each takes the path the tray
+  already took (`service.stop`, `stopSports`) plus the close the overlay would
+  otherwise wait forever for. `IPC.stopFromAlert` and `IPC.stopSportsFromAlert`
+  exist because "stop it and close me" is one move and the existing channels
+  are only half of it; `stopTimer` and `stopSports` are untouched. The
+  transition overlay carries an id, `Alert.runId`, because it is opened with
+  the alert in its URL: the run whose boundary this window is announcing is a
+  fact about the window, not about whichever run the main process saw last.
+  Disabling is the whole stop for Sports, because the store's subscriber is
+  what drops the schedule, which is also what keeps a stopped firing from
+  being left awaiting an answer that can no longer be given. A stop writes no
+  history: it is neither a "done" nor a "later", and minutes that were not
+  spent are not a stretch. The transition overlay offers it only while a phase
+  is still to come, for the same reason its snooze is left off a run that has
+  already finished.
 - **Stop is the quietest control in the footer, and the furthest from the
   affirmative.** It is text where Done is filled, and at the opposite end, because
   it is the one answer waiting cannot undo — and the visible glyph is "Stop" with
@@ -303,13 +293,13 @@ waits for the seam to appear, because `electron.launch()` resolves before
   native notification, wherever the stop was made — the tray, the settings
   window, a delete, or the alert's own Stop. Withdrawing is the one part only the
   platform can do, and only through the handle it kept: `createNotifier` in
-  `alert/notify.ts` holds it and each surface has its own, so a stopped reminder
-  cannot clear Sports' notification, while `voidAlert` (`alert/void.ts`) is the
-  decision — one alert, shown in two places, hidden in both — and is what every
-  path reaches. Which path is the honest trigger differs by kind, and neither is
-  a `close()` remembered at a call site: a reminder and Sports both stop by a
-  store write, so their store subscriptions in `wire.ts` void the alert of
-  anything no longer running and cover the tray, the toggle and a delete at once
+  `alert/notify.ts` holds it and each surface has its own, so withdrawing the
+  timer's notification cannot clear Sports', while `voidAlert` (`alert/void.ts`)
+  is the decision — one alert, shown in two places, hidden in both — and is
+  what every path reaches. Which path is the honest trigger differs by kind,
+  and neither is a `close()` remembered at a call site: Sports stops by a
+  store write, so its store subscription in `wire.ts` voids the alert of
+  anything no longer running and covers the tray, the toggle and a delete at once
   (`voidStopped` is told what _is_ running, because "not in the list" is how a
   delete reads); the timer has no store, so one `stopTimer` closure is what the
   tray, `IPC.stopTimer` and `IPC.stopFromAlert` all call, which is why those two
@@ -317,11 +307,10 @@ waits for the seam to appear, because `electron.launch()` resolves before
   service instead, because a run reaching its own last phase also lands on idle,
   and "Timer finished" is the one alert the user still wants standing. Only the
   matching alert is voided: the overlay windows are already separate per kind, and
-  within a kind the controller answers which one it is showing — for reminders,
-  the same ownership its Stop already had, and for the timer `wireAlerts`'
-  queue — so a reminder stopped while another's overlay is up, or a run stopped
-  while a second run's boundary is on screen, leaves that overlay alone and
-  merely drops itself from the queue it was waiting in.
+  within a kind the controller answers which one it is showing — Sports by the
+  same ownership its Stop already had, and the timer by `wireAlerts`' queue —
+  so a run stopped while a second run's boundary is on screen leaves that
+  overlay alone and merely drops itself from the queue it was waiting in.
 - **Transitions are intrusive.** Native notification _plus_ a borderless
   always-on-top overlay that must be dismissed or snoozed. A notification alone
   is missed in Do Not Disturb and fullscreen — the exact moments it matters.
@@ -335,20 +324,11 @@ waits for the seam to appear, because `electron.launch()` resolves before
   end is already in the past is declined, and a second click on one overlay
   extends the current snooze instead of stepping back twice: a snooze must only
   ever move time forwards.
-- **A reminder waits for its answer before starting the next interval.** A fired
-  step leaves its run with `nextFireAt: null` until Done (`withConfirmed`) or
-  Snooze answers it, so an interval is never spent ignoring an overlay and a
-  reminder whose interval passed six times while the app was closed asks once.
-  The engine's schedule therefore changes without anything coming due, which is
-  what `ReminderService.onScheduleChange` is for: persistence and the pushed list
-  follow the schedule, and only the overlay follows the firings. `ReminderView`
-  carries `awaiting` because "waiting for you" and "not scheduled" are different
-  things for a row to say.
-- **The stats pane reads the three logs as one week.** Phases, reminders and
-  Sports each have their own log and their own summariser, but the day a stretch
-  of standing landed on is the day the pushups did or did not — so the pane joins
-  them on the calendar day (`zipWeek` in `src/renderer/src/week.ts`) and draws
-  one row per day, not three lists of `YYYY-MM-DD`. Phase minutes are what a row
+- **The stats pane reads both logs as one week.** Phases and Sports each have
+  their own log and their own summariser, but the day a stretch of standing
+  landed on is the day the situps did or did not — so the pane joins them on
+  the calendar day (`zipWeek` in `src/renderer/src/week.ts`) and draws one row
+  per day, not two lists of `YYYY-MM-DD`. Phase minutes are what a row
   is drawn at, scaled to the busiest day of the week rather than to the day's own
   maximum, because a row is read against its neighbours; reps and kilometres are
   counted beside them, because they share no scale with minutes. A label's accent

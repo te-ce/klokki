@@ -13,10 +13,10 @@ export const SPORTS_SCHEMA_VERSION = 1
 const FILE_NAME = 'sports.json'
 
 /**
- * Ships with a routine already filled in — situps, squats, pushups — unlike
- * reminders, which start empty: the request is a default the app already
- * knows, not something opt-in the user has to invent first. Off by default,
- * the same as any other schedule the user hasn't started yet.
+ * Ships with a routine already filled in — situps, squats, pushups — a
+ * default the app already knows rather than something the user has to
+ * invent first. Off by default, the same as any other schedule the user
+ * hasn't started yet.
  */
 export const DEFAULT_SPORTS_SETTINGS: SportSettings = {
   intervalMinutes: 60,
@@ -69,8 +69,7 @@ export const loadSportSettings = (dir: string): SportSettings => {
 
 /**
  * The main process's live Sports settings — one object, not a CRUD list:
- * there is only ever one Sports schedule. Mirrors `ReminderStore`'s
- * save/subscribe shape.
+ * there is only ever one Sports schedule.
  */
 export type SportStore = {
   readonly get: () => SportSettings

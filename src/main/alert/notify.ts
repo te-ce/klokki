@@ -9,7 +9,7 @@ import type { NotificationText } from './notification'
  * next one supersedes it or something withdraws it. That is the whole reason
  * this is an adapter and not a function: the decision of *when* an alert is
  * void lives above the ports (see alert/void.ts), and one notifier per surface
- * is what keeps a stopped reminder from taking Sports' notification with it.
+ * is what keeps a stopped run from taking Sports' notification with it.
  */
 export type Notifier = {
   readonly notify: (text: NotificationText) => void

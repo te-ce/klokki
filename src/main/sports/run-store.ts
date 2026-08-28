@@ -27,8 +27,7 @@ const decode = (raw: string): SportRunState | null => {
 
 /**
  * Sports' `nextFireAt`, so a firing due in 90 minutes is still due in 90
- * minutes after a relaunch — the Sports counterpart to `ReminderRunStore`,
- * for a single schedule instead of an array of them.
+ * minutes after a relaunch — the single schedule this app has.
  */
 export type SportRunStore = {
   readonly save: (state: SportRunState) => void

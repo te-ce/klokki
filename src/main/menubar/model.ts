@@ -1,6 +1,5 @@
 import { skipLabel, startLabel } from '../../shared/labels'
 import type { Preset } from '../../shared/preset'
-import type { ReminderView } from '../../shared/reminder'
 import type { SportsView } from '../../shared/sport'
 import type { RunView, TimerView } from '../../shared/timer'
 
@@ -21,8 +20,6 @@ export type MenubarAction =
   | { readonly kind: 'confirm'; readonly runId: string }
   | { readonly kind: 'addTime'; readonly runId: string }
   | { readonly kind: 'start'; readonly presetId: string }
-  | { readonly kind: 'startReminder'; readonly reminderId: string }
-  | { readonly kind: 'stopReminder'; readonly reminderId: string }
   | { readonly kind: 'startSports' }
   | { readonly kind: 'stopSports' }
   | { readonly kind: 'fireSportsNow' }
@@ -96,8 +93,8 @@ const trayTitle = (runs: readonly RunView[]): string =>
  * Skip is not offered beside it because there is nothing running to cut short:
  * starting the phase it names *is* the skip.
  *
- * Every command carries the preset's name, the way `Stop Drink water` does under
- * Reminders. Two runs both offering a bare "Stop" would be two identical items
+ * Every command carries the preset's name, the way Sports' own Stop carries
+ * "Sports". Two runs both offering a bare "Stop" would be two identical items
  * in one menu, and which of them a click landed on would be a matter of reading
  * the heading above it.
  */
@@ -138,58 +135,15 @@ const runItems = (run: RunView): readonly MenubarItem[] => {
 }
 
 /**
- * Starting a reminder from the tray, the same way a preset is started from it.
+ * Starting or stopping Sports from the tray, the same way a preset is started
+ * from it.
  *
- * A reminder has no countdown to put in the title, but starting one is the same
- * decision as starting a preset — "begin nudging me about this now" — and
- * requiring the settings window for it made the one thing the menubar is for
- * (acting without opening a window) unavailable to half the app. "Restart" is
- * offered for a reminder already scheduled, because a start pushes its next
- * firing a full interval out, which is a real thing to want.
- *
- * "Stop" sits beside it for a reminder that is on — turning one off is the
- * other half of the same promise, and it should not need the settings window
- * either. It is offered on `enabled` rather than `nextFireAt`, because a
- * reminder waiting on an unanswered step has no `nextFireAt` but is very much
- * on, and disabling it is exactly what stops that wait — unlike Start/Restart,
- * which name what a click does to the schedule and so still read by it.
- *
- * The heading is there because "Start Water" reads as a preset otherwise, and a
- * menu of two lists with nothing between them names neither.
- */
-const reminderItems = (
-  reminders: readonly ReminderView[],
-): readonly MenubarItem[] => {
-  if (reminders.length === 0) return []
-
-  return [
-    { kind: 'separator' },
-    { kind: 'label', label: 'Reminders' },
-    ...reminders.flatMap((reminder): readonly MenubarItem[] => [
-      {
-        kind: 'command',
-        label: startLabel(reminder.name, reminder.nextFireAt !== null),
-        action: { kind: 'startReminder', reminderId: reminder.id },
-      },
-      ...(reminder.enabled
-        ? [
-            {
-              kind: 'command',
-              label: `Stop ${reminder.name}`,
-              action: { kind: 'stopReminder', reminderId: reminder.id },
-            } as const,
-          ]
-        : []),
-    ]),
-  ]
-}
-
-/**
- * Starting or stopping Sports from the tray — the single-schedule
- * counterpart to `reminderItems`. There is only ever one Sports schedule, so
- * there is one Start/Restart command rather than a list, and the heading
- * only appears once Sports actually has an activity to ask about — a
- * settings window opened but never filled in shows nothing here.
+ * There is only ever one Sports schedule, so there is one Start/Restart
+ * command rather than a list, and the heading only appears once Sports
+ * actually has an activity to ask about — a settings window opened but never
+ * filled in shows nothing here. "Restart" is offered for a schedule already
+ * running, because a start pushes its next firing a full interval out, which
+ * is a real thing to want.
  */
 const sportsItems = (sports: SportsView): readonly MenubarItem[] => {
   if (sports.activities.length === 0) return []
@@ -251,7 +205,6 @@ const NO_SPORTS: SportsView = {
 export const menubarModel = (
   view: TimerView,
   presets: readonly Preset[],
-  reminders: readonly ReminderView[],
   sports: SportsView = NO_SPORTS,
 ): MenubarModel => ({
   title: trayTitle(view.runs),
@@ -272,7 +225,6 @@ export const menubarModel = (
       ),
       action: { kind: 'start', presetId: preset.id },
     })),
-    ...reminderItems(reminders),
     ...sportsItems(sports),
     { kind: 'separator' },
     { kind: 'command', label: 'Settings…', action: { kind: 'settings' } },

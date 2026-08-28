@@ -54,29 +54,6 @@ exports[`what the menubar says > matches its snapshot while running 1`] = `
       "kind": "separator",
     },
     {
-      "kind": "label",
-      "label": "Reminders",
-    },
-    {
-      "action": {
-        "kind": "startReminder",
-        "reminderId": "water",
-      },
-      "kind": "command",
-      "label": "Start Drink water",
-    },
-    {
-      "action": {
-        "kind": "stopReminder",
-        "reminderId": "water",
-      },
-      "kind": "command",
-      "label": "Stop Drink water",
-    },
-    {
-      "kind": "separator",
-    },
-    {
       "action": {
         "kind": "settings",
       },
@@ -176,29 +153,6 @@ exports[`what the menubar says > matches its snapshot with two presets running a
       },
       "kind": "command",
       "label": "Restart Sit / stand",
-    },
-    {
-      "kind": "separator",
-    },
-    {
-      "kind": "label",
-      "label": "Reminders",
-    },
-    {
-      "action": {
-        "kind": "startReminder",
-        "reminderId": "water",
-      },
-      "kind": "command",
-      "label": "Start Drink water",
-    },
-    {
-      "action": {
-        "kind": "stopReminder",
-        "reminderId": "water",
-      },
-      "kind": "command",
-      "label": "Stop Drink water",
     },
     {
       "kind": "separator",

@@ -4,21 +4,12 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { IPC, PUSH } from '../shared/ipc'
 import type { Preset } from '../shared/preset'
-import type { ReminderDefinition } from '../shared/reminder'
 import type { SportSettings } from '../shared/sport'
-import {
-  createHistory,
-  createReminderHistory,
-  createSportsHistory,
-} from './history'
+import { createHistory, createSportsHistory } from './history'
 import type { NotificationText } from './alert/notification'
 import type { ViewTarget } from './ipc/broadcast'
 import type { MenubarAction, MenubarItem } from './menubar/surface'
 import type { PresetStore } from './presets/store'
-import type { RemindersState } from './reminders/engine'
-import type { ReminderRunStore } from './reminders/run-store'
-import { createReminderService } from './reminders/service'
-import type { ReminderStore } from './reminders/store'
 import type { SportRunState } from './sports/engine'
 import type { SportRunStore } from './sports/run-store'
 import { createSportsService } from './sports/service'
@@ -126,50 +117,6 @@ const fakeSnapshot = (initial: readonly TimerState[] = []) => {
   return store
 }
 
-/** A reminder store with no file behind it. */
-const fakeReminderStore = (
-  reminders: readonly ReminderDefinition[] = [],
-): ReminderStore => {
-  let list = reminders
-  const listeners = new Set<(next: readonly ReminderDefinition[]) => void>()
-  return {
-    list: () => list,
-    save: (definition) => {
-      list = [...list.filter((d) => d.id !== definition.id), definition]
-      for (const listener of listeners) listener(list)
-      return { ok: true }
-    },
-    remove: (id) => {
-      list = list.filter((d) => d.id !== id)
-      for (const listener of listeners) listener(list)
-    },
-    setEnabled: (id, enabled) => {
-      list = list.map((d) => (d.id === id ? { ...d, enabled } : d))
-      for (const listener of listeners) listener(list)
-    },
-    subscribe: (listener) => {
-      listeners.add(listener)
-      return () => listeners.delete(listener)
-    },
-  }
-}
-
-/** A reminder run store with no file behind it, seeded with an optional saved run. */
-const fakeReminderRunStore = (
-  initial: RemindersState = [],
-): ReminderRunStore & { load: () => RemindersState } => {
-  let saved = initial
-  return {
-    save: (state) => {
-      saved = state
-    },
-    clear: () => {
-      saved = []
-    },
-    load: () => saved,
-  }
-}
-
 /** A Sports store with no file behind it. */
 const fakeSportsStore = (
   initial: SportSettings = {
@@ -217,8 +164,6 @@ const build = (
   initialSnapshot: readonly TimerState[] = [],
   options: {
     presets?: readonly Preset[]
-    reminders?: readonly ReminderDefinition[]
-    reminderRun?: RemindersState
     sports?: SportSettings
     sportsRun?: SportRunState
   } = {},
@@ -228,19 +173,12 @@ const build = (
     mkdtempSync(join(tmpdir(), 'klokki-wire-')),
     clock,
   )
-  const reminderHistory = createReminderHistory(
-    mkdtempSync(join(tmpdir(), 'klokki-wire-reminder-history-')),
-    clock,
-  )
   const sportsHistory = createSportsHistory(
     mkdtempSync(join(tmpdir(), 'klokki-wire-sports-history-')),
     clock,
   )
   const service = createTimerService(clock)
   const snapshot = fakeSnapshot(initialSnapshot)
-  const reminderStore = fakeReminderStore(options.reminders)
-  const reminderService = createReminderService(clock)
-  const reminderRunStore = fakeReminderRunStore(options.reminderRun)
   const sportsStore = fakeSportsStore(options.sports)
   const sportsService = createSportsService(clock)
   const sportsRunStore = fakeSportsRunStore(options.sportsRun)
@@ -252,12 +190,6 @@ const build = (
   // and the notification is taken back, so a stop is asserted on both.
   const alerts = { notify: notifier(), withdraw: vi.fn(), showOverlay: vi.fn() }
   const overlay = { close: vi.fn() }
-  const reminderAlerts = {
-    notify: notifier(),
-    withdraw: vi.fn(),
-    showOverlay: vi.fn(),
-  }
-  const reminderOverlay = { close: vi.fn() }
   const sportsAlerts = {
     notify: notifier(),
     withdraw: vi.fn(),
@@ -271,11 +203,7 @@ const build = (
     service,
     store,
     history,
-    reminderHistory,
     snapshot,
-    reminderStore,
-    reminderService,
-    reminderRunStore,
     sportsHistory,
     sportsStore,
     sportsService,
@@ -288,8 +216,6 @@ const build = (
     menubar,
     alerts,
     overlay,
-    reminderAlerts,
-    reminderOverlay,
     sportsAlerts,
     sportsOverlay,
     windows: {
@@ -308,21 +234,15 @@ const build = (
     ports,
     store,
     history,
-    reminderHistory,
     sportsHistory,
     service,
     snapshot,
-    reminderStore,
-    reminderService,
-    reminderRunStore,
     sportsStore,
     sportsService,
     sportsRunStore,
     menubar,
     alerts,
     overlay,
-    reminderAlerts,
-    reminderOverlay,
     sportsAlerts,
     sportsOverlay,
     openWindow: () => {
@@ -889,321 +809,6 @@ describe('the running timer, saved for a restart', () => {
     expect(wired.menubar.title()).toBe(' Break ready')
     expect(wired.invoke(IPC.confirmNext, 'pomodoro')).toBe(true)
     expect(wired.menubar.title()).toBe(' Break 05:00')
-  })
-})
-
-describe('reminders, saved for a restart', () => {
-  const water: ReminderDefinition = {
-    id: 'water',
-    name: 'Drink water',
-    intervalMinutes: 30,
-    steps: [{ label: 'Drink a glass of water' }],
-    enabled: true,
-  }
-
-  it('schedules a reminder from the store on launch and persists it', () => {
-    const wired = build([], { reminders: [water] })
-
-    expect(wired.reminderRunStore.load()).toEqual([
-      { definitionId: 'water', nextFireAt: 30 * MINUTE, stepIndex: 0 },
-    ])
-  })
-
-  it('resumes a saved schedule instead of rescheduling fresh', () => {
-    now = 10 * MINUTE
-    const wired = build([], {
-      reminders: [water],
-      reminderRun: [
-        { definitionId: 'water', nextFireAt: 20 * MINUTE, stepIndex: 0 },
-      ],
-    })
-
-    expect(wired.reminderService.getState()).toEqual([
-      { definitionId: 'water', nextFireAt: 20 * MINUTE, stepIndex: 0 },
-    ])
-  })
-
-  it('fires a reminder that came due while the app was closed, and waits', () => {
-    now = 31 * MINUTE
-    const wired = build([], {
-      reminders: [water],
-      reminderRun: [
-        { definitionId: 'water', nextFireAt: 30 * MINUTE, stepIndex: 0 },
-      ],
-    })
-
-    // No next interval yet: the glass of water has not been answered for.
-    expect(wired.reminderService.getState()).toEqual([
-      { definitionId: 'water', nextFireAt: null, stepIndex: 0 },
-    ])
-    expect(wired.reminderAlerts.showOverlay).toHaveBeenCalledOnce()
-  })
-
-  it('starts a reminder from the tray menu, interval running from the click', () => {
-    const wired = build([], { reminders: [water] })
-    elapse(20 * MINUTE)
-
-    expect(wired.menubar.clickMenuItem('Restart Drink water')).toBe(true)
-
-    expect(wired.reminderService.getState()).toEqual([
-      { definitionId: 'water', nextFireAt: 50 * MINUTE, stepIndex: 0 },
-    ])
-    expect(wired.reminderRunStore.load()).toEqual([
-      { definitionId: 'water', nextFireAt: 50 * MINUTE, stepIndex: 0 },
-    ])
-  })
-
-  it('enables a disabled reminder started from the tray menu', () => {
-    const wired = build([], {
-      reminders: [{ ...water, enabled: false }],
-    })
-
-    expect(wired.menubar.clickMenuItem('Start Drink water')).toBe(true)
-
-    expect(wired.reminderStore.list()).toEqual([water])
-    expect(wired.reminderService.getState()).toEqual([
-      { definitionId: 'water', nextFireAt: 30 * MINUTE, stepIndex: 0 },
-    ])
-  })
-
-  it('starts the next interval from the answer, not from the boundary', () => {
-    const wired = build([], { reminders: [water] })
-    elapse(30 * MINUTE)
-    // Five minutes to get to the overlay: the next glass is thirty minutes
-    // after the answer, so the wait is not taken out of the interval.
-    elapse(5 * MINUTE)
-
-    wired.invoke(IPC.completeReminder, null)
-
-    expect(wired.reminderService.getState()).toEqual([
-      { definitionId: 'water', nextFireAt: 65 * MINUTE, stepIndex: 0 },
-    ])
-  })
-
-  it('schedules a reminder created after launch, and persists it', () => {
-    const wired = build()
-
-    wired.reminderStore.save(water)
-
-    expect(wired.reminderRunStore.load()).toEqual([
-      { definitionId: 'water', nextFireAt: 30 * MINUTE, stepIndex: 0 },
-    ])
-  })
-
-  it('drops the schedule when a reminder is disabled', () => {
-    const wired = build([], { reminders: [water] })
-
-    wired.reminderStore.setEnabled('water', false)
-
-    expect(wired.reminderRunStore.load()).toEqual([])
-    expect(wired.reminderService.getState()).toEqual([])
-  })
-
-  it('pushes the reminder list, joined with its schedule, to every open window', () => {
-    const wired = build()
-    const window = wired.openWindow()
-
-    wired.reminderStore.save(water)
-
-    expect(window.on(PUSH.reminders)).toEqual([
-      {
-        channel: PUSH.reminders,
-        payload: [{ ...water, nextFireAt: 30 * MINUTE, awaiting: false }],
-      },
-    ])
-  })
-
-  it('reflects a disabled reminder losing its schedule in the pushed list', () => {
-    const wired = build([], { reminders: [water] })
-    const window = wired.openWindow()
-
-    wired.reminderStore.setEnabled('water', false)
-
-    expect(window.on(PUSH.reminders).at(-1)).toEqual({
-      channel: PUSH.reminders,
-      payload: [
-        { ...water, enabled: false, nextFireAt: null, awaiting: false },
-      ],
-    })
-  })
-
-  it('shows both halves of the alert when a reminder comes due', () => {
-    const wired = build([], { reminders: [water] })
-
-    elapse(30 * MINUTE)
-
-    expect(wired.reminderAlerts.notify).toHaveBeenCalledOnce()
-    expect(wired.reminderAlerts.showOverlay).toHaveBeenCalledWith({
-      label: 'Drink a glass of water',
-      unit: null,
-    })
-  })
-
-  it('reschedules the same step on snooze rather than skipping it', () => {
-    const wired = build([], { reminders: [water] })
-    elapse(30 * MINUTE)
-
-    expect(wired.invoke(IPC.snoozeReminder, 10 * MINUTE)).toBe(true)
-
-    expect(wired.reminderOverlay.close).toHaveBeenCalledOnce()
-    expect(wired.reminderService.getState()).toEqual([
-      { definitionId: 'water', nextFireAt: 40 * MINUTE, stepIndex: 0 },
-    ])
-  })
-
-  it('closes the overlay and lets the engine advance on Done', () => {
-    const wired = build([], { reminders: [water] })
-    elapse(30 * MINUTE)
-
-    wired.invoke(IPC.completeReminder, null)
-
-    expect(wired.reminderOverlay.close).toHaveBeenCalledOnce()
-  })
-
-  it('disables the reminder the overlay was showing, leaving nothing half-fired', () => {
-    const wired = build([], { reminders: [water] })
-    elapse(30 * MINUTE)
-
-    wired.invoke(IPC.stopReminderFromAlert)
-
-    // The tray's stop path exactly: the definition is off, so the store's
-    // subscriber drops the run rather than leaving it waiting for an answer
-    // that can no longer be given.
-    expect(wired.reminderStore.list()).toEqual([{ ...water, enabled: false }])
-    expect(wired.reminderService.getState()).toEqual([])
-    expect(wired.reminderRunStore.load()).toEqual([])
-    expect(wired.reminderOverlay.close).toHaveBeenCalledOnce()
-    // Neither done nor deferred: nothing lands in the log.
-    expect(wired.reminderHistory.stats().today.quantityByLabel).toEqual([])
-
-    // And it stays quiet however long the interval it would have had.
-    elapse(60 * MINUTE)
-    expect(wired.reminderAlerts.showOverlay).toHaveBeenCalledOnce()
-  })
-
-  it('stops the reminder from the notification the same alert raised', () => {
-    const wired = build([], { reminders: [water] })
-    elapse(30 * MINUTE)
-
-    const [text] = wired.reminderAlerts.notify.mock.calls[0] ?? []
-    expect(text?.actions.map((action) => action.label)).toEqual([
-      'Stop Reminder',
-    ])
-    text?.actions[0]?.run()
-
-    expect(wired.reminderService.getState()).toEqual([])
-    expect(wired.reminderOverlay.close).toHaveBeenCalledOnce()
-  })
-
-  it('queues a second reminder due before the first is answered', () => {
-    const pushups: ReminderDefinition = {
-      id: 'pushups',
-      name: 'Pushups',
-      intervalMinutes: 30,
-      steps: [{ label: 'Pushups', unit: 'reps' }],
-      enabled: true,
-    }
-    const wired = build([], { reminders: [water, pushups] })
-
-    elapse(30 * MINUTE)
-
-    expect(wired.reminderAlerts.showOverlay).toHaveBeenCalledTimes(1)
-
-    wired.invoke(IPC.completeReminder, null)
-
-    expect(wired.reminderAlerts.showOverlay).toHaveBeenCalledTimes(2)
-    expect(wired.reminderAlerts.showOverlay).toHaveBeenLastCalledWith({
-      label: 'Pushups',
-      unit: 'reps',
-    })
-  })
-
-  it('voids the alert of a reminder turned off from the settings window', () => {
-    const wired = build([], { reminders: [water] })
-    elapse(30 * MINUTE)
-
-    wired.invoke(IPC.setReminderEnabled, 'water', false)
-
-    // The store is the trigger, so a stop made anywhere but the overlay lands
-    // here without anything having to remember to close a window.
-    expect(wired.reminderOverlay.close).toHaveBeenCalledOnce()
-    expect(wired.reminderAlerts.withdraw).toHaveBeenCalledOnce()
-    expect(wired.reminderService.getState()).toEqual([])
-  })
-
-  it('voids the alert of a reminder deleted while it was waiting', () => {
-    const wired = build([], { reminders: [water] })
-    elapse(30 * MINUTE)
-
-    wired.invoke(IPC.deleteReminder, 'water')
-
-    expect(wired.reminderOverlay.close).toHaveBeenCalledOnce()
-    expect(wired.reminderAlerts.withdraw).toHaveBeenCalledOnce()
-  })
-
-  it('voids the alert of a reminder stopped from the tray', () => {
-    const wired = build([], { reminders: [water] })
-    elapse(30 * MINUTE)
-
-    expect(wired.menubar.clickMenuItem('Stop Drink water')).toBe(true)
-
-    expect(wired.reminderOverlay.close).toHaveBeenCalledOnce()
-    expect(wired.reminderAlerts.withdraw).toHaveBeenCalledOnce()
-  })
-
-  it('leaves the overlay of a reminder that is still running standing', () => {
-    const pushups: ReminderDefinition = {
-      id: 'pushups',
-      name: 'Pushups',
-      intervalMinutes: 30,
-      steps: [{ label: 'Pushups', unit: 'reps' }],
-      enabled: true,
-    }
-    const wired = build([], { reminders: [water, pushups] })
-    elapse(30 * MINUTE)
-
-    // Water is showing; pushups is queued behind it.
-    wired.invoke(IPC.setReminderEnabled, 'pushups', false)
-
-    // The glass of water is still perfectly answerable, so its alert stands.
-    expect(wired.reminderOverlay.close).not.toHaveBeenCalled()
-    expect(wired.reminderAlerts.withdraw).not.toHaveBeenCalled()
-
-    // And the reminder stopped behind it never gets its turn.
-    wired.invoke(IPC.completeReminder, null)
-    expect(wired.reminderAlerts.showOverlay).toHaveBeenCalledOnce()
-  })
-
-  it('logs a Done answer to reminder history and tells every open window', () => {
-    const pushups: ReminderDefinition = {
-      id: 'pushups',
-      name: 'Pushups',
-      intervalMinutes: 30,
-      steps: [{ label: 'Pushups', unit: 'reps' }],
-      enabled: true,
-    }
-    const wired = build([], { reminders: [pushups] })
-    const window = wired.openWindow()
-    elapse(30 * MINUTE)
-
-    wired.invoke(IPC.completeReminder, 20)
-
-    expect(wired.reminderHistory.stats().today.quantityByLabel).toEqual([
-      { label: 'Pushups', quantity: 20 },
-    ])
-    expect(window.on(PUSH.historyChanged).length).toBeGreaterThan(0)
-  })
-
-  it('logs a successful Snooze answer to reminder history', () => {
-    const wired = build([], { reminders: [water] })
-    const window = wired.openWindow()
-    elapse(30 * MINUTE)
-
-    wired.invoke(IPC.snoozeReminder, 10 * MINUTE)
-
-    // A snoozed step logs no quantity, but the line was written — the same
-    // re-read cue as any other stretch landing in a log.
-    expect(window.on(PUSH.historyChanged).length).toBeGreaterThan(0)
   })
 })
 

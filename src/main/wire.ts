@@ -3,7 +3,7 @@ import { ADD_TIME_MS } from '../shared/timer'
 import { createAlertPresenter, type AlertSurface } from './alert/present'
 import { voidAlert } from './alert/void'
 import { wireAlerts } from './alert/wire'
-import type { History, ReminderHistory, SportsHistory } from './history'
+import type { History, SportsHistory } from './history'
 import { recordHistory } from './history/record'
 import {
   createViewBroadcaster,
@@ -15,18 +15,7 @@ import type { LoginItem } from './login-item'
 import { createMenubar, type Menubar } from './menubar'
 import type { MenubarSurface } from './menubar/surface'
 import { startPresetById } from './presets/start'
-import { startReminderById, stopReminderById } from './reminders/start'
 import type { PresetStore } from './presets/store'
-import type { RemindersState } from './reminders/engine'
-import {
-  createReminderAlertPresenter,
-  type ReminderAlertSurface,
-} from './reminders/present'
-import type { ReminderRunStore } from './reminders/run-store'
-import type { ReminderService } from './reminders/service'
-import type { ReminderStore } from './reminders/store'
-import { createReminderViewSource } from './reminders/view-source'
-import { wireReminderAlerts } from './reminders/wire'
 import {
   fireSportsNow,
   logSports,
@@ -64,14 +53,8 @@ export type AppPorts = {
   readonly service: TimerService
   readonly store: PresetStore
   readonly history: History
-  readonly reminderHistory: ReminderHistory
   readonly snapshot: SnapshotStore & {
     readonly load: () => readonly TimerState[]
-  }
-  readonly reminderStore: ReminderStore
-  readonly reminderService: ReminderService
-  readonly reminderRunStore: ReminderRunStore & {
-    readonly load: () => RemindersState
   }
   readonly sportsHistory: SportsHistory
   readonly sportsStore: SportStore
@@ -85,8 +68,6 @@ export type AppPorts = {
   readonly menubar: MenubarSurface
   readonly alerts: AlertSurface
   readonly overlay: OverlayControl
-  readonly reminderAlerts: ReminderAlertSurface
-  readonly reminderOverlay: OverlayControl
   readonly sportsAlerts: SportsAlertSurface
   readonly sportsOverlay: OverlayControl
   readonly windows: {
@@ -94,7 +75,7 @@ export type AppPorts = {
   }
   readonly openSettings: () => void
   readonly quit: () => void
-  /** For the loggedAt stamp on a reminder answer. Defaults to the system clock. */
+  /** For the loggedAt stamp on a Sports answer. Defaults to the system clock. */
   readonly clock?: Clock
 }
 
@@ -117,74 +98,10 @@ export const wireApp = (ports: AppPorts): WiredApp => {
   // One per kind: an alert is void when the thing that raised it stops, and
   // voiding it is closing the overlay *and* withdrawing the notification —
   // both halves, because it was one alert (see alert/void.ts). Each kind voids
-  // only its own, which is what keeps a stopped reminder from clearing the
-  // transition overlay.
+  // only its own, which is what keeps a stopped Sports firing from clearing
+  // the transition overlay.
   const voidTimerAlert = voidAlert(ports.alerts, ports.overlay)
-  const voidReminderAlert = voidAlert(
-    ports.reminderAlerts,
-    ports.reminderOverlay,
-  )
   const voidSportsAlert = voidAlert(ports.sportsAlerts, ports.sportsOverlay)
-
-  const reminderAlerts = wireReminderAlerts(
-    {
-      subscribe: ports.reminderService.subscribe,
-      snooze: ports.reminderService.snooze,
-      confirm: ports.reminderService.confirm,
-      // The tray's stop path, unchanged: a reminder stopped from its overlay is
-      // a reminder disabled, which is what drops its schedule.
-      stop: (id) => stopReminderById(ports.reminderStore, id),
-    },
-    // The notification's Stop button stops whatever the overlay is showing when
-    // it is clicked — the controller's own answer, so the two halves of one
-    // alert cannot stop different things.
-    createReminderAlertPresenter(ports.reminderAlerts, () =>
-      reminderAlerts.stop(),
-    ),
-    voidReminderAlert,
-    ports.reminderHistory.append,
-    ports.clock ?? systemClock,
-  )
-
-  const persistReminderRun = (): void =>
-    ports.reminderRunStore.save(ports.reminderService.getState())
-
-  // Restores what was scheduled before the restart, then reconciles against
-  // the store: a reminder created or enabled since the last save has no saved
-  // run yet and is scheduled fresh, one disabled or deleted since is dropped.
-  ports.reminderService.resume(
-    ports.reminderRunStore.load(),
-    ports.reminderStore.list(),
-  )
-  ports.reminderService.setDefinitions(ports.reminderStore.list())
-  persistReminderRun()
-
-  const unwireReminderStore = ports.reminderStore.subscribe((list) => {
-    ports.reminderService.setDefinitions(list)
-    persistReminderRun()
-    // The store is where every stop of a reminder ends up — the tray's item,
-    // the settings window's toggle, a delete — so it is also the honest place
-    // to notice that an alert has outlived the reminder behind it. Nothing has
-    // to remember to void anything; a reminder that is no longer in the list
-    // enabled is a reminder with no firing left to answer.
-    reminderAlerts.voidStopped((id) =>
-      list.some((definition) => definition.id === id && definition.enabled),
-    )
-  })
-  // Every change to the schedule is worth saving, not only a firing: an
-  // answered reminder's next interval starts at the answer, and a restart from
-  // the tray moves it too.
-  const unwireReminderTick = ports.reminderService.onScheduleChange(() => {
-    persistReminderRun()
-  })
-
-  // Built after the listeners above, so its own store/service subscriptions
-  // fire after `setDefinitions` has already updated the schedule for this
-  // change — a save picked up by the view join in the same tick it lands.
-  const reminderViewSource = createReminderViewSource(
-    ports.reminderStore,
-    ports.reminderService,
-  )
 
   const sportsAlerts = wireSportsAlerts(
     {
@@ -204,7 +121,8 @@ export const wireApp = (ports: AppPorts): WiredApp => {
     ports.sportsRunStore.save(ports.sportsService.getState())
 
   // Restores what was scheduled before the restart, then reconciles against
-  // the store — same reasoning as the reminder resume above.
+  // the store: Sports enabled since the last save has no saved run yet and is
+  // scheduled fresh, disabled since is dropped.
   ports.sportsService.resume(
     ports.sportsRunStore.load(),
     ports.sportsStore.get(),
@@ -215,8 +133,10 @@ export const wireApp = (ports: AppPorts): WiredApp => {
   const unwireSportsStore = ports.sportsStore.subscribe((settings) => {
     ports.sportsService.setSettings(settings)
     persistSportsRun()
-    // Same trigger as the reminders above: every Sports stop is a save with
-    // `enabled: false`, wherever the user made it.
+    // The store is where every stop of Sports ends up — the tray, the settings
+    // window's toggle — so it is also the honest place to notice that an alert
+    // has outlived it: every Sports stop is a save with `enabled: false`,
+    // wherever the user made it.
     sportsAlerts.voidStopped(settings.enabled)
   })
   const unwireSportsTick = ports.sportsService.onScheduleChange(() => {
@@ -233,8 +153,6 @@ export const wireApp = (ports: AppPorts): WiredApp => {
     timer: ports.service,
     presets: ports.store,
     history: ports.history,
-    reminderHistory: ports.reminderHistory,
-    reminders: reminderViewSource,
     sportsHistory: ports.sportsHistory,
     sports: sportsViewSource,
   })
@@ -267,8 +185,8 @@ export const wireApp = (ports: AppPorts): WiredApp => {
   // overlay is left alone and its own boundary comes forward if it was queued.
   //
   // The timer is the one kind with no store behind its stop, so this closure is
-  // what the reminder and Sports store subscriptions are for the other two —
-  // and it has to be a closure rather than a subscription to `service`, because
+  // what the Sports store subscription above is for the other one — and it has
+  // to be a closure rather than a subscription to `service`, because
   // a run reaching its own last phase also leaves the collection, and *that*
   // alert is the one thing the user still wants to see.
   const stopTimer = (runId: string): void => {
@@ -282,11 +200,7 @@ export const wireApp = (ports: AppPorts): WiredApp => {
     store: ports.store,
     loginItem: ports.loginItem,
     history: ports.history,
-    reminderHistory: ports.reminderHistory,
     answerAlert: timerAlerts.answered,
-    reminderStore: ports.reminderStore,
-    reminderViews: reminderViewSource.views,
-    reminderAnswers: reminderAlerts,
     sportsHistory: ports.sportsHistory,
     sportsStore: ports.sportsStore,
     sportsViews: sportsViewSource.view,
@@ -325,7 +239,6 @@ export const wireApp = (ports: AppPorts): WiredApp => {
     {
       timer: ports.service,
       presets: ports.store,
-      reminders: reminderViewSource,
       sports: sportsViewSource,
     },
     {
@@ -346,9 +259,6 @@ export const wireApp = (ports: AppPorts): WiredApp => {
         ports.service.addTime(runId, ADD_TIME_MS)
       },
       start: (id) => startPresetById(ports.service, ports.store, id),
-      startReminder: (id) =>
-        startReminderById(ports.reminderStore, ports.reminderService, id),
-      stopReminder: (id) => stopReminderById(ports.reminderStore, id),
       startSports: () => startSports(ports.sportsStore, ports.sportsService),
       stopSports: () => stopSports(ports.sportsStore),
       fireSportsNow: () => {
@@ -366,10 +276,6 @@ export const wireApp = (ports: AppPorts): WiredApp => {
       timerAlerts.dispose()
       unwireHistory()
       unwireSnapshot()
-      unwireReminderStore()
-      unwireReminderTick()
-      reminderViewSource.dispose()
-      reminderAlerts.dispose()
       unwireSportsStore()
       unwireSportsTick()
       sportsViewSource.dispose()
@@ -377,7 +283,6 @@ export const wireApp = (ports: AppPorts): WiredApp => {
       menubar.dispose()
       broadcaster.dispose()
       ports.service.dispose()
-      ports.reminderService.dispose()
       ports.sportsService.dispose()
     },
   }

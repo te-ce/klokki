@@ -1,15 +1,14 @@
 import type { HistoryStats, LabelMinutes } from '../../shared/history'
 import type {
   LabelQuantity,
-  ReminderHistoryStats,
-} from '../../shared/reminder-history'
-import type { SportsHistoryStats } from '../../shared/sports-history'
+  SportsHistoryStats,
+} from '../../shared/sports-history'
 
 /**
- * One day of everything that happened, from all three logs at once.
+ * One day of everything that happened, from both logs at once.
  *
- * Phase minutes are what the day is drawn at; the reminder and Sports totals
- * ride alongside them as counts, because reps and kilometres share no scale with
+ * Phase minutes are what the day is drawn at; the Sports totals ride
+ * alongside them as counts, because reps and kilometres share no scale with
  * minutes and pretending otherwise is the only way to draw them together.
  */
 export type WeekDay = {
@@ -18,9 +17,8 @@ export type WeekDay = {
   readonly minutes: number
   readonly completed: number
   readonly minutesByLabel: readonly LabelMinutes[]
-  /** Reminder steps first, then Sports activities — the order the pane read in. */
   readonly counts: readonly LabelQuantity[]
-  /** Nothing in any of the three logs for this day. */
+  /** Nothing in either log for this day. */
   readonly empty: boolean
 }
 
@@ -61,10 +59,9 @@ const quantities = (
 
 const zipDay = (
   phases: HistoryStats['today'],
-  reminders: ReminderHistoryStats['today'] | undefined,
   sports: SportsHistoryStats['today'] | undefined,
 ): WeekDay => {
-  const counts = [...quantities(reminders), ...quantities(sports)]
+  const counts = quantities(sports)
   const minutes = total(phases.minutesByLabel)
 
   return {
@@ -78,27 +75,23 @@ const zipDay = (
 }
 
 /**
- * The three stats payloads as one week, joined on the calendar day.
+ * The two stats payloads as one week, joined on the calendar day.
  *
  * Joining is the view's job and nothing else here is: the days, their totals per
  * label and the seven-day window are all the main process's answers, already
  * given. What this adds is arithmetic over one payload — a day's total, the
  * week's — never a fact inferred from the timer or from a second push.
  *
- * The join is by date rather than by position, because three lists that agree on
- * length today are still three lists.
+ * The join is by date rather than by position, because two lists that agree on
+ * length today are still two lists.
  */
 export const zipWeek = (
   stats: HistoryStats,
-  reminderStats: ReminderHistoryStats,
   sportsStats: SportsHistoryStats,
 ): Week => {
-  const reminders = byDate(reminderStats.days)
   const sports = byDate(sportsStats.days)
 
-  const days = stats.days.map((day) =>
-    zipDay(day, reminders.get(day.date), sports.get(day.date)),
-  )
+  const days = stats.days.map((day) => zipDay(day, sports.get(day.date)))
 
   const weekByLabel = new Map<string, number>()
   for (const day of days)
@@ -109,7 +102,7 @@ export const zipWeek = (
       )
 
   return {
-    today: zipDay(stats.today, reminderStats.today, sportsStats.today),
+    today: zipDay(stats.today, sportsStats.today),
     days,
     labels: [...weekByLabel]
       .sort(([aLabel, a], [bLabel, b]) => b - a || aLabel.localeCompare(bLabel))

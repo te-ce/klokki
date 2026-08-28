@@ -23,8 +23,7 @@ export type SportsViewSource = {
 
 /**
  * The Sports settings joined with the engine's live schedule, re-read on
- * every store save and every schedule change — the Sports counterpart to
- * `createReminderViewSource`, for a single view instead of a list.
+ * every store save and every schedule change — the one view there is.
  */
 export const createSportsViewSource = (
   store: ViewStoreSource,

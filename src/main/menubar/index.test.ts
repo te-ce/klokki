@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Preset } from '../../shared/preset'
-import type { ReminderView } from '../../shared/reminder'
 import type { SportsView } from '../../shared/sport'
 import {
   awaitingView,
@@ -16,16 +15,6 @@ const pomodoro: Preset = {
   name: 'Pomodoro',
   loop: true,
   phases: [{ label: 'Focus', minutes: 25, notify: true }],
-}
-
-const water: ReminderView = {
-  id: 'water',
-  name: 'Drink water',
-  intervalMinutes: 30,
-  steps: [{ label: 'Drink a glass' }],
-  enabled: true,
-  nextFireAt: null,
-  awaiting: false,
 }
 
 const NO_SPORTS: SportsView = {
@@ -90,20 +79,17 @@ const fakeSurface = () => {
   return surface
 }
 
-/** A timer, a store and a reminder list, driven by hand rather than by a clock. */
+/** A timer and a preset store, driven by hand rather than by a clock. */
 const fakeSources = (
   view: TimerView,
   presets: readonly Preset[] = [pomodoro],
-  reminders: readonly ReminderView[] = [],
   sportsView: SportsView = NO_SPORTS,
 ) => {
   const timerListeners = new Set<(update: { view: TimerView }) => void>()
   const presetListeners = new Set<() => void>()
-  const reminderListeners = new Set<() => void>()
   const sportsListeners = new Set<() => void>()
   let current = view
   let list = presets
-  let reminderList = reminders
   let sportsCurrent = sportsView
 
   return {
@@ -122,13 +108,6 @@ const fakeSources = (
           return () => presetListeners.delete(listener)
         },
       },
-      reminders: {
-        views: () => reminderList,
-        subscribe: (listener: () => void) => {
-          reminderListeners.add(listener)
-          return () => reminderListeners.delete(listener)
-        },
-      },
       sports: {
         view: () => sportsCurrent,
         subscribe: (listener: () => void) => {
@@ -145,17 +124,12 @@ const fakeSources = (
       list = next
       for (const listener of presetListeners) listener()
     },
-    pushReminders: (next: readonly ReminderView[]) => {
-      reminderList = next
-      for (const listener of reminderListeners) listener()
-    },
     pushSports: (next: SportsView) => {
       sportsCurrent = next
       for (const listener of sportsListeners) listener()
     },
     timerListenerCount: () => timerListeners.size,
     presetListenerCount: () => presetListeners.size,
-    reminderListenerCount: () => reminderListeners.size,
     sportsListenerCount: () => sportsListeners.size,
   }
 }
@@ -163,8 +137,6 @@ const fakeSources = (
 const fakeActions = () => ({
   stop: vi.fn(),
   start: vi.fn(),
-  startReminder: vi.fn(),
-  stopReminder: vi.fn(),
   startSports: vi.fn(),
   stopSports: vi.fn(),
   fireSportsNow: vi.fn(),
@@ -302,40 +274,6 @@ describe('the menubar', () => {
     expect(surface.clickMenuItem('Pomodoro — Focus')).toBe(false)
   })
 
-  it('starts a reminder by id when its item is clicked', () => {
-    const surface = fakeSurface()
-    const { sources } = fakeSources(IDLE, [pomodoro], [water])
-    const actions = fakeActions()
-    createMenubar(surface, sources, actions)
-
-    expect(surface.clickMenuItem('Start Drink water')).toBe(true)
-
-    expect(actions.startReminder).toHaveBeenCalledWith('water')
-  })
-
-  it('stops a reminder by id when its item is clicked', () => {
-    const surface = fakeSurface()
-    const { sources } = fakeSources(IDLE, [pomodoro], [water])
-    const actions = fakeActions()
-    createMenubar(surface, sources, actions)
-
-    expect(surface.clickMenuItem('Stop Drink water')).toBe(true)
-
-    expect(actions.stopReminder).toHaveBeenCalledWith('water')
-  })
-
-  it('picks up a reminder created or fired without a relaunch', () => {
-    const surface = fakeSurface()
-    const { sources, pushReminders } = fakeSources(IDLE)
-    createMenubar(surface, sources, fakeActions())
-
-    pushReminders([water])
-    expect(surface.menuLabels()).toContain('Start Drink water')
-
-    pushReminders([{ ...water, nextFireAt: 1_700_000_000_000 }])
-    expect(surface.menuLabels()).toContain('Restart Drink water')
-  })
-
   it('confirms a waiting boundary from the menu', () => {
     const surface = fakeSurface()
     const { sources, pushView } = fakeSources(running('24:59'))
@@ -358,13 +296,12 @@ describe('the menubar', () => {
 
     expect(sources.timerListenerCount()).toBe(0)
     expect(sources.presetListenerCount()).toBe(0)
-    expect(sources.reminderListenerCount()).toBe(0)
     expect(sources.sportsListenerCount()).toBe(0)
   })
 
   it('starts Sports when its item is clicked', () => {
     const surface = fakeSurface()
-    const { sources } = fakeSources(IDLE, [pomodoro], [], sports)
+    const { sources } = fakeSources(IDLE, [pomodoro], sports)
     const actions = fakeActions()
     createMenubar(surface, sources, actions)
 
@@ -375,7 +312,7 @@ describe('the menubar', () => {
 
   it('stops Sports when its item is clicked', () => {
     const surface = fakeSurface()
-    const { sources } = fakeSources(IDLE, [pomodoro], [], sports)
+    const { sources } = fakeSources(IDLE, [pomodoro], sports)
     const actions = fakeActions()
     createMenubar(surface, sources, actions)
 
@@ -386,7 +323,7 @@ describe('the menubar', () => {
 
   it('picks up Sports firing without a relaunch', () => {
     const surface = fakeSurface()
-    const { sources, pushSports } = fakeSources(IDLE, [pomodoro], [], sports)
+    const { sources, pushSports } = fakeSources(IDLE, [pomodoro], sports)
     createMenubar(surface, sources, fakeActions())
 
     pushSports({ ...sports, nextFireAt: 1_700_000_000_000 })

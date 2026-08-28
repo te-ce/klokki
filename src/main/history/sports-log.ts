@@ -74,8 +74,8 @@ const readTailLines = (path: string, maxBytes: number): readonly string[] => {
 }
 
 /**
- * The append-only record of logged Sports activity — the Sports counterpart
- * to `ReminderHistoryLog`, same durability guarantees for the same reason.
+ * The append-only record of logged Sports activity — same durability
+ * guarantees as `HistoryLog`, for the same reason.
  */
 export type SportsHistoryLog = {
   readonly append: (event: SportsHistoryEvent) => void
