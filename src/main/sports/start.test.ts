@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { SportSettings } from '../../shared/sport'
-import { fireSportsNow, startSports, stopSports } from './start'
+import { fireSportsNow, logSports, startSports, stopSports } from './start'
 
 const settings: SportSettings = {
   intervalMinutes: 60,
@@ -59,6 +59,53 @@ describe('fireSportsNow', () => {
 
     expect(store.save).toHaveBeenCalledWith({ ...settings, enabled: true })
     expect(service.fireNow).toHaveBeenCalled()
+  })
+})
+
+describe('logSports', () => {
+  const store = { get: vi.fn(() => settings) }
+  const clock = { now: () => 1_700_000_000_000 }
+
+  it('records only the activities given a number', () => {
+    const record = vi.fn()
+    const service = {
+      getState: vi.fn(() => ({ scheduled: false, nextFireAt: null })),
+      start: vi.fn(),
+    }
+
+    logSports(store as never, service as never, record, { situps: 20 }, clock)
+
+    expect(record).toHaveBeenCalledWith({
+      loggedAt: 1_700_000_000_000,
+      activityId: 'situps',
+      activityLabel: 'Situps',
+      quantity: 20,
+    })
+  })
+
+  it('does not start Sports when it was not scheduled', () => {
+    const service = {
+      getState: vi.fn(() => ({ scheduled: false, nextFireAt: null })),
+      start: vi.fn(),
+    }
+
+    logSports(store as never, service as never, vi.fn(), { situps: 20 }, clock)
+
+    expect(service.start).not.toHaveBeenCalled()
+  })
+
+  it('restarts the interval when Sports was already scheduled', () => {
+    const service = {
+      getState: vi.fn(() => ({
+        scheduled: true,
+        nextFireAt: 1_700_003_600_000,
+      })),
+      start: vi.fn(),
+    }
+
+    logSports(store as never, service as never, vi.fn(), { situps: 20 }, clock)
+
+    expect(service.start).toHaveBeenCalled()
   })
 })
 

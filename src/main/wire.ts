@@ -27,7 +27,12 @@ import type { ReminderService } from './reminders/service'
 import type { ReminderStore } from './reminders/store'
 import { createReminderViewSource } from './reminders/view-source'
 import { wireReminderAlerts } from './reminders/wire'
-import { fireSportsNow, startSports, stopSports } from './sports/start'
+import {
+  fireSportsNow,
+  logSports,
+  startSports,
+  stopSports,
+} from './sports/start'
 import type { SportRunState } from './sports/engine'
 import {
   createSportsAlertPresenter,
@@ -292,20 +297,16 @@ export const wireApp = (ports: AppPorts): WiredApp => {
     stopTimer,
     // Only the activities the tab's form actually had a number for — unlike
     // the overlay's confirm, a manual log is not a full round, so an activity
-    // left blank is not "zero of it", it is "not logged this time".
-    logSports: (quantities) => {
-      const loggedAt = (ports.clock ?? systemClock).now()
-      for (const activity of ports.sportsStore.get().activities) {
-        const quantity = quantities[activity.id]
-        if (quantity === undefined) continue
-        ports.sportsHistory.append({
-          loggedAt,
-          activityId: activity.id,
-          activityLabel: activity.name,
-          quantity,
-        })
-      }
-    },
+    // left blank is not "zero of it", it is "not logged this time" — see
+    // `logSports` in sports/start.ts for the restart-only-if-running rule.
+    logSports: (quantities) =>
+      logSports(
+        ports.sportsStore,
+        ports.sportsService,
+        ports.sportsHistory.append,
+        quantities,
+        ports.clock ?? systemClock,
+      ),
     appInfo: ports.appInfo,
   })
 

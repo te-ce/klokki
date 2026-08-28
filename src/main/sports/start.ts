@@ -1,3 +1,5 @@
+import type { SportsHistoryEvent } from '../../shared/sports-history'
+import { systemClock, type Clock } from '../timer/clock'
 import type { SportsService } from './service'
 import type { SportStore } from './store'
 
@@ -30,6 +32,40 @@ export const fireSportsNow = (
   const settings = store.get()
   if (!settings.enabled) store.save({ ...settings, enabled: true })
   return service.fireNow()
+}
+
+/**
+ * Logging Sports activity from the tab, independent of the overlay and the
+ * running schedule — every activity with a number given is appended to
+ * history regardless of whether Sports is on. Unlike `startSports` and
+ * `fireSportsNow`, a manual log never turns Sports on and never schedules it
+ * from nothing: logging a set of pushups when Sports was never running is
+ * not "starting" anything. It only restarts the interval — the same full
+ * reset `startSports` gives an already-running schedule — when Sports was
+ * already scheduled before this log, so an activity logged mid-interval
+ * counts as the interval's round and the next one waits its full length
+ * again, matching what confirming an overlay would have done.
+ */
+export const logSports = (
+  store: SportStore,
+  service: SportsService,
+  record: (event: SportsHistoryEvent) => void,
+  quantities: Readonly<Record<string, number>>,
+  clock: Clock = systemClock,
+): void => {
+  const wasScheduled = service.getState().scheduled
+  const loggedAt = clock.now()
+  for (const activity of store.get().activities) {
+    const quantity = quantities[activity.id]
+    if (quantity === undefined) continue
+    record({
+      loggedAt,
+      activityId: activity.id,
+      activityLabel: activity.name,
+      quantity,
+    })
+  }
+  if (wasScheduled) service.start()
 }
 
 /**
