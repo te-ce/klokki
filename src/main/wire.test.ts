@@ -916,14 +916,28 @@ describe('Sports, all the way out', () => {
     })
   })
 
-  it('enables Sports that was off when fired from the tray', () => {
+  it('fires without enabling Sports that was off, a one-off log', () => {
     const wired = build([], { sports: { ...settings, enabled: false } })
 
     expect(wired.menubar.clickMenuItem('Log Sports Now')).toBe(true)
 
-    expect(wired.sportsStore.get().enabled).toBe(true)
+    expect(wired.sportsStore.get().enabled).toBe(false)
     expect(wired.sportsService.getState()).toEqual({
       scheduled: true,
+      nextFireAt: null,
+    })
+  })
+
+  it('drops the schedule after answering a firing forced while Sports was off', () => {
+    const wired = build([], { sports: { ...settings, enabled: false } })
+    wired.menubar.clickMenuItem('Log Sports Now')
+
+    wired.invoke(IPC.confirmSports, { situps: 10, squats: 5 })
+    elapse(1_000)
+
+    expect(wired.sportsStore.get().enabled).toBe(false)
+    expect(wired.sportsService.getState()).toEqual({
+      scheduled: false,
       nextFireAt: null,
     })
   })

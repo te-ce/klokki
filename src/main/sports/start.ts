@@ -19,19 +19,16 @@ export const startSports = (
 
 /**
  * Firing Sports right now from the tray — "Log Sports Now", for logging an
- * activity without waiting for the schedule. Enables it if it was off, the
- * same as `startSports`: firing once is still a commitment to the ones that
- * follow. The overlay it raises is answered exactly like a scheduled one, so
- * confirming it restarts the interval from that moment for free.
+ * activity without waiting for the schedule. Unlike `startSports`, this never
+ * turns Sports on: firing once is a one-off log, not a commitment to a
+ * recurring schedule, so Sports off before this stays off after. The engine
+ * fires and the overlay is answered exactly like a scheduled one regardless —
+ * `tick` already drops a disabled schedule back to stopped on its own next
+ * poll, which is what keeps the interval this raises from surviving the
+ * answer when Sports was never on.
  */
-export const fireSportsNow = (
-  store: SportStore,
-  service: SportsService,
-): boolean => {
-  const settings = store.get()
-  if (!settings.enabled) store.save({ ...settings, enabled: true })
-  return service.fireNow()
-}
+export const fireSportsNow = (service: SportsService): boolean =>
+  service.fireNow()
 
 /**
  * Logging Sports activity from the tab, independent of the overlay and the

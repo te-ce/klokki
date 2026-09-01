@@ -262,7 +262,7 @@ export const wireApp = (ports: AppPorts): WiredApp => {
       startSports: () => startSports(ports.sportsStore, ports.sportsService),
       stopSports: () => stopSports(ports.sportsStore),
       fireSportsNow: () => {
-        fireSportsNow(ports.sportsStore, ports.sportsService)
+        fireSportsNow(ports.sportsService)
       },
       openSettings: ports.openSettings,
       quit: ports.quit,

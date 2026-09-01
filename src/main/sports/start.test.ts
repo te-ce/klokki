@@ -44,20 +44,19 @@ describe('startSports', () => {
 
 describe('fireSportsNow', () => {
   it('fires Sports that was already on', () => {
-    const { store, service } = fakes(settings)
+    const { service } = fakes(settings)
 
-    expect(fireSportsNow(store, service as never)).toBe(true)
+    expect(fireSportsNow(service as never)).toBe(true)
 
-    expect(store.save).not.toHaveBeenCalled()
     expect(service.fireNow).toHaveBeenCalled()
   })
 
-  it('turns Sports on before firing it', () => {
+  it('fires without turning Sports on, a one-off log rather than a commitment', () => {
     const { store, service } = fakes({ ...settings, enabled: false })
 
-    fireSportsNow(store, service as never)
+    fireSportsNow(service as never)
 
-    expect(store.save).toHaveBeenCalledWith({ ...settings, enabled: true })
+    expect(store.save).not.toHaveBeenCalled()
     expect(service.fireNow).toHaveBeenCalled()
   })
 })
